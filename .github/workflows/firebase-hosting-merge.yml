@@ -1,0 +1,35 @@
+# Deploys the live site (pulkysim.web.app) on every push to main.
+# Gates first, then a build that refuses to run without the backend URLs
+# (pulky-game-spec.md §13.13).
+
+name: Deploy to Firebase Hosting on merge
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - run: npm ci
+      - run: npx tsc -b
+      - run: npx eslint .
+      - run: npx vitest run
+      - run: npm run build
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_SOCKET_URL: ${{ vars.VITE_SOCKET_URL }}
+          # Fail the build if either is unset or points at the Hosting origin:
+          # unset, the bundle would talk to pulkysim.web.app, whose SPA rewrite
+          # answers REST with index.html and does not proxy WebSocket upgrades.
+          REQUIRE_BACKEND_ENV: '1'
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PULKY_DA26C }}
+          channelId: live
+          projectId: pulky-da26c

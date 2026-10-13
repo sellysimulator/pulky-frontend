@@ -1,0 +1,98 @@
+/**
+ * Vitest setup file — named by `vite.config.ts`'s `test.setupFiles`.
+ * Copied from Beery_Frontend.
+ *
+ * Responsibilities, and nothing else:
+ *  - register `@testing-library/jest-dom`'s matchers,
+ *  - unmount React trees between tests,
+ *  - give every test file a clean `localStorage` AND a clean `sessionStorage`.
+ *
+ * NOTE: the two Web Storage areas are deliberately left as jsdom's real
+ * implementations. Identity storage turns on the *difference* between them
+ * (`session_token` in `localStorage`, `host_secret` in `sessionStorage`;
+ * pulky-game-spec.md §13.6), so a test double that conflates
+ * them would make the most important storage assertion unfalsifiable.
+ */
+import '@testing-library/jest-dom';
+import { afterEach, beforeEach, vi } from 'vitest';
+import { cleanup } from '@testing-library/react';
+
+/**
+ * Guarantee both Web Storage areas exist.
+ *
+ * Node's own experimental `localStorage` global is `undefined` unless the
+ * process was started with `--localstorage-file`, and on a Node newer than the
+ * pinned 20.19/22.12 it shadows the one jsdom provides — so `window.localStorage`
+ * comes back undefined while `window.sessionStorage` works. That is a property
+ * of the runtime, not of anything the app builds, so the harness fills it in
+ * rather than letting every storage assertion fail for the wrong reason.
+ */
+function ensureStorage(name: 'localStorage' | 'sessionStorage'): void {
+  const existing = (window as unknown as Record<string, unknown>)[name] as Storage | undefined;
+  if (existing && typeof existing.getItem === 'function') return;
+
+  const entries = new Map<string, string>();
+  const area: Storage = {
+    get length() {
+      return entries.size;
+    },
+    clear: () => entries.clear(),
+    getItem: (key: string) => (entries.has(String(key)) ? (entries.get(String(key)) as string) : null),
+    key: (index: number) => Array.from(entries.keys())[index] ?? null,
+    removeItem: (key: string) => {
+      entries.delete(String(key));
+    },
+    setItem: (key: string, value: string) => {
+      entries.set(String(key), String(value));
+    },
+  };
+
+  for (const target of new Set<object>([window, globalThis])) {
+    Object.defineProperty(target, name, { value: area, writable: true, configurable: true });
+  }
+}
+
+ensureStorage('localStorage');
+ensureStorage('sessionStorage');
+
+beforeEach(() => {
+  try {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+  } catch {
+    /* jsdom always provides both; ignore a hostile environment */
+  }
+  // Every test starts at the app root unless it navigates deliberately.
+  window.history.pushState({}, '', '/');
+});
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
+// jsdom gaps that component code routinely assumes exist.
+if (!window.matchMedia) {
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
+}
+
+if (!globalThis.ResizeObserver) {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+}
+
+if (!window.scrollTo) {
+  window.scrollTo = (() => {}) as unknown as typeof window.scrollTo;
+}
