@@ -1,5 +1,5 @@
 # Builds every pull request through the same gates and deploys it to a
-# preview channel (pulky-game-spec.md §13.13).
+# preview channel (docs/spec/13-deploy.md §13.13).
 
 name: Deploy to Firebase Hosting on PR
 on: pull_request

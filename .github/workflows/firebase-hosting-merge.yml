@@ -1,6 +1,6 @@
 # Deploys the live site (pulkysim.web.app) on every push to main.
 # Gates first, then a build that refuses to run without the backend URLs
-# (pulky-game-spec.md §13.13).
+# (docs/spec/13-deploy.md §13.13).
 
 name: Deploy to Firebase Hosting on merge
 on:

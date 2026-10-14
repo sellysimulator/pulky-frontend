@@ -21,7 +21,7 @@ const HOSTING_ORIGIN = /web\.app|firebaseapp\.com/
  * with `index.html` — while the socket cannot, because Firebase Hosting does
  * not proxy WebSocket upgrades. Every real-time feature then fails with
  * "Could not reach the game server" on a deploy whose own CI run was green.
- * This turns that into a red build (pulky-game-spec.md §13.13).
+ * This turns that into a red build (docs/spec/13-deploy.md §13.13).
  *
  * It is opt-in rather than always-on because `npm run build` also runs with
  * no environment at all — in the test suite's toolchain gate, and for anyone
@@ -46,7 +46,7 @@ function requireBackendEnv(env: Record<string, string>): Plugin {
         this.error(
           'Refusing to build a deploy bundle with no backend configured:\n' +
             problems.map((p) => `  - ${p}`).join('\n') +
-            '\nSee pulky-game-spec.md §13.13.',
+            '\nSee docs/spec/13-deploy.md §13.13.',
         )
       }
     },
@@ -79,7 +79,7 @@ export default defineConfig(({ mode }) => {
            * point.
            *
            * The v2 3D board adds a lazy `three` bucket here, kept out of the
-           * entry graph (pulky-game-spec.md §13.11).
+           * entry graph (docs/spec/13-screens-game.md §13.11).
            */
           manualChunks(id: string): string | undefined {
             if (!id.includes('node_modules')) return undefined
