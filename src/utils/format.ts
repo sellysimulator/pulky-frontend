@@ -1,0 +1,99 @@
+import type { QualityGuideRow, Weekday } from '../types/game'
+
+const MINUS = '−'
+const DASH = '—'
+
+const WEEKDAY_SHORT: Record<Weekday, string> = {
+  mon: 'Mon',
+  tue: 'Tue',
+  wed: 'Wed',
+  thu: 'Thu',
+  fri: 'Fri',
+  sat: 'Sat',
+  sun: 'Sun',
+}
+
+const WEEKDAY_LONG: Record<Weekday, string> = {
+  mon: 'Monday',
+  tue: 'Tuesday',
+  wed: 'Wednesday',
+  thu: 'Thursday',
+  fri: 'Friday',
+  sat: 'Saturday',
+  sun: 'Sunday',
+}
+
+function groupedAbs(value: number, decimals: number): string {
+  return Math.abs(value).toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  })
+}
+
+export function formatMoney(value: number): string {
+  const digits = groupedAbs(value, 2)
+  const negative = value < 0 && digits !== '0.00'
+  return `${negative ? MINUS : ''}$${digits}`
+}
+
+export function formatQty(value: number): string {
+  const digits = groupedAbs(value, 0)
+  return `${value < 0 && digits !== '0' ? MINUS : ''}${digits}`
+}
+
+export function formatPercent(value: number | null, digits = 0): string {
+  if (value === null) return DASH
+  return `${(value * 100).toFixed(digits)}%`
+}
+
+export function formatSignedMoney(value: number): string {
+  const digits = groupedAbs(value, 2)
+  if (digits === '0.00') return '$0.00'
+  return `${value > 0 ? '+' : MINUS}$${digits}`
+}
+
+export function weekdayShort(w: Weekday): string {
+  return WEEKDAY_SHORT[w]
+}
+
+export function weekdayLong(w: Weekday): string {
+  return WEEKDAY_LONG[w]
+}
+
+/** Spec §13.7: Safe 0%, At risk below 50%, Likely to spoil from 50%. */
+export function riskState(risk: number): 'safe' | 'at_risk' | 'likely' {
+  if (risk <= 0) return 'safe'
+  if (risk < 0.5) return 'at_risk'
+  return 'likely'
+}
+
+export const RISK_LABELS: Record<'safe' | 'at_risk' | 'likely', string> = {
+  safe: 'Safe',
+  at_risk: 'At risk',
+  likely: 'Likely to spoil',
+}
+
+export function formatQuality(quality: number): string {
+  return `${quality}%`
+}
+
+/** Spec §3.5: the risk shown beside a quality, so the pair adds up to 100. */
+export function riskFromQuality(quality: number): number {
+  return (100 - quality) / 100
+}
+
+/** Spec §3.5 guide copy; `day` is the view's day. */
+export function formatQualityGuide(row: QualityGuideRow, day: number): string {
+  const q = row.quality
+  if (q === 0) return '0%: spoils tonight · sell it today'
+  const n = row.last_day - day + 1
+  const lasts = `lasts at most ${n} ${n === 1 ? 'day' : 'days'} (through day ${row.last_day})`
+  const half =
+    row.half_spoiled_day === day
+      ? 'half spoiled tonight'
+      : `half spoiled by day ${row.half_spoiled_day}`
+  return `${q}%: ${100 - q}% risk tonight · ${half} · ${lasts}`
+}
+
+export const QUALITY_GUIDE_NOTE =
+  'Better units last longer. Conserved pulque keeps its quality for extra nights.'

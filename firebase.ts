@@ -5,7 +5,7 @@
  * visitor. Firebase security comes from Auth and API-key restrictions, not from
  * hiding them, so the values live here as literals and this file is COMMITTED.
  * Never gitignore it while `src/` imports it: CI could no longer build the
- * frontend (pulky-game-spec.md §13.13 checklist).
+ * frontend (docs/spec/13-deploy.md §13.13 checklist).
  *
  * To point the app at another project, change it here and in `.firebaserc`;
  * there is no environment override.
@@ -30,7 +30,7 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig)
 
 /**
- * `initializeAuth`, never `getAuth` (pulky-game-spec.md §13.6, [HARD-WON]).
+ * `initializeAuth`, never `getAuth` (docs/spec/13-frontend.md §13.6, [HARD-WON]).
  *
  * `getAuth()` installs `browserPopupRedirectResolver` and Auth then awaits it at
  * start-up, loading a cross-origin iframe from `authDomain` before

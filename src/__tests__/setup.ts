@@ -1,6 +1,5 @@
 /**
  * Vitest setup file — named by `vite.config.ts`'s `test.setupFiles`.
- * Copied from Beery_Frontend.
  *
  * Responsibilities, and nothing else:
  *  - register `@testing-library/jest-dom`'s matchers,
@@ -10,7 +9,7 @@
  * NOTE: the two Web Storage areas are deliberately left as jsdom's real
  * implementations. Identity storage turns on the *difference* between them
  * (`session_token` in `localStorage`, `host_secret` in `sessionStorage`;
- * pulky-game-spec.md §13.6), so a test double that conflates
+ * docs/spec/13-frontend.md §13.6), so a test double that conflates
  * them would make the most important storage assertion unfalsifiable.
  */
 import '@testing-library/jest-dom';

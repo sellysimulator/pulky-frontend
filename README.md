@@ -3,7 +3,7 @@
 React + Vite + TypeScript client for Pulky, the pulque supply game.
 
 The game, its architecture, its plumbing rules and its build order are specified in
-`../pulky-game-spec.md`, the only Pulky document.
+`../docs/spec/` (start at its `README.md`); the build plan is `../docs/plan/`.
 
 ```bash
 nvm use            # Node 20.19.0 (.nvmrc)
