@@ -1,1 +1,111 @@
 @import "tailwindcss";
+
+/* Pulky design tokens. Values and reasons: docs/design.md. Components use the
+   generated utilities, never a raw hex. Light theme only. Flat fills only. */
+
+@theme {
+  --color-*: initial; /* only Pulky's palette exists */
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* Surfaces (pulque cream): canvas < card < inset < muted */
+  --color-canvas: #f5f0e3;
+  --color-card: #fffdf8;
+  --color-inset: #faf6ec;
+  --color-muted: #efe8d7;
+  --color-overlay: rgb(38 34 27 / 0.5);
+  /* Text */
+  --color-ink: #26221b;
+  --color-ink-muted: #575044;
+  --color-ink-subtle: #6b6354;
+  --color-on-ink: #fffdf8;
+  --color-on-accent: #ffffff;
+  --color-on-danger: #ffffff;
+  /* Lines and focus */
+  --color-border: #e4dcc8;
+  --color-border-strong: #c9bea6;
+  --color-border-control: #8c8069;
+  --color-ring: #2d6a55;
+  /* Accent: agave green, the only interactive hue */
+  --color-accent: #2d6a55;
+  --color-accent-hover: #22543f;
+  --color-accent-subtle: #e2eee7;
+  --color-accent-line: #b5d0c3;
+  /* Maguey ochre */
+  --color-ochre: #a06a12;
+  --color-peak: #f7edd3;
+  /* Status: mark · ink · subtle · line */
+  --color-success: #2d6a55; --color-success-ink: #22543f; --color-success-subtle: #e2eee7; --color-success-line: #b5d0c3;
+  --color-warning: #a06a12; --color-warning-ink: #7a500e; --color-warning-subtle: #f7eacb; --color-warning-line: #e3c98f;
+  --color-danger: #b23a1e; --color-danger-ink: #8f2e16; --color-danger-subtle: #f9e1d8; --color-danger-line: #edb8a6;
+  --color-danger-hover: #932f17;
+  --color-info: #1f6f9c; --color-info-ink: #185a80; --color-info-subtle: #deebf3; --color-info-line: #b3cfe2;
+  /* Pulquerías P1..P6 (P7..P12 reuse them with a pattern) */
+  --color-p1: #2a78d6; --color-p2: #d9622b; --color-p3: #6250d6;
+  --color-p4: #a88400; --color-p5: #c9518a; --color-p6: #4a8a1f;
+  /* Measures */
+  --color-series-demand: #26221b; --color-series-delivered: #2a78d6; --color-series-sold: #4a8a1f;
+  --color-series-spoiled: #6250d6; --color-series-backlog: #d9622b; --color-series-lost: #c9518a;
+  --color-series-liquidated: #a88400;
+
+  --font-sans: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Quicksand", "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --text-xs: 0.8125rem; --text-xs--line-height: 1.125rem;
+  --text-stat: 1.75rem; --text-stat--line-height: 2rem; --text-stat--font-weight: 700;
+  --text-figure: 3rem; --text-figure--line-height: 1.05; --text-figure--font-weight: 700;
+
+  --radius-xs: 0.25rem; --radius-sm: 0.5rem; --radius-md: 0.75rem; --radius-lg: 1rem;
+  --shadow-card: 0 1px 2px rgb(38 34 27 / 0.05), 0 4px 12px -6px rgb(38 34 27 / 0.1);
+  --shadow-raised: 0 2px 4px rgb(38 34 27 / 0.06), 0 16px 32px -12px rgb(38 34 27 / 0.22);
+
+  /* Content widths: max-w-form, max-w-player, ... */
+  --container-form: 40rem; --container-player: 56rem; --container-summary: 72rem;
+  --container-config: 80rem; --container-console: 96rem;
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1); --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --default-transition-duration: 150ms;
+  --default-transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@layer base {
+  html { color-scheme: light; -webkit-text-size-adjust: 100%; }
+  /* Projection scales (design.md §4.4): every rem-based size follows the root. */
+  @media (min-width: 64rem) { html[data-scale="debrief"] { font-size: 112.5%; } }
+  html[data-scale="presentation"] { font-size: 125%; }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Quicksand ships 600 and 700 only. */
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+  h1 { font-weight: 700; }
+
+  :focus-visible { outline: 2px solid var(--color-ring); outline-offset: 2px; }
+  html[data-scale="presentation"] :focus-visible { outline-width: 3px; }
+  ::selection { background-color: var(--color-accent-subtle); color: var(--color-ink); }
+
+  /* Native spinners are 12px targets; arrow keys still step. */
+  input[type="number"] { appearance: textfield; }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@media print {
+  @page { margin: 12mm; }
+  html { font-size: 10pt; }
+  body { background-color: var(--color-white); }
+}
