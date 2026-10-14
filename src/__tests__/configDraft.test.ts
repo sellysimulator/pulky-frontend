@@ -15,9 +15,9 @@ describe('getAt', () => {
   it('reads top-level, nested and deeply nested leaves by dot path', () => {
     const c = fresh()
     expect(getAt(c, 'max_players')).toBe(4)
-    expect(getAt(c, 'stock.max_days')).toBe(4)
+    expect(getAt(c, 'stock.max_days')).toBe(3)
     expect(getAt(c, 'demand.weekday_peak.from')).toBe('thu')
-    expect(getAt(c, 'insurance.tiers.ddp.fee')).toBe(0.99)
+    expect(getAt(c, 'insurance.tiers.ddp.fee')).toBe(1.39)
     expect(getAt(c, 'peer_market.enabled')).toBe(true)
   })
 
@@ -94,7 +94,7 @@ describe('diffPatch', () => {
   it('is {} again when an edit is reverted', () => {
     const base = fresh()
     const edited = setAt(base, 'stock.max_days', 5)
-    expect(diffPatch(base, setAt(edited, 'stock.max_days', 4))).toEqual({})
+    expect(diffPatch(base, setAt(edited, 'stock.max_days', 3))).toEqual({})
   })
 
   it('compares base to draft, so the patch holds the draft values', () => {

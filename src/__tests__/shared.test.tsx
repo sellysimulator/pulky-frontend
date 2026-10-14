@@ -680,7 +680,7 @@ describe('Checkbox', () => {
 describe('RadioCards', () => {
   const options = [
     { value: 'exw', label: 'EXW', lines: ['fee $0.00/u'] },
-    { value: 'cip', label: 'CIP', lines: ['fee $0.40/u', 'refund $13.40/u'] },
+    { value: 'cip', label: 'CIP', lines: ['fee $0.55/u', 'refund $13.40/u'] },
     { value: 'dap', label: 'DAP', disabled: true },
   ]
 

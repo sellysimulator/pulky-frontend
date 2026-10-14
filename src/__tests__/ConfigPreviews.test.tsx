@@ -67,7 +67,7 @@ function riskTable(): { headers: string[]; rows: string[][] } {
 }
 
 describe('SpoilRiskPreview (acceptance 11, 12; failure mode 9)', () => {
-  it('reproduces the plan 25 §4 table for the defaults (quality 80-100 %, F 1, M 4, X 2)', () => {
+  it('reproduces the plan 25 §4 table for the defaults (quality 80-100 %, F 0, M 3, X 2)', () => {
     render(<SpoilRiskPreview config={cfg()} />)
     const { headers, rows } = riskTable()
     expect(headers).toEqual([
@@ -78,18 +78,17 @@ describe('SpoilRiskPreview (acceptance 11, 12; failure mode 9)', () => {
       'Conserved lot at 100%',
     ])
     expect(rows).toEqual([
-      ['1', '20%', '0%', '20%', '0%'],
-      ['2', '53%', '33%', '20%', '0%'],
-      ['3', '87%', '67%', '20%', '0%'],
-      ['4', '100%', '100%', '53%', '33%'],
-      ['5', '—', '—', '87%', '67%'],
-      ['6', '—', '—', '100%', '100%'],
+      ['1', '53%', '33%', '20%', '0%'],
+      ['2', '87%', '67%', '20%', '0%'],
+      ['3', '100%', '100%', '53%', '33%'],
+      ['4', '—', '—', '87%', '67%'],
+      ['5', '—', '—', '100%', '100%'],
     ])
   })
 
   it('night 1 of the plain lot at the minimum quality is its base risk, not 0 (failure mode 9)', () => {
     render(<SpoilRiskPreview config={cfg((c) => (c.supplier.quality_min = 80))} />)
-    expect(riskTable().rows[0][1]).toBe('20%')
+    expect(riskTable().rows[0][1]).toBe('53%')
   })
 
   it('has one row per night up to max_days + conservation_extra_fresh_days', () => {
@@ -108,7 +107,14 @@ describe('SpoilRiskPreview (acceptance 11, 12; failure mode 9)', () => {
   })
 
   it('follows fresh_days: F 2, M 4 puts the 100% lot at 0, 0, 50, 100', () => {
-    render(<SpoilRiskPreview config={cfg((c) => (c.stock.fresh_days = 2))} />)
+    render(
+      <SpoilRiskPreview
+        config={cfg((c) => {
+          c.stock.fresh_days = 2
+          c.stock.max_days = 4
+        })}
+      />,
+    )
     const { rows } = riskTable()
     expect(rows.slice(0, 4).map((r) => r[2])).toEqual(['0%', '0%', '50%', '100%'])
     expect(rows.slice(0, 4).map((r) => r[1])).toEqual(['20%', '20%', '70%', '100%'])
@@ -120,7 +126,7 @@ describe('SpoilRiskPreview (acceptance 11, 12; failure mode 9)', () => {
     expect(headers).toContain('Plain lot at 70%')
     expect(headers).toContain('Conserved lot at 70%')
     expect(headers).not.toContain('Plain lot at 80%')
-    expect(rows[0][1]).toBe('30%')
+    expect(rows[0][1]).toBe('63%')
   })
 
   it('has three columns when quality_min equals quality_max', () => {
@@ -135,12 +141,11 @@ describe('SpoilRiskPreview (acceptance 11, 12; failure mode 9)', () => {
     const { headers, rows } = riskTable()
     expect(headers).toEqual(['Night', 'Plain lot at 90%', 'Conserved lot at 90%'])
     expect(rows).toEqual([
-      ['1', '10%', '10%'],
-      ['2', '43%', '10%'],
-      ['3', '77%', '10%'],
-      ['4', '100%', '43%'],
-      ['5', '—', '77%'],
-      ['6', '—', '100%'],
+      ['1', '43%', '10%'],
+      ['2', '77%', '10%'],
+      ['3', '100%', '43%'],
+      ['4', '—', '77%'],
+      ['5', '—', '100%'],
     ])
   })
 })

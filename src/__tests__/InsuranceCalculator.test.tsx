@@ -76,17 +76,17 @@ describe('layout and strings (acceptance 8, 12)', () => {
 })
 
 describe('worked examples with the defaults (acceptance 8)', () => {
-  it('not shared break-evens are $0.36 / $0.36 / $0.90 and shared with 4 are $0.06 / $0.06 / $0.15', () => {
+  it('not shared break-evens are $0.50 / $0.50 / $1.26 and shared with 4 are $0.08 / $0.08 / $0.21', () => {
     mount(cfg())
     const cip = rowFor('CIP').textContent ?? ''
     const dap = rowFor('DAP').textContent ?? ''
     const ddp = rowFor('DDP').textContent ?? ''
-    expect(cip).toContain('$0.36')
-    expect(cip).toContain('$0.06')
-    expect(dap).toContain('$0.36')
-    expect(dap).toContain('$0.06')
-    expect(ddp).toContain('$0.90')
-    expect(ddp).toContain('$0.15')
+    expect(cip).toContain('$0.50')
+    expect(cip).toContain('$0.08')
+    expect(dap).toContain('$0.50')
+    expect(dap).toContain('$0.08')
+    expect(ddp).toContain('$1.26')
+    expect(ddp).toContain('$0.21')
   })
 
   it('shows Not worth it on average in all six verdict cells', () => {
@@ -111,9 +111,9 @@ describe('worked examples with the defaults (acceptance 8)', () => {
 
   it('shows the chance of at least one failure and the expected failures', () => {
     mount(cfg())
-    // 1 - 0.9^14 = 77.1 %; 0.1 x 14 = 1.4
-    expect(tileText('Chance of at least one failure', 'Expected failures')).toContain('77%')
-    expect(tileText('Expected failures', 'Chance of at least one failure')).toContain('1.4')
+    // 1 - 0.86^14 = 87.9 %; 0.14 x 14 = 1.96
+    expect(tileText('Chance of at least one failure', 'Expected failures')).toContain('88%')
+    expect(tileText('Expected failures', 'Chance of at least one failure')).toContain('2.0')
   })
 
   it('has no out-of-sync note when the fees equal feeFromMargin', () => {
@@ -133,11 +133,11 @@ describe('worked examples with the defaults (acceptance 8)', () => {
 })
 
 describe('verdict thresholds (failure mode 1)', () => {
-  // CIP break-even is 0.36 not shared. The shared column always reads Not worth it on average at these fees.
+  // CIP break-even is 0.504 not shared. The shared column always reads Not worth it on average at these fees.
   const cases: Array<[number, string]> = [
-    [0.3384, WORTH],
-    [0.36, BREAK],
-    [0.3816, NOT_WORTH],
+    [0.4738, WORTH],
+    [0.504, BREAK],
+    [0.5342, NOT_WORTH],
   ]
   for (const [fee, badge] of cases) {
     it(`CIP fee ${fee} gives ${badge}`, () => {
@@ -181,25 +181,25 @@ describe('no risk configured (failure mode 2)', () => {
 
 describe('out-of-sync note (acceptance 8)', () => {
   it('names the tier, the ratio and the target to two decimals', () => {
-    mount(cfg((c) => (c.insurance.tiers.cip.fee = 0.3384)))
+    mount(cfg((c) => (c.insurance.tiers.cip.fee = 0.4738)))
     expect(screen.getByText('CIP ratio 0.94 — target 1.10')).toBeInTheDocument()
     expect(screen.queryByText(/DAP ratio/)).toBeNull()
     expect(screen.queryByText(/DDP ratio/)).toBeNull()
   })
 
   it('sits above the Set fees from margin button', () => {
-    mount(cfg((c) => (c.insurance.tiers.cip.fee = 0.3384)))
+    mount(cfg((c) => (c.insurance.tiers.cip.fee = 0.4738)))
     const note = screen.getByText('CIP ratio 0.94 — target 1.10')
     const button = screen.getByRole('button', { name: 'Set fees from margin' })
     expect(note.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('measures against the break-even of the current sharing mode', () => {
-    // shared with 4: break-even CIP $0.06, fee 0.40 -> ratio 6.67; target 1 + 0.10
+    // shared with 4: break-even CIP $0.084, fee 0.55 -> ratio 6.55; target 1 + 0.10
     mount(cfg((c) => (c.transport.shared = true)))
-    expect(screen.getByText('CIP ratio 6.67 — target 1.10')).toBeInTheDocument()
-    expect(screen.getByText('DAP ratio 6.67 — target 1.10')).toBeInTheDocument()
-    expect(screen.getByText('DDP ratio 6.60 — target 1.10')).toBeInTheDocument()
+    expect(screen.getByText('CIP ratio 6.55 — target 1.10')).toBeInTheDocument()
+    expect(screen.getByText('DAP ratio 6.55 — target 1.10')).toBeInTheDocument()
+    expect(screen.getByText('DDP ratio 6.62 — target 1.10')).toBeInTheDocument()
   })
 
   it('has no note for a disabled tier', () => {
@@ -232,7 +232,7 @@ describe('Set fees from margin (acceptance 9, failure mode 6)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Set fees from margin' }))
     expect(onChange).toHaveBeenCalledTimes(1)
     expect(onChange).toHaveBeenCalledWith({
-      insurance: { tiers: { cip: { fee: 0.4 }, dap: { fee: 0.4 }, ddp: { fee: 0.99 } } },
+      insurance: { tiers: { cip: { fee: 0.55 }, dap: { fee: 0.55 }, ddp: { fee: 1.39 } } },
     })
   })
 
@@ -247,12 +247,12 @@ describe('Set fees from margin (acceptance 9, failure mode 6)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Set fees from margin' }))
     expect(onChange).toHaveBeenCalledTimes(1)
     const patch = onChange.mock.calls[0][0] as { insurance: { tiers: Record<string, unknown> } }
-    expect(patch.insurance.tiers).toEqual({ cip: { fee: 0.4 }, ddp: { fee: 0.99 } })
+    expect(patch.insurance.tiers).toEqual({ cip: { fee: 0.55 }, ddp: { fee: 1.39 } })
     expect(Object.keys(patch.insurance.tiers)).not.toContain('dap')
   })
 
   it('uses the break-even of the current sharing mode and the target margin', () => {
-    // shared with 4, margin 100 %: 0.06 x 2, 0.06 x 2, 0.15 x 2
+    // shared with 4, margin 100 %: 0.084 x 2, 0.084 x 2, 0.21 x 2
     const { onChange } = mount(
       cfg((c) => {
         c.transport.shared = true
@@ -262,7 +262,7 @@ describe('Set fees from margin (acceptance 9, failure mode 6)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Set fees from margin' }))
     expect(onChange).toHaveBeenCalledTimes(1)
     expect(onChange).toHaveBeenCalledWith({
-      insurance: { tiers: { cip: { fee: 0.12 }, dap: { fee: 0.12 }, ddp: { fee: 0.3 } } },
+      insurance: { tiers: { cip: { fee: 0.17 }, dap: { fee: 0.17 }, ddp: { fee: 0.42 } } },
     })
   })
 
@@ -305,7 +305,7 @@ describe('tier controls (plan 25 §3.5)', () => {
 
   it('show the configured fees and switch states', () => {
     mount(cfg((c) => (c.insurance.tiers.dap.enabled = false)))
-    expect((screen.getByLabelText(DOCS['insurance.tiers.ddp.fee'].label) as HTMLInputElement).value).toMatch(/0?\.99/)
+    expect((screen.getByLabelText(DOCS['insurance.tiers.ddp.fee'].label) as HTMLInputElement).value).toMatch(/1\.39/)
     expect(screen.getByRole('switch', { name: DOCS['insurance.tiers.cip.enabled'].label })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByRole('switch', { name: DOCS['insurance.tiers.dap.enabled'].label })).toHaveAttribute('aria-checked', 'false')
   })

@@ -71,7 +71,7 @@ function makeView(o: Overrides = {}): PlayerView {
       reputation: { P1: 0.62 },
     },
     yesterday: null,
-    cellar: o.cellar ?? [lot('L3', 12, 33), lot('L4', 30, 57)],
+    cellar: o.cellar ?? [lot('L3', 12, 0), lot('L4', 30, 23)],
     stock_by_age: [],
     quality_guide: [],
     expected_spoil_tonight: 0,
@@ -85,9 +85,9 @@ function makeView(o: Overrides = {}): PlayerView {
     cumulative_profit: 0,
     insurance_plans: [
       { tier: 'exw', label: 'EXW', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
-      { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.4 },
-      { tier: 'dap', label: 'DAP', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.4 },
-      { tier: 'ddp', label: 'DDP', enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 0.99 },
+      { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
+      { tier: 'dap', label: 'DAP', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.55 },
+      { tier: 'ddp', label: 'DDP', enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 1.39 },
     ],
     order_windows: {
       spot_open: true,
@@ -150,9 +150,9 @@ describe('tierFee', () => {
   it('is the plan fee_per_unit, and 0 for exw', () => {
     const view = makeView()
     expect(tierFee('exw', view)).toBe(0)
-    expect(tierFee('cip', view)).toBeCloseTo(0.4, 10)
-    expect(tierFee('dap', view)).toBeCloseTo(0.4, 10)
-    expect(tierFee('ddp', view)).toBeCloseTo(0.99, 10)
+    expect(tierFee('cip', view)).toBeCloseTo(0.55, 10)
+    expect(tierFee('dap', view)).toBeCloseTo(0.55, 10)
+    expect(tierFee('ddp', view)).toBeCloseTo(1.39, 10)
   })
 })
 
@@ -168,24 +168,24 @@ describe('conservationCost', () => {
 })
 
 describe('outlayEstimate (acceptance criterion 3; spec 8.3)', () => {
-  it('matches the worked example: 536 + 300 + 56 + 12 = 904', () => {
+  it('matches the worked example: 536 + 300 + 62 + 12 = 910', () => {
     const e = outlayEstimate(MOCK, makeView(), makeConfig())
     expect(e.spot).toBeCloseTo(536, 9)
     expect(e.futures).toBeCloseTo(300, 9)
-    expect(e.shipping).toBeCloseTo(56, 9)
+    expect(e.shipping).toBeCloseTo(62, 9)
     expect(e.conservation).toBeCloseTo(12, 9)
-    expect(e.total).toBeCloseTo(904, 9)
+    expect(e.total).toBeCloseTo(910, 9)
     expect(e.shipmentMax).toBe(40)
   })
 
-  it('failure mode 1: 10 futures due today under CIP charge the fee but not the transport -> shipping 60', () => {
+  it('failure mode 1: 10 futures due today under CIP charge the fee but not the transport -> shipping 67.5', () => {
     const e = outlayEstimate(MOCK, makeView({ futures_book: DUE_10 }), makeConfig())
     expect(e.shipmentMax).toBe(50)
-    // 56 would mean the due units were ignored; 70 would mean transport was charged on them.
-    expect(e.shipping).toBeCloseTo(60, 9)
-    expect(e.shipping).not.toBeCloseTo(56, 6)
-    expect(e.shipping).not.toBeCloseTo(70, 6)
-    expect(e.total).toBeCloseTo(908, 9)
+    // 62 would mean the due units were ignored; 77.5 would mean transport was charged on them.
+    expect(e.shipping).toBeCloseTo(67.5, 9)
+    expect(e.shipping).not.toBeCloseTo(62, 6)
+    expect(e.shipping).not.toBeCloseTo(77.5, 6)
+    expect(e.total).toBeCloseTo(915.5, 9)
   })
 
   it('failure mode 1: under EXW the futures due today add nothing to shipping (no fee, no transport)', () => {
@@ -214,7 +214,7 @@ describe('outlayEstimate (acceptance criterion 3; spec 8.3)', () => {
     expect(e.total).not.toBeCloseTo(13.42, 6)
   })
 
-  it('failure mode 9: peer limits are ignored, the total stays 904', () => {
+  it('failure mode 9: peer limits are ignored, the total stays 910', () => {
     const withPeers = draft({
       ...MOCK,
       peer_buy: { max_price: 16, min_quality: 90 },
@@ -222,7 +222,7 @@ describe('outlayEstimate (acceptance criterion 3; spec 8.3)', () => {
     })
     expect(outlayEstimate(withPeers, makeView(), makeConfig())).toEqual(outlayEstimate(MOCK, makeView(), makeConfig()))
     const buyOnly = outlayEstimate({ ...MOCK, peer_buy: { max_price: 16, min_quality: 0 } }, makeView(), makeConfig())
-    expect(buyOnly.total).toBeCloseTo(904, 9)
+    expect(buyOnly.total).toBeCloseTo(910, 9)
   })
 
   it('the zero decision costs 0 even with futures due today', () => {
@@ -259,14 +259,14 @@ describe('canAfford (spec 8.3)', () => {
   })
 
   it('failure mode 3: a total exactly equal to the cash is affordable', () => {
-    expect(canAfford(904, 904)).toBe(true)
-    expect(canAfford(903.99, 904)).toBe(true)
-    expect(canAfford(904.01, 904)).toBe(false)
+    expect(canAfford(910, 910)).toBe(true)
+    expect(canAfford(909.99, 910)).toBe(true)
+    expect(canAfford(910.01, 910)).toBe(false)
   })
 
   it('compares the cents-rounded total with the cash', () => {
-    expect(canAfford(904.004, 904)).toBe(true)
-    expect(canAfford(904.006, 904)).toBe(false)
+    expect(canAfford(910.004, 910)).toBe(true)
+    expect(canAfford(910.006, 910)).toBe(false)
   })
 })
 
@@ -283,13 +283,13 @@ describe('unitsOnOffer (spec 12.4, 13.7)', () => {
   })
 
   it('has no units when no lot is at or below the limit', () => {
-    expect(unitsOnOffer(30, 10, [], view)).toEqual({ units: 0, lotIds: [] })
+    expect(unitsOnOffer(20, 10, ['L3'], view)).toEqual({ units: 0, lotIds: [] })
   })
 
   it('the limit is inclusive', () => {
-    expect(unitsOnOffer(33, 99, [], view)).toEqual({ units: 12, lotIds: ['L3'] })
-    expect(unitsOnOffer(32, 99, [], view)).toEqual({ units: 0, lotIds: [] })
-    expect(unitsOnOffer(57, 99, ['L3'], view)).toEqual({ units: 30, lotIds: ['L4'] })
+    expect(unitsOnOffer(0, 99, [], view)).toEqual({ units: 12, lotIds: ['L3'] })
+    expect(unitsOnOffer(22, 99, ['L3'], view)).toEqual({ units: 0, lotIds: [] })
+    expect(unitsOnOffer(23, 99, ['L3'], view)).toEqual({ units: 30, lotIds: ['L4'] })
   })
 
   it('failure mode 12 (pure part): ticking every matching lot to conserve leaves nothing on offer', () => {

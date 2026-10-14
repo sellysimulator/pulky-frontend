@@ -340,10 +340,10 @@ describe('examples follow the config (AC 3, failure mode 7)', () => {
     expect(after).not.toMatch(/\b100\b/)
   })
 
-  it('quality_min 80 -> 60 moves the lowest lot first-night risk from 20% to 40%', () => {
+  it('quality_min 80 -> 60 moves the lowest lot first-night risk from 53% to 73%', () => {
     const at80 = textOf('supplier.quality_min')
-    expect(at80).toMatch(/\b20%/)
-    expect(at80).not.toMatch(/\b40%/)
+    expect(at80).toMatch(/\b53%/)
+    expect(at80).not.toMatch(/\b73%/)
     cleanup()
 
     const at60 = textOf(
@@ -352,7 +352,7 @@ describe('examples follow the config (AC 3, failure mode 7)', () => {
         c.supplier.quality_min = 60
       }),
     )
-    expect(at60).toMatch(/\b40%/)
+    expect(at60).toMatch(/\b73%/)
   })
 
   it('the quality_max entry shows the same table, so it follows quality_min too', () => {
@@ -364,8 +364,8 @@ describe('examples follow the config (AC 3, failure mode 7)', () => {
         c.supplier.quality_min = 60
       }),
     )
-    expect(low).toMatch(/\b40%/)
-    expect(base).not.toMatch(/\b40%/)
+    expect(low).toMatch(/\b73%/)
+    expect(base).not.toMatch(/\b73%/)
   })
 
   it('duration_days: weeks covered and the weekday of the last day (day 1 is a Monday)', () => {
@@ -475,8 +475,8 @@ describe('examples follow the config (AC 3, failure mode 7)', () => {
 
   it('failure chance and expected failures over the game', () => {
     const t = textOf('transport.failure_probability')
-    expect(t).toMatch(/77(\.\d)?%/)
-    expect(t).toMatch(/\b1\.4\b/)
+    expect(t).toMatch(/88(\.\d)?%/)
+    expect(t).toMatch(/\b2\.0\b/)
     cleanup()
     const none = textOf(
       'transport.failure_probability',
@@ -484,7 +484,7 @@ describe('examples follow the config (AC 3, failure mode 7)', () => {
         c.transport.failure_probability = 0
       }),
     )
-    expect(none).not.toMatch(/77(\.\d)?%/)
+    expect(none).not.toMatch(/88(\.\d)?%/)
   })
 
   it('disruption chance over the game', () => {
@@ -506,9 +506,9 @@ describe('examples follow the config (AC 3, failure mode 7)', () => {
 
   it('insurance rows: break-even fee per tier, solo and shared', () => {
     const cip = textOf('insurance.tiers.cip.fee')
-    expect(cip).toContain('$0.36')
+    expect(cip).toContain('$0.50')
     cleanup()
-    expect(textOf('insurance.tiers.ddp.fee')).toContain('$0.90')
+    expect(textOf('insurance.tiers.ddp.fee')).toContain('$1.26')
     cleanup()
     const shared = textOf(
       'insurance.tiers.ddp.enabled',
@@ -516,13 +516,13 @@ describe('examples follow the config (AC 3, failure mode 7)', () => {
         c.transport.shared = true
       }),
     )
-    expect(shared).toContain('$0.15')
+    expect(shared).toContain('$0.21')
   })
 
   it('target_margin: fees from margin for the three tiers', () => {
     const t = textOf('insurance.target_margin')
-    expect(t).toContain('$0.40')
-    expect(t).toContain('$0.99')
+    expect(t).toContain('$0.55')
+    expect(t).toContain('$1.39')
     cleanup()
     const t2 = textOf(
       'insurance.target_margin',
@@ -530,8 +530,8 @@ describe('examples follow the config (AC 3, failure mode 7)', () => {
         c.insurance.target_margin = 0.5
       }),
     )
-    expect(t2).toContain('$0.54')
-    expect(t2).toContain('$1.35')
+    expect(t2).toContain('$0.76')
+    expect(t2).toContain('$1.89')
   })
 
   it('quality guide for the peer market follows stock.fresh_days / max_days', () => {

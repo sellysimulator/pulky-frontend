@@ -54,9 +54,9 @@ interface ViewOverrides {
 function makePlans(disabled: string[] = []) {
   const all = [
     { tier: 'exw', label: 'EXW', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
-    { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.4 },
-    { tier: 'dap', label: 'DAP', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.4 },
-    { tier: 'ddp', label: 'DDP', enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 0.99 },
+    { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
+    { tier: 'dap', label: 'DAP', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.55 },
+    { tier: 'ddp', label: 'DDP', enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 1.39 },
   ]
   return all.map((p) => (disabled.includes(p.tier) ? { ...p, enabled: false } : p))
 }
@@ -87,7 +87,7 @@ function makeView(o: ViewOverrides = {}): PlayerView {
       reputation: { P1: 0.62 },
     },
     yesterday: null,
-    cellar: o.cellar ?? [lot('L3', 12, 33), lot('L4', 30, 57)],
+    cellar: o.cellar ?? [lot('L3', 12, 0), lot('L4', 30, 23)],
     stock_by_age: [],
     quality_guide: makeGuide(),
     expected_spoil_tonight: 0,
@@ -363,13 +363,13 @@ describe('outlay line and bar (acceptance criterion 4)', () => {
   it('shows Today: total of cash and follows quantities, tier and ticks', async () => {
     const user = userEvent.setup()
     renderForm()
-    // 40 x 13.40 + 25 x 12.00 + 40 x (1.00 + 0.40) = 892
-    expect(cardHas('Today: $892.00 of $6,120.00')).toBe(true)
+    // 40 x 13.40 + 25 x 12.00 + 40 x (1.00 + 0.55) = 898
+    expect(cardHas('Today: $898.00 of $6,120.00')).toBe(true)
     await user.click(lotBox('L3'))
-    expect(cardHas('Today: $904.00 of $6,120.00')).toBe(true)
+    expect(cardHas('Today: $910.00 of $6,120.00')).toBe(true)
     setField(spot(), 50)
-    // 670 + 300 + 70 + 12
-    expect(cardHas('Today: $1,052.00 of $6,120.00')).toBe(true)
+    // 670 + 300 + 77.5 + 12
+    expect(cardHas('Today: $1,059.50 of $6,120.00')).toBe(true)
     await user.click(radio('EXW'))
     // 670 + 300 + 50 + 12
     expect(cardHas('Today: $1,032.00 of $6,120.00')).toBe(true)
@@ -379,14 +379,14 @@ describe('outlay line and bar (acceptance criterion 4)', () => {
 
   it('counts the fee, but not the transport cost, of the futures due today', () => {
     renderForm({ view: makeView({ futures_book: [{ contract_day: 0, ships_day: 5, delivery_day: 6, qty: 10 }] }) })
-    // 892 + 0.40 x 10
-    expect(cardHas('Today: $896.00 of $6,120.00')).toBe(true)
+    // 898 + 0.55 x 10
+    expect(cardHas('Today: $903.50 of $6,120.00')).toBe(true)
   })
 
   it("shows the labelled fee estimate for today's shipment under the cards", () => {
     renderForm({ view: makeView({ futures_book: [{ contract_day: 0, ships_day: 5, delivery_day: 6, qty: 10 }] }) })
-    // fee 0.40 x (40 spot + 10 due) = 20
-    expect(cardHas("Fee for today's shipment: ~$20.00")).toBe(true)
+    // fee 0.55 x (40 spot + 10 due) = 27.50
+    expect(cardHas("Fee for today's shipment: ~$27.50")).toBe(true)
   })
 
   it('failure mode 9: a peer purchase limit adds nothing to the outlay', async () => {
@@ -396,7 +396,7 @@ describe('outlay line and bar (acceptance criterion 4)', () => {
     await user.click(buyBox())
     setField(buyPrice(), 16)
     setField(buyQuality(), 90)
-    expect(cardHas('Today: $904.00 of $6,120.00')).toBe(true)
+    expect(cardHas('Today: $910.00 of $6,120.00')).toBe(true)
   })
 })
 
@@ -407,18 +407,18 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
 
   it('failure mode 3: at exactly the cash Submit day is enabled', async () => {
     const user = userEvent.setup()
-    renderForm({ view: makeView({ cash: 904 }) })
+    renderForm({ view: makeView({ cash: 910 }) })
     await tickMock(user)
-    expect(cardHas('Today: $904.00 of $904.00')).toBe(true)
+    expect(cardHas('Today: $910.00 of $910.00')).toBe(true)
     expect(submitBtn()).toBeEnabled()
   })
 
   it('a cent above the cash disables Submit day and shows the spec 4.3 line', async () => {
     const user = userEvent.setup()
-    const { onSubmit } = renderForm({ view: makeView({ cash: 903.99 }) })
+    const { onSubmit } = renderForm({ view: makeView({ cash: 909.99 }) })
     await tickMock(user)
     expect(submitBtn()).toBeDisabled()
-    expect(cardHas("Today's purchases cost $904.00 but you only have $903.99")).toBe(true)
+    expect(cardHas("Today's purchases cost $910.00 but you only have $909.99")).toBe(true)
     await user.click(submitBtn())
     expect(onSubmit).not.toHaveBeenCalled()
   })
@@ -428,14 +428,14 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
     expect(cardHas("Today's purchases cost")).toBe(false)
   })
 
-  it('failure mode 9: with cash 904 and the mock ticks, adding peer_buy max_price 16 keeps Submit day enabled', async () => {
+  it('failure mode 9: with cash 910 and the mock ticks, adding peer_buy max_price 16 keeps Submit day enabled', async () => {
     const user = userEvent.setup()
-    renderForm({ view: makeView({ cash: 904 }) })
+    renderForm({ view: makeView({ cash: 910 }) })
     await tickMock(user)
     await user.click(buyBox())
     setField(buyPrice(), 16)
     setField(buyQuality(), 90)
-    expect(cardHas('Today: $904.00 of $904.00')).toBe(true)
+    expect(cardHas('Today: $910.00 of $910.00')).toBe(true)
     expect(submitBtn()).toBeEnabled()
     expect(cardHas("Today's purchases cost")).toBe(false)
   })
@@ -638,11 +638,11 @@ describe('conserve rows (acceptance criteria 10 and 14)', () => {
     renderForm()
     const l3 = lotBox('L3').closest('label')!
     const l4 = lotBox('L4').closest('label')!
-    expect(squash(l3.textContent)).toContain(squash('L3 · 12 u · 33%'))
-    expect(squash(l3.textContent)).toContain('67%')
+    expect(squash(l3.textContent)).toContain(squash('L3 · 12 u · 0%'))
+    expect(squash(l3.textContent)).toContain('100%')
     expect(squash(l3.textContent)).toContain('$12.00')
-    expect(squash(l4.textContent)).toContain(squash('L4 · 30 u · 57%'))
-    expect(squash(l4.textContent)).toContain('43%')
+    expect(squash(l4.textContent)).toContain(squash('L4 · 30 u · 23%'))
+    expect(squash(l4.textContent)).toContain('77%')
     expect(squash(l4.textContent)).toContain('$30.00')
   })
 
@@ -656,7 +656,7 @@ describe('conserve rows (acceptance criteria 10 and 14)', () => {
 
   it('a conserved lot cannot be ticked, carries the Conserved chip and is never submitted', async () => {
     const user = userEvent.setup()
-    const { onSubmit } = renderForm({ view: makeView({ cellar: [lot('L3', 12, 33, { conserved: true }), lot('L4', 30, 57)] }) })
+    const { onSubmit } = renderForm({ view: makeView({ cellar: [lot('L3', 12, 0, { conserved: true }), lot('L4', 30, 23)] }) })
     const box = lotBox('L3')
     expect(box).toBeDisabled()
     expect(box).not.toBeChecked()
@@ -681,8 +681,8 @@ describe('conserve rows (acceptance criteria 10 and 14)', () => {
     const user = userEvent.setup()
     renderForm()
     await user.click(lotBox('L4'))
-    expect(cardHas('Today: $922.00 of $6,120.00')).toBe(true)
+    expect(cardHas('Today: $928.00 of $6,120.00')).toBe(true)
     await user.click(lotBox('L4'))
-    expect(cardHas('Today: $892.00 of $6,120.00')).toBe(true)
+    expect(cardHas('Today: $898.00 of $6,120.00')).toBe(true)
   })
 })
