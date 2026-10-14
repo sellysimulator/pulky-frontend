@@ -1,0 +1,371 @@
+/** Section 25 — InsuranceCalculator (plan 25 §3.5, §4). Acceptance 8, 9, 12; failure modes 1, 2, 6. */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('../../firebase', () => ({ auth: { currentUser: null }, googleProvider: {}, app: {} }))
+
+import InsuranceCalculator from '../components/config/InsuranceCalculator'
+import { DOCS } from '../components/config/docs/entries'
+import type { ConfigDefaultsResponse, GameConfig } from '../types/game'
+
+const defaults = JSON.parse(
+  readFileSync(resolve(process.cwd(), 'src/__tests__/fixtures/config_defaults.json'), 'utf8'),
+) as ConfigDefaultsResponse
+
+function cfg(mut: (c: GameConfig) => void = () => {}): GameConfig {
+  const c = structuredClone(defaults.config)
+  mut(c)
+  return c
+}
+
+type Issues = Record<string, { kind: 'error' | 'warning'; message: string }>
+
+function mount(config: GameConfig, readOnly = false, issues?: Issues) {
+  const onChange = vi.fn()
+  const view = render(<InsuranceCalculator config={config} onChange={onChange} readOnly={readOnly} issues={issues} />)
+  return { onChange, ...view }
+}
+
+/** The table row whose cell reads exactly the tier name. */
+function rowFor(tier: 'CIP' | 'DAP' | 'DDP'): HTMLElement {
+  const row = screen
+    .getAllByRole('row')
+    .find((r) => Array.from(r.querySelectorAll('th,td')).some((c) => new RegExp(`^${tier}\\b`).test(c.textContent?.trim() ?? '')))
+  if (!row) throw new Error(`no row for ${tier}`)
+  return row
+}
+
+const WORTH = 'Worth it'
+const BREAK = 'Break-even'
+const NOT_WORTH = 'Not worth it on average'
+const NO_RISK = 'No risk configured'
+
+/** Text of the smallest ancestor of `label` that shows more than the label, and not the other tile's label. */
+function tileText(label: string, other: string): string {
+  let el: HTMLElement | null = screen.getByText(label)
+  while (el) {
+    const t = el.textContent ?? ''
+    if (t.includes(other)) break
+    if (t.replace(label, '').trim() !== '') return t
+    el = el.parentElement
+  }
+  throw new Error(`no tile found for ${label}`)
+}
+
+describe('layout and strings (acceptance 8, 12)', () => {
+  it('shows the inputs and the three tier rows', () => {
+    mount(cfg())
+    expect(screen.getByLabelText('Reference shipment (units)')).toBeInTheDocument()
+    expect(screen.getByLabelText('Target margin')).toBeInTheDocument()
+    for (const t of ['CIP', 'DAP', 'DDP'] as const) expect(rowFor(t)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Set fees from margin' })).toBeInTheDocument()
+  })
+
+  it('has the column headers and the two groups, named with max_players', () => {
+    mount(cfg())
+    expect(screen.getAllByText('Fee per unit').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Not shared').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Shared with 4').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByRole('columnheader', { name: 'Break-even' })).toHaveLength(2)
+    expect(screen.getAllByRole('columnheader', { name: 'Verdict' })).toHaveLength(2)
+    expect(screen.getByText('Refund per lost unit')).toBeInTheDocument()
+    expect(screen.getByText('Worst single failure')).toBeInTheDocument()
+  })
+})
+
+describe('worked examples with the defaults (acceptance 8)', () => {
+  it('not shared break-evens are $0.36 / $0.36 / $0.90 and shared with 4 are $0.06 / $0.06 / $0.15', () => {
+    mount(cfg())
+    const cip = rowFor('CIP').textContent ?? ''
+    const dap = rowFor('DAP').textContent ?? ''
+    const ddp = rowFor('DDP').textContent ?? ''
+    expect(cip).toContain('$0.36')
+    expect(cip).toContain('$0.06')
+    expect(dap).toContain('$0.36')
+    expect(dap).toContain('$0.06')
+    expect(ddp).toContain('$0.90')
+    expect(ddp).toContain('$0.15')
+  })
+
+  it('shows Not worth it on average in all six verdict cells', () => {
+    mount(cfg())
+    for (const t of ['CIP', 'DAP', 'DDP'] as const) {
+      expect(within(rowFor(t)).getAllByText(NOT_WORTH)).toHaveLength(2)
+      expect(within(rowFor(t)).queryByText(WORTH)).toBeNull()
+      expect(within(rowFor(t)).queryByText(BREAK)).toBeNull()
+    }
+  })
+
+  it('shows refund values (base price for CIP and DAP, retail for DDP) and the worst single failure', () => {
+    mount(cfg())
+    // not shared: floor(20 x 0.3) = 6 units; shared with 4: floor(20 x 0.075) = 1 unit
+    const cip = rowFor('CIP').textContent ?? ''
+    const ddp = rowFor('DDP').textContent ?? ''
+    expect(cip).toContain('$12.00')
+    expect(cip).toContain('$72.00')
+    expect(ddp).toContain('$30.00')
+    expect(ddp).toContain('$180.00')
+  })
+
+  it('shows the chance of at least one failure and the expected failures', () => {
+    mount(cfg())
+    // 1 - 0.9^14 = 77.1 %; 0.1 x 14 = 1.4
+    expect(tileText('Chance of at least one failure', 'Expected failures')).toContain('77%')
+    expect(tileText('Expected failures', 'Chance of at least one failure')).toContain('1.4')
+  })
+
+  it('has no out-of-sync note when the fees equal feeFromMargin', () => {
+    mount(cfg())
+    expect(screen.queryByText(/ratio .* — target/)).toBeNull()
+  })
+
+  it('uses max_players as the sharing reference: with 12 seats the shared loss rounds to 0 units', () => {
+    mount(cfg((c) => (c.max_players = 12)))
+    expect(screen.getAllByText('Shared with 12').length).toBeGreaterThanOrEqual(1)
+    // floor(20 x 0.3 / 12) = floor(0.5) = 0: shared break-even is $0.00 -> No risk configured
+    for (const t of ['CIP', 'DAP', 'DDP'] as const) {
+      expect(within(rowFor(t)).getAllByText(NO_RISK)).toHaveLength(1)
+      expect(within(rowFor(t)).getAllByText(NOT_WORTH)).toHaveLength(1)
+    }
+  })
+})
+
+describe('verdict thresholds (failure mode 1)', () => {
+  // CIP break-even is 0.36 not shared. The shared column always reads Not worth it on average at these fees.
+  const cases: Array<[number, string]> = [
+    [0.3384, WORTH],
+    [0.36, BREAK],
+    [0.3816, NOT_WORTH],
+  ]
+  for (const [fee, badge] of cases) {
+    it(`CIP fee ${fee} gives ${badge}`, () => {
+      mount(cfg((c) => (c.insurance.tiers.cip.fee = fee)))
+      const row = rowFor('CIP')
+      if (badge === NOT_WORTH) {
+        expect(within(row).getAllByText(NOT_WORTH)).toHaveLength(2)
+        expect(within(row).queryByText(WORTH)).toBeNull()
+        expect(within(row).queryByText(BREAK)).toBeNull()
+      } else {
+        expect(within(row).getAllByText(badge)).toHaveLength(1)
+        expect(within(row).getAllByText(NOT_WORTH)).toHaveLength(1)
+      }
+    })
+  }
+})
+
+describe('no risk configured (failure mode 2)', () => {
+  it('p = 0 shows No risk configured everywhere and never Infinity or NaN', () => {
+    const { container } = mount(cfg((c) => (c.transport.failure_probability = 0)))
+    for (const t of ['CIP', 'DAP', 'DDP'] as const) {
+      expect(within(rowFor(t)).getAllByText(NO_RISK)).toHaveLength(2)
+    }
+    expect(container.textContent).not.toMatch(/Infinity|NaN/)
+    expect(tileText('Chance of at least one failure', 'Expected failures')).toContain('0%')
+    expect(tileText('Expected failures', 'Chance of at least one failure')).toContain('0.0')
+    expect(screen.queryByText(/ratio .* — target/)).toBeNull()
+  })
+
+  it('L = 0 behaves the same', () => {
+    const { container } = mount(cfg((c) => (c.transport.loss_fraction = 0)))
+    expect(screen.getAllByText(NO_RISK)).toHaveLength(6)
+    expect(container.textContent).not.toMatch(/Infinity|NaN/)
+  })
+
+  it('a zero break-even gives no out-of-sync note even though the fee differs from the margin fee', () => {
+    mount(cfg((c) => (c.transport.failure_probability = 0)))
+    expect(screen.queryByText(/ratio/)).toBeNull()
+  })
+})
+
+describe('out-of-sync note (acceptance 8)', () => {
+  it('names the tier, the ratio and the target to two decimals', () => {
+    mount(cfg((c) => (c.insurance.tiers.cip.fee = 0.3384)))
+    expect(screen.getByText('CIP ratio 0.94 — target 1.10')).toBeInTheDocument()
+    expect(screen.queryByText(/DAP ratio/)).toBeNull()
+    expect(screen.queryByText(/DDP ratio/)).toBeNull()
+  })
+
+  it('sits above the Set fees from margin button', () => {
+    mount(cfg((c) => (c.insurance.tiers.cip.fee = 0.3384)))
+    const note = screen.getByText('CIP ratio 0.94 — target 1.10')
+    const button = screen.getByRole('button', { name: 'Set fees from margin' })
+    expect(note.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('measures against the break-even of the current sharing mode', () => {
+    // shared with 4: break-even CIP $0.06, fee 0.40 -> ratio 6.67; target 1 + 0.10
+    mount(cfg((c) => (c.transport.shared = true)))
+    expect(screen.getByText('CIP ratio 6.67 — target 1.10')).toBeInTheDocument()
+    expect(screen.getByText('DAP ratio 6.67 — target 1.10')).toBeInTheDocument()
+    expect(screen.getByText('DDP ratio 6.60 — target 1.10')).toBeInTheDocument()
+  })
+
+  it('has no note for a disabled tier', () => {
+    mount(
+      cfg((c) => {
+        c.insurance.tiers.dap.enabled = false
+        c.insurance.tiers.dap.fee = 0.1
+      }),
+    )
+    expect(screen.queryByText(/DAP ratio/)).toBeNull()
+  })
+})
+
+describe('disabled tiers', () => {
+  it('are marked Not offered and the others are not', () => {
+    mount(cfg((c) => (c.insurance.tiers.dap.enabled = false)))
+    expect(within(rowFor('DAP')).getByText('Not offered')).toBeInTheDocument()
+    expect(within(rowFor('CIP')).queryByText('Not offered')).toBeNull()
+    expect(within(rowFor('DDP')).queryByText('Not offered')).toBeNull()
+  })
+})
+
+describe('Set fees from margin (acceptance 9, failure mode 6)', () => {
+  it('sets every enabled tier in one onChange with the worked-example patch', () => {
+    const { onChange } = mount(
+      cfg((c) => {
+        c.insurance.tiers.cip.fee = 0.2
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Set fees from margin' }))
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith({
+      insurance: { tiers: { cip: { fee: 0.4 }, dap: { fee: 0.4 }, ddp: { fee: 0.99 } } },
+    })
+  })
+
+  it('leaves a disabled tier out of the patch', () => {
+    const { onChange } = mount(
+      cfg((c) => {
+        c.insurance.tiers.dap.enabled = false
+        c.insurance.tiers.dap.fee = 0.05
+        c.insurance.tiers.cip.fee = 0.2
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Set fees from margin' }))
+    expect(onChange).toHaveBeenCalledTimes(1)
+    const patch = onChange.mock.calls[0][0] as { insurance: { tiers: Record<string, unknown> } }
+    expect(patch.insurance.tiers).toEqual({ cip: { fee: 0.4 }, ddp: { fee: 0.99 } })
+    expect(Object.keys(patch.insurance.tiers)).not.toContain('dap')
+  })
+
+  it('uses the break-even of the current sharing mode and the target margin', () => {
+    // shared with 4, margin 100 %: 0.06 x 2, 0.06 x 2, 0.15 x 2
+    const { onChange } = mount(
+      cfg((c) => {
+        c.transport.shared = true
+        c.insurance.target_margin = 1
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Set fees from margin' }))
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith({
+      insurance: { tiers: { cip: { fee: 0.12 }, dap: { fee: 0.12 }, ddp: { fee: 0.3 } } },
+    })
+  })
+
+  it('does not call onChange on render', () => {
+    const { onChange } = mount(cfg())
+    expect(onChange).not.toHaveBeenCalled()
+  })
+})
+
+describe('inputs', () => {
+  it('an edit of the reference shipment goes out as a nested patch', () => {
+    const { onChange } = mount(cfg())
+    fireEvent.change(screen.getByLabelText('Reference shipment (units)'), { target: { value: '40' } })
+    expect(onChange).toHaveBeenLastCalledWith({ insurance: { reference_shipment: 40 } })
+  })
+
+  it('every input is read-only or disabled when readOnly', () => {
+    const { container } = mount(cfg(), true)
+    const controls = container.querySelectorAll<HTMLInputElement>('input,select,textarea,[role="switch"]')
+    expect(controls.length).toBeGreaterThan(0)
+    for (const el of Array.from(controls)) {
+      const locked =
+        el.disabled || el.readOnly || el.getAttribute('aria-disabled') === 'true' || el.getAttribute('aria-readonly') === 'true'
+      expect(locked).toBe(true)
+    }
+  })
+})
+
+describe('tier controls (plan 25 §3.5)', () => {
+  const tiers = ['cip', 'dap', 'ddp'] as const
+
+  it('are found by the DOCS labels, a switch and a fee per tier', () => {
+    mount(cfg())
+    expect(DOCS['insurance.tiers.cip.fee'].label).toBe('CIP + blockchain: fee per unit')
+    for (const t of tiers) {
+      expect(screen.getByRole('switch', { name: DOCS[`insurance.tiers.${t}.enabled`].label })).toBeInTheDocument()
+      expect(screen.getByLabelText(DOCS[`insurance.tiers.${t}.fee`].label)).toBeInTheDocument()
+    }
+  })
+
+  it('show the configured fees and switch states', () => {
+    mount(cfg((c) => (c.insurance.tiers.dap.enabled = false)))
+    expect((screen.getByLabelText(DOCS['insurance.tiers.ddp.fee'].label) as HTMLInputElement).value).toMatch(/0?\.99/)
+    expect(screen.getByRole('switch', { name: DOCS['insurance.tiers.cip.enabled'].label })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('switch', { name: DOCS['insurance.tiers.dap.enabled'].label })).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('a fee edit goes out as a nested leaf patch', () => {
+    const { onChange } = mount(cfg())
+    fireEvent.change(screen.getByLabelText(DOCS['insurance.tiers.cip.fee'].label), { target: { value: '0.5' } })
+    expect(onChange).toHaveBeenLastCalledWith({ insurance: { tiers: { cip: { fee: 0.5 } } } })
+  })
+
+  it('a switch click goes out as a nested leaf patch', () => {
+    const { onChange } = mount(cfg())
+    fireEvent.click(screen.getByRole('switch', { name: DOCS['insurance.tiers.dap.enabled'].label }))
+    expect(onChange).toHaveBeenLastCalledWith({ insurance: { tiers: { dap: { enabled: false } } } })
+  })
+})
+
+describe('issues prop (plan 25 §2, §3.5)', () => {
+  it('renders an error at the fee control with aria-invalid and a description', () => {
+    mount(cfg(), false, { 'insurance.tiers.cip.fee': { kind: 'error', message: 'Fee problem.' } })
+    const input = screen.getByLabelText(DOCS['insurance.tiers.cip.fee'].label)
+    expect(screen.getByText('Fee problem.')).toBeInTheDocument()
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(input).toHaveAccessibleDescription(expect.stringContaining('Fee problem.'))
+    expect(screen.getByLabelText(DOCS['insurance.tiers.dap.fee'].label)).not.toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('renders a warning at the fee control without marking it invalid', () => {
+    mount(cfg(), false, { 'insurance.tiers.ddp.fee': { kind: 'warning', message: 'Far from break-even (ratio 6.60).' } })
+    const input = screen.getByLabelText(DOCS['insurance.tiers.ddp.fee'].label)
+    expect(input).toHaveAccessibleDescription(expect.stringContaining('Far from break-even (ratio 6.60).'))
+    expect(input).not.toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('renders issues at the margin and reference shipment controls', () => {
+    mount(cfg(), false, {
+      'insurance.target_margin': { kind: 'error', message: 'Margin problem.' },
+      'insurance.reference_shipment': { kind: 'warning', message: 'Shipment note.' },
+    })
+    expect(screen.getByLabelText('Target margin')).toHaveAccessibleDescription(expect.stringContaining('Margin problem.'))
+    expect(screen.getByLabelText('Target margin')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('Reference shipment (units)')).toHaveAccessibleDescription(
+      expect.stringContaining('Shipment note.'),
+    )
+  })
+
+  it('renders an issue on an enabled switch', () => {
+    mount(cfg(), false, { 'insurance.tiers.dap.enabled': { kind: 'error', message: 'Switch problem.' } })
+    expect(screen.getByText('Switch problem.')).toBeInTheDocument()
+  })
+
+  it('shows nothing extra without issues', () => {
+    const { container } = mount(cfg())
+    expect(container.querySelectorAll('[aria-invalid="true"]')).toHaveLength(0)
+  })
+})
+
+describe('heading (plan 25 §3.4a)', () => {
+  it('the calculator card is headed Insurance calculator', () => {
+    mount(cfg())
+    expect(screen.getByText('Insurance calculator')).toBeInTheDocument()
+  })
+})
