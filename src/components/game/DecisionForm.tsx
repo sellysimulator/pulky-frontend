@@ -1,0 +1,201 @@
+import { ClipboardList, Lock } from 'lucide-react'
+import { useState, type ReactElement, type ReactNode } from 'react'
+import { canAfford, isWholeCents, outlayEstimate, type DecisionDraft } from '../../game/estimates'
+import { LIMITS, type Decision, type Incoterm, type PlayerView, type PublicConfig } from '../../types/game'
+import { formatMoney, formatQty } from '../../utils/format'
+import Badge from '../shared/Badge'
+import SectionCard from '../shared/SectionCard'
+import ConserveSection from './ConserveSection'
+import CooperateToggle from './CooperateToggle'
+import OrderSection from './OrderSection'
+import OutlayBar from './OutlayBar'
+import PeerBuySection from './PeerBuySection'
+import PeerSellSection from './PeerSellSection'
+import ShipSection from './ShipSection'
+
+interface DecisionFormProps {
+  view: PlayerView
+  config: PublicConfig
+  initialDecision: Decision
+  locked: boolean
+  onSubmit(decision: Decision): void
+  lockedFooter?: ReactNode
+}
+
+interface FormState {
+  spot: number | null
+  futures: number | null
+  incoterm: Incoterm
+  conserve: string[]
+  cooperate: boolean
+  buyOn: boolean
+  buyPrice: number | null
+  buyQuality: number | null
+  sellOn: boolean
+  sellPrice: number | null
+  sellQuality: number | null
+  sellUnits: number | null
+}
+
+const PRICE_ERROR = `Peer prices must be from $0.01 to ${formatMoney(LIMITS.MAX_PEER_PRICE)}, in whole cents.`
+const QUALITY_ERROR = 'Quality limits must be whole numbers from 0 to 100.'
+const STEP_ERROR = 'Quality steps by 5: choose 0, 5, 10, … 100.'
+const UNITS_ERROR = `You can offer from 1 to ${formatQty(LIMITS.MAX_ORDER)} units.`
+
+function isValidQuantity(value: number | null): boolean {
+  return value !== null && Number.isInteger(value) && value >= 0 && value <= LIMITS.MAX_ORDER
+}
+
+function priceError(value: number | null): string | undefined {
+  const ok = value !== null && Number.isFinite(value) && isWholeCents(value) && value >= 0.01 && value <= LIMITS.MAX_PEER_PRICE
+  return ok ? undefined : PRICE_ERROR
+}
+
+function qualityError(value: number | null): string | undefined {
+  if (value === null || !Number.isInteger(value) || value < 0 || value > 100) return QUALITY_ERROR
+  return value % 5 === 0 ? undefined : STEP_ERROR
+}
+
+function unitsError(value: number | null): string | undefined {
+  const ok = value !== null && Number.isInteger(value) && value >= 1 && value <= LIMITS.MAX_ORDER
+  return ok ? undefined : UNITS_ERROR
+}
+
+function initialState(initial: Decision, view: PlayerView, config: PublicConfig): FormState {
+  const peers = config.peer_market.enabled
+  const buy = peers ? initial.peer_buy : null
+  const sell = peers ? initial.peer_sell : null
+  const enabled = view.insurance_plans.some((p) => p.enabled && p.tier === initial.incoterm)
+  return {
+    spot: initial.order_spot,
+    futures: initial.order_futures,
+    incoterm: enabled ? initial.incoterm : 'exw',
+    conserve: initial.conserve_lots,
+    cooperate: initial.cooperate,
+    buyOn: buy !== null,
+    buyPrice: buy?.max_price ?? null,
+    buyQuality: buy?.min_quality ?? null,
+    sellOn: sell !== null,
+    sellPrice: sell?.price ?? null,
+    sellQuality: sell?.max_quality ?? null,
+    sellUnits: sell?.max_units ?? null,
+  }
+}
+
+function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, lockedFooter }: DecisionFormProps): ReactElement {
+  const [state, setState] = useState<FormState>(() => initialState(initialDecision, view, config))
+  const patch = (changes: Partial<FormState>): void => setState((s) => ({ ...s, ...changes }))
+
+  const peers = config.peer_market.enabled
+  const spotOpen = view.order_windows.spot_open
+  const futuresOpen = view.order_windows.futures_open
+  const incoterm: Incoterm = view.insurance_plans.some((p) => p.enabled && p.tier === state.incoterm) ? state.incoterm : 'exw'
+  const conserveLots = view.cellar.filter((lot) => !lot.conserved && state.conserve.includes(lot.id)).map((lot) => lot.id)
+
+  const buyActive = peers && state.buyOn
+  const sellActive = peers && state.sellOn
+  const buyValidated = buyActive && spotOpen
+  const buyPriceError = buyValidated ? priceError(state.buyPrice) : undefined
+  const buyQualityError = buyValidated ? qualityError(state.buyQuality) : undefined
+  const sellPriceError = sellActive ? priceError(state.sellPrice) : undefined
+  const sellQualityError = sellActive ? qualityError(state.sellQuality) : undefined
+  const sellUnitsError = sellActive ? unitsError(state.sellUnits) : undefined
+
+  const spotValid = !spotOpen || isValidQuantity(state.spot)
+  const futuresValid = !futuresOpen || isValidQuantity(state.futures)
+  const peerValid = !buyPriceError && !buyQualityError && !sellPriceError && !sellQualityError && !sellUnitsError
+
+  const draft: DecisionDraft = {
+    order_spot: spotOpen ? (state.spot ?? 0) : 0,
+    order_futures: futuresOpen ? (state.futures ?? 0) : 0,
+    incoterm,
+    conserve_lots: conserveLots,
+    cooperate: state.cooperate,
+    peer_buy:
+      buyActive && state.buyPrice !== null && state.buyQuality !== null
+        ? { max_price: state.buyPrice, min_quality: state.buyQuality }
+        : null,
+    peer_sell:
+      sellActive && state.sellPrice !== null && state.sellQuality !== null && state.sellUnits !== null
+        ? { price: state.sellPrice, max_quality: state.sellQuality, max_units: state.sellUnits }
+        : null,
+  }
+  const outlay = outlayEstimate(draft, view, config)
+  const over = !canAfford(outlay.total, view.cash)
+  const canSubmit = !locked && spotValid && futuresValid && peerValid && !over
+
+  const handleSubmit = (): void => {
+    if (!canSubmit) return
+    onSubmit({ day: view.day, ...draft })
+  }
+
+  const toggleLot = (lotId: string, checked: boolean): void =>
+    patch({ conserve: checked ? [...state.conserve.filter((id) => id !== lotId), lotId] : state.conserve.filter((id) => id !== lotId) })
+
+  return (
+    <SectionCard
+      title="Today's decision"
+      icon={ClipboardList}
+      tone="decision"
+      meta={
+        locked ? (
+          <Badge tone="neutral" icon={Lock}>
+            Submitted
+          </Badge>
+        ) : undefined
+      }
+    >
+      <div>
+        <OrderSection kind="spot" view={view} value={state.spot} onChange={(spot) => patch({ spot })} locked={locked} />
+        {peers ? (
+          <PeerBuySection
+            view={view}
+            ticked={state.buyOn}
+            onTick={(buyOn) => patch({ buyOn })}
+            maxPrice={state.buyPrice}
+            onMaxPrice={(buyPrice) => patch({ buyPrice })}
+            minQuality={state.buyQuality}
+            onMinQuality={(buyQuality) => patch({ buyQuality })}
+            priceError={buyPriceError}
+            qualityError={buyQualityError}
+            closed={!spotOpen}
+            locked={locked}
+          />
+        ) : null}
+        <OrderSection kind="futures" view={view} value={state.futures} onChange={(futures) => patch({ futures })} locked={locked} />
+        <ShipSection view={view} incoterm={incoterm} onChange={(next) => patch({ incoterm: next })} shipmentMax={outlay.shipmentMax} locked={locked} />
+        <ConserveSection view={view} config={config} selected={conserveLots} onToggle={toggleLot} locked={locked} />
+        {peers ? (
+          <PeerSellSection
+            view={view}
+            config={config}
+            conserveLots={conserveLots}
+            ticked={state.sellOn}
+            onTick={(sellOn) => patch({ sellOn })}
+            price={state.sellPrice}
+            onPrice={(sellPrice) => patch({ sellPrice })}
+            maxQuality={state.sellQuality}
+            onMaxQuality={(sellQuality) => patch({ sellQuality })}
+            maxUnits={state.sellUnits}
+            onMaxUnits={(sellUnits) => patch({ sellUnits })}
+            priceError={sellPriceError}
+            qualityError={sellQualityError}
+            unitsError={sellUnitsError}
+            locked={locked}
+          />
+        ) : null}
+        <CooperateToggle checked={state.cooperate} onChange={(cooperate) => patch({ cooperate })} locked={locked} />
+        {locked ? (
+          lockedFooter
+        ) : (
+          <OutlayBar total={outlay.total} cash={view.cash} over={over} canSubmit={canSubmit} onSubmit={handleSubmit} />
+        )}
+      </div>
+    </SectionCard>
+  )
+}
+
+/** Today's decision. The draft starts from the server's prefill and restarts when the prefill's day changes. */
+export default function DecisionForm(props: DecisionFormProps): ReactElement {
+  return <DecisionFormBody key={props.initialDecision.day} {...props} />
+}
