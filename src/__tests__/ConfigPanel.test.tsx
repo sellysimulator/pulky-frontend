@@ -449,7 +449,7 @@ describe('sending (acceptance 5, failure modes 4 and 5)', () => {
     await mount()
     edit('stock.max_days', 5)
     await advance(100)
-    edit('stock.max_days', 4)
+    edit('stock.max_days', 3)
     await advance(400)
     await advance(0)
     expect(configUpdateCalls()).toHaveLength(0)
@@ -710,7 +710,7 @@ describe('Reset to defaults (acceptance 7)', () => {
     expect(configUpdateCalls()[0][1]).toEqual({
       room_id: ROOM,
       host_secret: SECRET,
-      config: { duration_days: 14, stock: { max_days: 4 } },
+      config: { duration_days: 14, stock: { max_days: 3 } },
     })
   })
 
@@ -736,7 +736,7 @@ describe('calculator inside the panel (acceptance 9)', () => {
     await advance(0)
     expect(configUpdateCalls()).toHaveLength(1)
     expect((configUpdateCalls()[0][1] as { config: object }).config).toEqual({
-      insurance: { tiers: { cip: { fee: 0.4 } } },
+      insurance: { tiers: { cip: { fee: 0.55 } } },
     })
   })
 
@@ -808,12 +808,13 @@ describe('previews follow the draft (acceptance 11)', () => {
   it('shows the spoil risk table for the defaults inside Stock', async () => {
     await mount()
     expect(within(sectionOf('Stock')).getAllByRole('table').length).toBeGreaterThan(0)
-    expect(risk().rows[0]).toEqual(['1', '20%', '0%', '20%', '0%'])
+    expect(risk().rows[0]).toEqual(['1', '53%', '33%', '20%', '0%'])
   })
 
   it('changing fresh_days changes the risk table', async () => {
     await mount()
     const before = risk().rows
+    edit('stock.max_days', 4)
     edit('stock.fresh_days', 2)
     await advance(0)
     const after = risk().rows
@@ -828,7 +829,7 @@ describe('previews follow the draft (acceptance 11)', () => {
     const { headers, rows } = risk()
     expect(headers).toContain('Plain lot at 70%')
     expect(headers).toContain('Conserved lot at 70%')
-    expect(rows[0][1]).toBe('30%')
+    expect(rows[0][1]).toBe('63%')
   })
 
   it('changing lambda changes the demand values', async () => {

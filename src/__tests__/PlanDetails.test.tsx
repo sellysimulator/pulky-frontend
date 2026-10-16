@@ -51,9 +51,9 @@ interface ViewOverrides {
 function makePlans(disabled: string[] = []) {
   const all = [
     { tier: 'exw', label: 'EXW', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
-    { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.4 },
-    { tier: 'dap', label: 'DAP', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.4 },
-    { tier: 'ddp', label: 'DDP', enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 0.99 },
+    { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
+    { tier: 'dap', label: 'DAP', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.55 },
+    { tier: 'ddp', label: 'DDP', enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 1.39 },
   ]
   return all.map((p) => (disabled.includes(p.tier) ? { ...p, enabled: false } : p))
 }
@@ -195,11 +195,11 @@ describe('tier options (acceptance criterion 7)', () => {
     renderForm()
     expect(optionText('EXW')).toContain(squash('Fee $0.00/u'))
     expect(optionText('EXW')).toContain(squash('No refund'))
-    expect(optionText('CIP')).toContain(squash('Fee $0.40/u'))
+    expect(optionText('CIP')).toContain(squash('Fee $0.55/u'))
     expect(optionText('CIP')).toContain(squash('Refund $13.40/u lost'))
-    expect(optionText('DAP')).toContain(squash('Fee $0.40/u'))
+    expect(optionText('DAP')).toContain(squash('Fee $0.55/u'))
     expect(optionText('DAP')).toContain(squash("Refund at the arrival day's spot price"))
-    expect(optionText('DDP')).toContain(squash('Fee $0.99/u'))
+    expect(optionText('DDP')).toContain(squash('Fee $1.39/u'))
     expect(optionText('DDP')).toContain(squash('Refund $30.00/u lost'))
   })
 
@@ -215,11 +215,11 @@ describe('tier options (acceptance criterion 7)', () => {
   it('selecting a card changes the tier that is submitted and the fee estimate line', async () => {
     const user = userEvent.setup()
     const { onSubmit } = renderForm()
-    expect(cardHas("Fee for today's shipment: ~$16.00")).toBe(true)
+    expect(cardHas("Fee for today's shipment: ~$22.00")).toBe(true)
     await user.click(radio('DDP'))
     expect(radio('DDP')).toBeChecked()
     expect(radio('CIP')).not.toBeChecked()
-    expect(cardHas("Fee for today's shipment: ~$39.60")).toBe(true)
+    expect(cardHas("Fee for today's shipment: ~$55.60")).toBe(true)
     await user.click(submitBtn())
     expect(onSubmit.mock.calls[0][0].incoterm).toBe('ddp')
   })
@@ -229,8 +229,8 @@ describe('tier options (acceptance criterion 7)', () => {
       view: makeView({ futures_book: [{ contract_day: 0, ships_day: 5, delivery_day: 6, qty: 10 }] }),
       initialDecision: makePrefill({ order_futures: 500 }),
     })
-    // 0.40 x (40 + 10); 500 new futures do not ship today
-    expect(cardHas("Fee for today's shipment: ~$20.00")).toBe(true)
+    // 0.55 x (40 + 10); 500 new futures do not ship today
+    expect(cardHas("Fee for today's shipment: ~$27.50")).toBe(true)
   })
 })
 
@@ -275,22 +275,22 @@ describe('Plan details (acceptance criterion 8)', () => {
     expect(text).toContain(squash('Set on the arrival day'))
     expect(text).toContain(squash('$30.00'))
     expect(text).toContain(squash('Fee:'))
-    expect(text).toContain(squash('$0.40/u'))
-    expect(text).toContain(squash('$0.99/u'))
-    expect(text).toContain(squash("~$16.00 for today's shipment"))
-    expect(text).toContain(squash("~$39.60 for today's shipment"))
+    expect(text).toContain(squash('$0.55/u'))
+    expect(text).toContain(squash('$1.39/u'))
+    expect(text).toContain(squash("~$22.00 for today's shipment"))
+    expect(text).toContain(squash("~$55.60 for today's shipment"))
     expect(text).toContain(squash("~$0.00 for today's shipment"))
   })
 
   it("the shipment estimate follows the form's quantities and the futures due today", () => {
     renderForm({ view: makeView({ futures_book: [{ contract_day: 0, ships_day: 5, delivery_day: 6, qty: 10 }] }) })
     // shipmentMax = 40 + 10 = 50
-    expect(detailsText()).toContain(squash("~$20.00 for today's shipment"))
-    expect(detailsText()).toContain(squash("~$49.50 for today's shipment"))
+    expect(detailsText()).toContain(squash("~$27.50 for today's shipment"))
+    expect(detailsText()).toContain(squash("~$69.50 for today's shipment"))
     setField(spot(), 0)
     // shipmentMax = 10
-    expect(detailsText()).toContain(squash("~$4.00 for today's shipment"))
-    expect(detailsText()).toContain(squash("~$9.90 for today's shipment"))
+    expect(detailsText()).toContain(squash("~$5.50 for today's shipment"))
+    expect(detailsText()).toContain(squash("~$13.90 for today's shipment"))
   })
 
   it("ends with the sentence on DAP's and CIP's refunds", () => {
