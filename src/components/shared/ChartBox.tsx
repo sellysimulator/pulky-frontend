@@ -26,7 +26,7 @@ export default function ChartBox({ title, caption, ariaLabel, height, legend, ta
         <Button
           variant="ghost"
           size="sm"
-          className="ml-auto"
+          className="ml-auto print:hidden"
           icon={showTable ? ChartLine : Table}
           aria-pressed={showTable}
           onClick={() => setShowTable((v) => !v)}
