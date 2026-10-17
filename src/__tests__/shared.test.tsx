@@ -10,6 +10,7 @@ import { Plus } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { BackendState } from '../contexts/BackendStatusContext'
 
 const h = vi.hoisted(() => ({
   auth: {
@@ -22,7 +23,12 @@ const h = vi.hoisted(() => ({
     } | null,
     signOut: vi.fn(async () => undefined),
   },
-  backend: { status: 'waking' as 'checking' | 'awake' | 'waking', elapsedSeconds: 0 },
+  backend: {
+    status: 'waking' as BackendState,
+    elapsedSeconds: 0,
+    httpStatus: null as number | null,
+    retry: async (): Promise<void> => undefined,
+  },
 }))
 
 vi.mock('../auth/AuthContext', () => ({
@@ -70,6 +76,8 @@ beforeEach(() => {
   h.auth.user = { displayName: 'Ana Perez', email: 'ana@example.com', photoURL: null }
   h.backend.status = 'waking'
   h.backend.elapsedSeconds = 0
+  h.backend.httpStatus = null
+  h.backend.retry = async () => undefined
 })
 
 afterEach(() => {
@@ -1009,6 +1017,48 @@ describe('BackendWakeUp (criterion 11)', () => {
   it('draws no progress bar (the wait is unknown)', () => {
     render(<BackendWakeUp />)
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+  })
+
+  it('while waking offers no Try again and raises no alert', () => {
+    render(<BackendWakeUp />)
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['offline', 'You are offline'],
+    ['unreachable', 'Could not reach the game server'],
+    ['rejected', 'The game server refused the connection'],
+  ] as const)('when %s, shows an alert titled "%s" with Try again in place of the counter', (status, title) => {
+    h.backend.status = status
+    h.backend.elapsedSeconds = 95
+    render(<BackendWakeUp />)
+    const alert = screen.getByRole('alert')
+    expect(within(alert).getByRole('heading', { level: 1, name: title })).toBeInTheDocument()
+    expect(within(alert).getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    expect(screen.queryByText('95 s')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Waking up the game server' })).not.toBeInTheDocument()
+  })
+
+  it('names the HTTP status the server rejected the probe with', () => {
+    h.backend.status = 'rejected'
+    h.backend.httpStatus = 404
+    render(<BackendWakeUp />)
+    expect(screen.getByText(/HTTP 404/)).toBeInTheDocument()
+  })
+
+  it('Try again calls retry and keeps the button busy until that probe answers', async () => {
+    let answer: () => void = () => undefined
+    const retry = vi.fn(() => new Promise<void>((resolve) => (answer = resolve)))
+    h.backend.status = 'unreachable'
+    h.backend.retry = retry
+    render(<BackendWakeUp />)
+    const button = screen.getByRole('button', { name: 'Try again' })
+    await userEvent.click(button)
+    expect(retry).toHaveBeenCalledTimes(1)
+    expect(button).toHaveAttribute('aria-busy', 'true')
+    await act(async () => answer())
+    expect(button).not.toHaveAttribute('aria-busy')
   })
 })
 

@@ -34,6 +34,10 @@
   /* Maguey ochre */
   --color-ochre: #a06a12;
   --color-peak: #f7edd3;
+  /* Brand: the jarrito mark only (BrandMark), never UI state */
+  --color-agave: #2d6a55;
+  --color-clay: #c96a3d;
+  --color-sage: #749a8d;
   /* Status: mark · ink · subtle · line */
   --color-success: #2d6a55; --color-success-ink: #22543f; --color-success-subtle: #e2eee7; --color-success-line: #b5d0c3;
   --color-warning: #a06a12; --color-warning-ink: #7a500e; --color-warning-subtle: #f7eacb; --color-warning-line: #e3c98f;
