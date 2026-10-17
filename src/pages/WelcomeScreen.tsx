@@ -1,9 +1,9 @@
-import { Sprout } from 'lucide-react'
 import { useState, type ReactElement } from 'react'
 import { Navigate, useLocation, useNavigate, type Path } from 'react-router-dom'
 import { errorMessage } from '../api/http'
 import { useAuth } from '../auth/AuthContext'
 import { InlineAlert } from '../components/shared/AlertContainer'
+import BrandMark from '../components/shared/BrandMark'
 import Button from '../components/shared/Button'
 import type { PageRoute } from '../routes/registry'
 
@@ -52,9 +52,7 @@ export default function WelcomeScreen(): ReactElement {
   return (
     <main className="grid min-h-dvh place-items-center bg-canvas px-4">
       <div className="flex w-full max-w-md flex-col gap-6 rounded-lg border border-border bg-card p-8 text-center shadow-card">
-        <span className="mx-auto grid size-10 place-items-center rounded-sm bg-accent">
-          <Sprout size={24} aria-hidden="true" className="text-on-accent" />
-        </span>
+        <BrandMark className="mx-auto size-16" />
         <h1 className="text-3xl">Pulky</h1>
         <p className="text-ink-muted">Run a pulquería: buy, ship and sell pulque before it spoils.</p>
         <div className="flex flex-col gap-3">

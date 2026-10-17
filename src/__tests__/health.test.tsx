@@ -26,22 +26,26 @@ afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
+  vi.restoreAllMocks()
 })
 
+const OK = { outcome: 'ok' }
+const NO_ANSWER = { outcome: 'no-answer' }
+
 describe('probeHealth (spec 13.6, criterion 9)', () => {
-  it('is true for a 200 JSON body whose status is exactly "ok"', async () => {
+  it('is ok for a 200 JSON body whose status is exactly "ok"', async () => {
     stubFetch(async () => json({ status: 'ok' }))
-    await expect(probeHealth()).resolves.toBe(true)
+    await expect(probeHealth()).resolves.toEqual(OK)
   })
 
-  it('is true when the body has extra keys', async () => {
+  it('is ok when the body has extra keys', async () => {
     stubFetch(async () => json({ status: 'ok', version: '1' }))
-    await expect(probeHealth()).resolves.toBe(true)
+    await expect(probeHealth()).resolves.toEqual(OK)
   })
 
-  it('failure mode 8: a 200 text/html response (the Hosting SPA rewrite) is false', async () => {
+  it('failure mode 8: a 200 text/html response (the Hosting SPA rewrite) is no answer', async () => {
     stubFetch(async () => html())
-    await expect(probeHealth()).resolves.toBe(false)
+    await expect(probeHealth()).resolves.toEqual(NO_ANSWER)
   })
 
   it.each([
@@ -53,23 +57,26 @@ describe('probeHealth (spec 13.6, criterion 9)', () => {
     ['null', null],
     ['an array', ['ok']],
     ['a bare string', 'ok'],
-  ])('is false for a 200 body of %s', async (_label, body) => {
+  ])('is no answer for a 200 body of %s', async (_label, body) => {
     stubFetch(async () => json(body))
-    await expect(probeHealth()).resolves.toBe(false)
+    await expect(probeHealth()).resolves.toEqual(NO_ANSWER)
   })
 
-  it('is false for a non-ok response even with a good body', async () => {
-    stubFetch(async () => json({ status: 'ok' }, 503))
-    await expect(probeHealth()).resolves.toBe(false)
-    stubFetch(async () => json({ status: 'ok' }, 404))
-    await expect(probeHealth()).resolves.toBe(false)
+  it.each([500, 502, 503, 504, 408, 429])('is no answer for a %i, even with a good body (a cold start or a busy server)', async (code) => {
+    stubFetch(async () => json({ status: 'ok' }, code))
+    await expect(probeHealth()).resolves.toEqual(NO_ANSWER)
   })
 
-  it('never rejects: a rejected fetch resolves false', async () => {
+  it.each([400, 401, 403, 404, 405])('is rejected with the status for a %i, even with a good body', async (code) => {
+    stubFetch(async () => json({ status: 'ok' }, code))
+    await expect(probeHealth()).resolves.toEqual({ outcome: 'rejected', httpStatus: code })
+  })
+
+  it('never rejects: a rejected fetch resolves no answer', async () => {
     stubFetch(async () => {
       throw new TypeError('Failed to fetch')
     })
-    await expect(probeHealth()).resolves.toBe(false)
+    await expect(probeHealth()).resolves.toEqual(NO_ANSWER)
   })
 
   it('calls the global fetch on /api/v1/health, with the base URL prefix from VITE_API_BASE_URL', async () => {
@@ -88,7 +95,7 @@ describe('probeHealth (spec 13.6, criterion 9)', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('https://api.example.test/api/v1/health')
   })
 
-  it('passes an AbortSignal and aborts after timeoutMs, resolving false', async () => {
+  it('passes an AbortSignal and aborts after timeoutMs, resolving no answer', async () => {
     vi.useFakeTimers()
     stubFetch(
       (_url, init) =>
@@ -105,7 +112,7 @@ describe('probeHealth (spec 13.6, criterion 9)', () => {
     await vi.advanceTimersByTimeAsync(199)
     expect(settled).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
-    await expect(promise).resolves.toBe(false)
+    await expect(promise).resolves.toEqual(NO_ANSWER)
     expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true)
   })
 
@@ -125,23 +132,26 @@ describe('probeHealth (spec 13.6, criterion 9)', () => {
     await vi.advanceTimersByTimeAsync(4999)
     expect(settled).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
-    await expect(promise).resolves.toBe(false)
+    await expect(promise).resolves.toEqual(NO_ANSWER)
   })
 })
 
 describe('BackendStatusProvider (spec 3.5)', () => {
+  let latest: ReturnType<typeof useBackendStatus>
+
   function Probe() {
-    const { status, elapsedSeconds } = useBackendStatus()
+    latest = useBackendStatus()
+    const { status, elapsedSeconds, httpStatus } = latest
     return (
       <p role="status">
-        {status}|{elapsedSeconds}
+        {status}|{elapsedSeconds}|{httpStatus ?? 'none'}
       </p>
     )
   }
 
   const read = () => {
-    const [status, elapsed] = (screen.getByRole('status').textContent ?? '').split('|')
-    return { status, elapsed: Number(elapsed) }
+    const [status, elapsed, httpStatus] = (screen.getByRole('status').textContent ?? '').split('|')
+    return { status, elapsed: Number(elapsed), httpStatus }
   }
 
   const advance = (ms: number) => act(async () => vi.advanceTimersByTimeAsync(ms))
@@ -231,5 +241,112 @@ describe('BackendStatusProvider (spec 3.5)', () => {
     expect(read().status).toBe('waking')
     expect(read().elapsed).toBeGreaterThanOrEqual(9)
     expect(read().elapsed).toBeLessThanOrEqual(10)
+  })
+
+  it('is "unreachable" once there has been no answer for wakeWindowMs, keeps polling and recovers', async () => {
+    let healthy = false
+    stubFetch(async () => (healthy ? json({ status: 'ok' }) : json({}, 503)))
+    render(
+      <BackendStatusProvider pollMs={1000} wakeWindowMs={5000}>
+        <Probe />
+      </BackendStatusProvider>,
+    )
+    await advance(10)
+    expect(read().status).toBe('waking')
+    await advance(3000)
+    expect(read().status).toBe('waking')
+    await advance(3000)
+    expect(read().status).toBe('unreachable')
+    const calls = fetchMock.mock.calls.length
+    await advance(2000)
+    expect(fetchMock.mock.calls.length).toBe(calls + 2)
+    healthy = true
+    await advance(1000)
+    expect(read().status).toBe('awake')
+  })
+
+  it('is "rejected" with the HTTP status on a 4xx, keeps polling, and clears the status on a later answer', async () => {
+    let code = 404
+    stubFetch(async () => json(code === 200 ? { status: 'ok' } : { detail: 'Not Found' }, code))
+    render(
+      <BackendStatusProvider pollMs={1000}>
+        <Probe />
+      </BackendStatusProvider>,
+    )
+    await advance(10)
+    expect(read()).toMatchObject({ status: 'rejected', httpStatus: '404' })
+    code = 503
+    await advance(1000)
+    expect(fetchMock.mock.calls.length).toBe(2)
+    expect(read()).toMatchObject({ status: 'waking', httpStatus: 'none' })
+    code = 200
+    await advance(1000)
+    expect(read().status).toBe('awake')
+  })
+
+  it('is "offline" while the browser reports no network; coming back probes at once and restarts the allowance', async () => {
+    const onLine = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    stubFetch(async () => {
+      throw new TypeError('Failed to fetch')
+    })
+    render(
+      <BackendStatusProvider pollMs={60_000} wakeWindowMs={5000}>
+        <Probe />
+      </BackendStatusProvider>,
+    )
+    await advance(10)
+    expect(read().status).toBe('offline')
+    await advance(9000)
+    expect(read().elapsed).toBe(9)
+    onLine.mockReturnValue(true)
+    await act(async () => {
+      window.dispatchEvent(new Event('online'))
+      await vi.advanceTimersByTimeAsync(10)
+    })
+    expect(fetchMock.mock.calls.length).toBe(2)
+    // Past wakeWindowMs since mount, but the server was never asked while offline.
+    expect(read()).toMatchObject({ status: 'waking', elapsed: 0 })
+  })
+
+  it('retry probes at once instead of at the next poll, and resolves once that probe has answered', async () => {
+    let code = 404
+    stubFetch(async () => json(code === 200 ? { status: 'ok' } : {}, code))
+    render(
+      <BackendStatusProvider pollMs={60_000}>
+        <Probe />
+      </BackendStatusProvider>,
+    )
+    await advance(10)
+    expect(read().status).toBe('rejected')
+    code = 200
+    let resolved = false
+    await act(async () => {
+      void latest.retry().then(() => {
+        resolved = true
+      })
+      await vi.advanceTimersByTimeAsync(10)
+    })
+    expect(fetchMock.mock.calls.length).toBe(2)
+    expect(resolved).toBe(true)
+    expect(read().status).toBe('awake')
+  })
+
+  it('retry joins a probe already in flight instead of starting a second one', async () => {
+    let answer: (res: Response) => void = () => undefined
+    stubFetch(() => new Promise<Response>((resolve) => (answer = resolve)))
+    render(
+      <BackendStatusProvider pollMs={60_000}>
+        <Probe />
+      </BackendStatusProvider>,
+    )
+    await advance(10)
+    await act(async () => {
+      void latest.retry()
+      void latest.retry()
+    })
+    expect(fetchMock.mock.calls.length).toBe(1)
+    answer(json({ status: 'ok' }))
+    await advance(10)
+    expect(read().status).toBe('awake')
   })
 })

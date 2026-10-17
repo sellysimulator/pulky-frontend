@@ -4,10 +4,11 @@ import { resolve } from 'node:path'
 import { createMemoryRouter, MemoryRouter, RouterProvider, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
+import type { BackendState } from '../contexts/BackendStatusContext'
 
 const h = vi.hoisted(() => ({
   auth: { loading: false, mode: null as 'authenticated' | 'guest' | null },
-  backend: { status: 'awake' as 'checking' | 'awake' | 'waking', elapsedSeconds: 0 },
+  backend: { status: 'awake' as BackendState, elapsedSeconds: 0 },
 }))
 
 vi.mock('../../firebase', () => ({ auth: { currentUser: null }, googleProvider: {}, app: {} }))
@@ -154,7 +155,7 @@ describe('RequireBackend (criterion 10)', () => {
     expect(screen.getByText('backend page')).toBeInTheDocument()
   })
 
-  it.each(['checking', 'waking'] as const)('withholds the children while the backend is %s', (status) => {
+  it.each(['checking', 'waking', 'unreachable', 'offline', 'rejected'] as const)('withholds the children while the backend is %s', (status) => {
     h.backend.status = status
     const { container } = render(tree)
     expect(screen.queryByText('backend page')).not.toBeInTheDocument()

@@ -5,7 +5,7 @@
  * The expected declarations are design.md §12.1's `@theme` block, one entry per
  * custom property, so a drifted value names the token that drifted.
  */
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -35,6 +35,9 @@ const EXPECTED_THEME: Array<[string, string]> = [
   ['--color-accent-line', '#b5d0c3'],
   ['--color-ochre', '#a06a12'],
   ['--color-peak', '#f7edd3'],
+  ['--color-agave', '#2d6a55'],
+  ['--color-clay', '#c96a3d'],
+  ['--color-sage', '#749a8d'],
   ['--color-success', '#2d6a55'],
   ['--color-success-ink', '#22543f'],
   ['--color-success-subtle', '#e2eee7'],
@@ -178,6 +181,16 @@ describe('index.html (design.md §12.2)', () => {
     const theme = doc.head.querySelector('meta[name="theme-color"]')!
     expect(theme.getAttribute('content')!.toLowerCase()).toBe('#f5f0e3')
     expect(viewport.compareDocumentPosition(theme) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('links the jarrito favicon and touch icon, both present in public/ (design.md §2.7)', () => {
+    const icon = doc.head.querySelector('link[rel="icon"]')!
+    const touch = doc.head.querySelector('link[rel="apple-touch-icon"]')!
+    expect(icon.getAttribute('href')).toBe('/favicon.svg')
+    expect(icon.getAttribute('type')).toBe('image/svg+xml')
+    expect(touch.getAttribute('href')).toBe('/apple-touch-icon.png')
+    expect(read('public/favicon.svg')).toContain('#c96a3d')
+    expect(existsSync(resolve(process.cwd(), 'public/apple-touch-icon.png'))).toBe(true)
   })
 
   it('keeps the existing preconnects, description and title', () => {

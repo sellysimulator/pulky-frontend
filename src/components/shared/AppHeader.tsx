@@ -1,7 +1,8 @@
-import { CircleUser, LogOut, Sprout, UserRound } from 'lucide-react'
+import { CircleUser, LogOut, UserRound } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
+import BrandMark from './BrandMark'
 
 function Avatar({ photoURL, initial, guest }: { photoURL: string | null; initial: string; guest: boolean }): ReactElement {
   const [failed, setFailed] = useState(false)
@@ -65,9 +66,7 @@ export default function AppHeader({ context }: { context?: ReactNode }): ReactEl
       </a>
       <div className="mx-auto flex h-full max-w-console items-center gap-4 px-4 md:px-6">
         <Link to="/home" className="flex items-center gap-2">
-          <span className="grid size-7 place-items-center rounded-sm bg-accent">
-            <Sprout size={18} aria-hidden="true" className="text-on-accent" />
-          </span>
+          <BrandMark className="size-7" />
           <span className="font-display text-xl font-bold">Pulky</span>
         </Link>
         <div className="ml-auto flex items-center gap-3">
