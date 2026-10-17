@@ -1,0 +1,25 @@
+# Runs the frontend gates, with the coverage thresholds of vite.config.ts, on
+# every push to any branch and on every pull request, forks included. It uses
+# no secret and deploys nothing, so its build runs without the backend URLs
+# and without REQUIRE_BACKEND_ENV (docs/spec/13-deploy.md §13.13).
+
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+      - run: npm ci
+      - run: npx tsc -b
+      - run: npx eslint .
+      - run: npx vitest run --coverage
+      - run: npm run build

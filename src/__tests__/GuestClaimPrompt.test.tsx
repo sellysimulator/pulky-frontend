@@ -29,8 +29,8 @@ vi.mock('../auth/AuthContext', () => ({
 
 import GuestClaimPrompt from '../components/results/GuestClaimPrompt'
 import { INITIAL_STATE, useGameStore } from '../store/gameStore'
-import { getOrCreateGuestId, setSessionToken } from '../utils/storage'
-import { ROOM } from './fixtures/results'
+import { getOrCreateGuestId, markGamePlayed } from '../utils/storage'
+import { GAME_ID } from './fixtures/results'
 import { jsonBody, mockHttp, urlPath, verb, type HttpSpy } from './fixtures/resultsHelpers'
 
 const PROMPT = 'Sign in to keep these results in your profile.'
@@ -46,7 +46,7 @@ beforeEach(() => {
     order.push('sign-in')
   })
   guestId = getOrCreateGuestId()
-  setSessionToken(ROOM, 'tok')
+  markGamePlayed(GAME_ID)
 })
 
 afterEach(() => {
@@ -63,14 +63,14 @@ function claimsReply(claimed: number) {
 
 describe('the prompt', () => {
   it('is an info alert with a Sign in with Google button', () => {
-    render(<GuestClaimPrompt roomCode={ROOM} />)
+    render(<GuestClaimPrompt gameId={GAME_ID} />)
     expect(screen.getByText(PROMPT)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Sign in with Google' })).toBeInTheDocument()
   })
 
   it('does nothing until the button is pressed', () => {
     claimsReply(1)
-    render(<GuestClaimPrompt roomCode={ROOM} />)
+    render(<GuestClaimPrompt gameId={GAME_ID} />)
     expect(auth.signIn).not.toHaveBeenCalled()
     expect(spy!.seen).toHaveLength(0)
   })
@@ -79,7 +79,7 @@ describe('the prompt', () => {
 describe('signing in and claiming', () => {
   it('signs in first, then POSTs the guest id to /games/claim', async () => {
     claimsReply(1)
-    render(<GuestClaimPrompt roomCode={ROOM} />)
+    render(<GuestClaimPrompt gameId={GAME_ID} />)
     await userEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }))
     await waitFor(() => expect(spy!.seen).toHaveLength(1))
     expect(order).toEqual(['sign-in', 'claim'])
@@ -90,7 +90,7 @@ describe('signing in and claiming', () => {
 
   it('says Saved 1 game to your profile. and the prompt goes away', async () => {
     claimsReply(1)
-    render(<GuestClaimPrompt roomCode={ROOM} />)
+    render(<GuestClaimPrompt gameId={GAME_ID} />)
     await userEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }))
     await waitFor(() => expect(screen.getByText('Saved 1 game to your profile.')).toBeInTheDocument())
     expect(screen.queryByText(PROMPT)).not.toBeInTheDocument()
@@ -99,7 +99,7 @@ describe('signing in and claiming', () => {
 
   it('says Saved 3 games to your profile. for several', async () => {
     claimsReply(3)
-    render(<GuestClaimPrompt roomCode={ROOM} />)
+    render(<GuestClaimPrompt gameId={GAME_ID} />)
     await userEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }))
     await waitFor(() => expect(screen.getByText('Saved 3 games to your profile.')).toBeInTheDocument())
     expect(screen.queryByText('Saved 3 game to your profile.')).not.toBeInTheDocument()
@@ -107,7 +107,7 @@ describe('signing in and claiming', () => {
 
   it('a failed claim shows the server message, or the fallback when there is none', async () => {
     spy = mockHttp(() => ({ status: 500, data: {} }))
-    render(<GuestClaimPrompt roomCode={ROOM} />)
+    render(<GuestClaimPrompt gameId={GAME_ID} />)
     await userEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }))
     await waitFor(() => expect(screen.getByText('Could not save your results. Try again.')).toBeInTheDocument())
     expect(screen.queryByText(/^Saved \d+ games? to your profile\.$/)).not.toBeInTheDocument()
@@ -115,7 +115,7 @@ describe('signing in and claiming', () => {
 
   it('a failed claim with a server detail shows that detail', async () => {
     spy = mockHttp(() => ({ status: 400, data: { detail: 'That is not a guest id.' } }))
-    render(<GuestClaimPrompt roomCode={ROOM} />)
+    render(<GuestClaimPrompt gameId={GAME_ID} />)
     await userEvent.click(screen.getByRole('button', { name: 'Sign in with Google' }))
     await waitFor(() => expect(screen.getByText('That is not a guest id.')).toBeInTheDocument())
   })

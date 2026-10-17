@@ -21,9 +21,8 @@ import {
   weekdayMultipliers,
   worstSingleFailureLoss,
   type BreakEvenInput,
-  type Tier,
 } from '../game/configMath'
-import type { Weekday } from '../types/game'
+import type { InsuredTier, Weekday } from '../types/game'
 
 const TOL = 1e-6
 const DAYS: Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
@@ -54,7 +53,7 @@ interface Fixture {
     expected: number
   }[]
   break_even_fee: {
-    tier: Tier
+    tier: InsuredTier
     failure_probability: number
     loss_fraction: number
     shared: boolean

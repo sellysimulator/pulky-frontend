@@ -3,10 +3,8 @@
  * entries (section 24) and the previews and insurance calculator (section 25).
  * Pure: no React, no store, no API. Nothing here is ever sent back to the server.
  */
-import type { QualityGuideRow, Weekday } from '../types/game'
+import { WEEKDAYS, type InsuredTier, type QualityGuideRow, type Weekday } from '../types/game'
 import { roundCents } from '../utils/money'
-
-const WEEKDAYS: readonly Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 
 /** 1 (Monday) .. 7 (Sunday). */
 function weekdayIndex(day: Weekday): number {
@@ -108,8 +106,6 @@ export function spotRange(basePrice: number, spread: number): [number, number] {
   return [roundCents(basePrice * (1 - spread)), roundCents(basePrice * (1 + spread))]
 }
 
-export type Tier = 'cip' | 'dap' | 'ddp'
-
 export interface BreakEvenInput {
   failureProbability: number
   lossFraction: number
@@ -125,7 +121,7 @@ function lostUnits(input: BreakEvenInput): number {
   return Math.floor(input.referenceShipment * effective + 1e-9)
 }
 
-function refundValue(tier: Tier, input: BreakEvenInput): number {
+function refundValue(tier: InsuredTier, input: BreakEvenInput): number {
   return tier === 'ddp' ? input.retailPrice : input.basePrice
 }
 
@@ -135,7 +131,7 @@ export function lostPerUnit(input: BreakEvenInput): number {
 }
 
 /** Spec 6.4: the fee at which the expected refund equals the fee (unrounded). */
-export function breakEvenFee(tier: Tier, input: BreakEvenInput): number {
+export function breakEvenFee(tier: InsuredTier, input: BreakEvenInput): number {
   return lostPerUnit(input) * refundValue(tier, input)
 }
 
@@ -156,7 +152,7 @@ export function ratioBadge(fee: number, breakEven: number): RatioBadge {
   return 'break_even'
 }
 
-export function worstSingleFailureLoss(tier: Tier, input: BreakEvenInput): number {
+export function worstSingleFailureLoss(tier: InsuredTier, input: BreakEvenInput): number {
   return lostUnits(input) * refundValue(tier, input)
 }
 

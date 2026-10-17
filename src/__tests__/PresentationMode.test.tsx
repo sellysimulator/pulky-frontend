@@ -286,7 +286,7 @@ describe('PresentationMode leaks nothing private (failure modes 1, 2, 3, 8)', ()
         cumulative_profit: 1120.55,
         fill_rate: 0.9,
         waste_rate: 0.1,
-        last_incoterm: 'cip',
+        last_incoterm_tier: 'cip',
         last_peer_bought: 10,
         last_peer_sold: 4,
       }

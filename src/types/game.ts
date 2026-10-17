@@ -4,7 +4,17 @@
  */
 
 export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
-export type Incoterm = 'exw' | 'cip' | 'dap' | 'ddp'
+/** Monday first: the order of the weekday index (spec §7.1) and of every weekday row. */
+export const WEEKDAYS: readonly Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+
+/** An Incoterm tier by its id: the per-shipment contract that decides whether, and at
+ * what value, lost units are refunded (spec §6.3). The names only borrow Incoterms'. */
+export type IncotermTier = 'exw' | 'cip' | 'dap' | 'ddp'
+/** The tiers that refund lost units: the host can disable them and set their fees. */
+export type InsuredTier = Exclude<IncotermTier, 'exw'>
+/** Every tier, from no protection to the most (spec §6.3's order). */
+export const INCOTERM_TIERS: readonly IncotermTier[] = ['exw', 'cip', 'dap', 'ddp']
+export const INSURED_TIERS: readonly InsuredTier[] = ['cip', 'dap', 'ddp']
 export type RoomState = 'lobby' | 'configuring' | 'running' | 'finished'
 export type Phase = 'deciding' | 'finished'
 export type TradeSide = 'buy' | 'sell'
@@ -40,7 +50,7 @@ export const SECRET_CONFIG_KEYS: readonly string[] = [
 
 // ---------------------------------------------------------------- config
 
-export interface TierConfig {
+export interface InsuredTierConfig {
   enabled: boolean
   fee: number
 }
@@ -96,9 +106,9 @@ export interface GameConfig {
   }
   insurance: {
     tiers: {
-      cip: TierConfig
-      dap: TierConfig
-      ddp: TierConfig
+      cip: InsuredTierConfig
+      dap: InsuredTierConfig
+      ddp: InsuredTierConfig
     }
     target_margin: number
     reference_shipment: number
@@ -188,7 +198,7 @@ export interface Decision {
   day: number
   order_spot: number
   order_futures: number
-  incoterm: Incoterm
+  incoterm_tier: IncotermTier
   conserve_lots: string[]
   cooperate: boolean
   peer_buy: PeerBuy | null
@@ -210,7 +220,7 @@ export interface DayRecord {
   weekday: Weekday
   order_spot: number
   order_futures: number
-  incoterm: Incoterm
+  incoterm_tier: IncotermTier
   conserve_lots: string[]
   lots_conserved: number
   cooperate: boolean
@@ -342,9 +352,9 @@ export interface Yesterday {
   revenue_peer: number
 }
 
-/** Spec §12.4 insurance row (no refund range). */
-export interface InsurancePlan {
-  tier: Incoterm
+/** Spec §12.4 tier plan row, one per Incoterm tier (no refund range). */
+export interface IncotermTierPlan {
+  tier: IncotermTier
   label: string
   enabled: boolean
   refund_basis: string
@@ -387,7 +397,7 @@ export interface InTransit {
   arrives_day: number
   qty: number
   lost: number
-  incoterm: Incoterm
+  incoterm_tier: IncotermTier
 }
 
 export interface FuturesContract {
@@ -429,7 +439,7 @@ export interface PlayerView {
   market_share: number
   cash: number
   cumulative_profit: number
-  insurance_plans: InsurancePlan[]
+  tier_plans: IncotermTierPlan[]
   order_windows: OrderWindows
   prefill_decision: Decision
   own_history?: DayRecord[]
@@ -462,7 +472,7 @@ export interface HostPlayerRow {
   cash: number
   fill_rate: number | null
   waste_rate: number | null
-  last_incoterm: Incoterm | null
+  last_incoterm_tier: IncotermTier | null
   last_peer_bought: number | null
   last_peer_sold: number | null
   own_history?: DayRecord[]
@@ -534,7 +544,7 @@ export interface PlayerStats {
   days_cooperated: number
   peak_stock: number
   peak_backlog: number
-  incoterm_days: Record<Incoterm, number>
+  incoterm_tier_days: Record<IncotermTier, number>
   series: {
     delivered: number[]
     peer_bought: number[]
@@ -750,6 +760,8 @@ export interface HostReconnectedPayload {
 
 export interface GameFinishedPayload {
   seq: number
+  /** The finished game's id: its only key from here on, since a room code is reissued. */
+  game_id: string
   days_played: number
   ended_early: boolean
   leaderboard: LeaderboardRow[]

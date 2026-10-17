@@ -1,4 +1,4 @@
-import type { QualityGuideRow, Weekday } from '../types/game'
+import type { IncotermTier, QualityGuideRow, Weekday } from '../types/game'
 
 const MINUS = '−'
 const DASH = '—'
@@ -66,6 +66,14 @@ export function riskState(risk: number): 'safe' | 'at_risk' | 'likely' {
   if (risk < 0.5) return 'at_risk'
   return 'likely'
 }
+
+/** A tier's short name; its full label comes from the server's tier plan (spec §6.3). */
+export const INCOTERM_TIER_NAMES = {
+  exw: 'EXW',
+  cip: 'CIP',
+  dap: 'DAP',
+  ddp: 'DDP',
+} as const satisfies Record<IncotermTier, string>
 
 export const RISK_LABELS: Record<'safe' | 'at_risk' | 'likely', string> = {
   safe: 'Safe',

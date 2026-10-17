@@ -150,7 +150,7 @@ export function makeView(over: ViewOver = {}): PlayerView {
     market_share: 0.25,
     cash: 6120,
     cumulative_profit: 0,
-    insurance_plans: [
+    tier_plans: [
       { tier: 'exw', label: 'EXW', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
       { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
     ],
@@ -174,7 +174,7 @@ export function makeRecord(day: number, over: Partial<DayRecord> = {}): DayRecor
     weekday: 'fri',
     order_spot: 0,
     order_futures: 0,
-    incoterm: 'cip',
+    incoterm_tier: 'cip',
     conserve_lots: [],
     lots_conserved: 0,
     cooperate: false,
@@ -254,7 +254,7 @@ export function makeDecision(day = 5): Decision {
     day,
     order_spot: 40,
     order_futures: 25,
-    incoterm: 'cip',
+    incoterm_tier: 'cip',
     conserve_lots: [],
     cooperate: true,
     peer_buy: null,
@@ -420,6 +420,7 @@ const finish = () =>
   act(() =>
     useGameStore.getState().applyGameFinished({
       seq: 50,
+      game_id: 'g-77',
       days_played: 14,
       ended_early: false,
       leaderboard: [],
@@ -575,13 +576,13 @@ describe('GameRoom at the end of the game (acceptance 1, 8, 9)', () => {
     expect(screen.queryByRole('button', { name: 'Submit day' })).toBeNull()
   })
 
-  it('links to the room results before game_persisted and the game after it', () => {
+  it('links to the game by the id game_finished carries, before game_persisted and after it', () => {
     seedRunning()
     finish()
     mount()
-    expect(screen.getByRole('link', { name: 'See the results' })).toHaveAttribute('href', '/results/K7M2QX')
+    expect(screen.getByRole('link', { name: 'See the results' })).toHaveAttribute('href', '/results/g-77')
     act(() => useGameStore.getState().applyGamePersisted({ seq: 51, game_id: 'g-77' }))
-    expect(screen.getByRole('link', { name: 'See the results' })).toHaveAttribute('href', '/results/g/g-77')
+    expect(screen.getByRole('link', { name: 'See the results' })).toHaveAttribute('href', '/results/g-77')
   })
 
   it('failure mode 2: game_finished and game_persisted do not navigate', () => {

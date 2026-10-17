@@ -1,4 +1,4 @@
-import type { GameFinishedPayload, GameStats, Incoterm, ResultsResponse, Weekday } from '../../types/game'
+import type { GameFinishedPayload, GameStats, IncotermTier, ResultsResponse, Weekday } from '../../types/game'
 
 /** Spec §13.8, field for field. The peer fields are optional: a stored payload without them renders no peer segment, column or chart. */
 export interface PulqueriaResultView {
@@ -38,7 +38,7 @@ export interface PulqueriaResultView {
   cost_peer?: number
   revenue_peer?: number
   peer_net?: number
-  incoterm_days: Record<Incoterm, number>
+  incoterm_tier_days: Record<IncotermTier, number>
   series: {
     delivered: number[]
     peer_bought?: number[]
@@ -54,6 +54,7 @@ export interface PulqueriaResultView {
 }
 
 export interface ResultsView {
+  game_id: string
   room_code: string
   days_played: number
   duration_days: number
@@ -162,13 +163,13 @@ function pick(source: object, keys: readonly string[]): Record<string, unknown> 
 
 function normalise(
   stats: GameStats,
-  head: Pick<ResultsView, 'room_code' | 'days_played' | 'duration_days' | 'ended_early'>,
+  head: Pick<ResultsView, 'game_id' | 'room_code' | 'days_played' | 'duration_days' | 'ended_early'>,
 ): ResultsView {
   const players = Object.values(stats.players)
     .sort((a, b) => a.rank - b.rank)
     .map((p) => ({
       ...pick(p, PLAYER_KEYS),
-      incoterm_days: { ...p.incoterm_days },
+      incoterm_tier_days: { ...p.incoterm_tier_days },
       series: pick(p.series, SERIES_KEYS),
     })) as unknown as PulqueriaResultView[]
   return {
@@ -184,6 +185,7 @@ export function resultsViewFromLive(
   ctx: { roomCode: string; durationDays: number },
 ): ResultsView {
   return normalise(p.stats, {
+    game_id: p.game_id,
     room_code: ctx.roomCode,
     days_played: p.days_played,
     duration_days: ctx.durationDays,
@@ -195,6 +197,7 @@ export function resultsViewFromLive(
 export function resultsViewFromResponse(r: ResultsResponse): ResultsView {
   return {
     ...normalise(r.stats, {
+      game_id: r.game_id,
       room_code: r.room_code,
       days_played: r.days_played,
       duration_days: r.duration_days,

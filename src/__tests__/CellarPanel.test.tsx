@@ -150,7 +150,7 @@ export function makeView(over: ViewOver = {}): PlayerView {
     market_share: 0.25,
     cash: 6120,
     cumulative_profit: 0,
-    insurance_plans: [
+    tier_plans: [
       { tier: 'exw', label: 'EXW', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
       { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
     ],
@@ -174,7 +174,7 @@ export function makeRecord(day: number, over: Partial<DayRecord> = {}): DayRecor
     weekday: 'fri',
     order_spot: 0,
     order_futures: 0,
-    incoterm: 'cip',
+    incoterm_tier: 'cip',
     conserve_lots: [],
     lots_conserved: 0,
     cooperate: false,
@@ -254,7 +254,7 @@ export function makeDecision(day = 5): Decision {
     day,
     order_spot: 40,
     order_futures: 25,
-    incoterm: 'cip',
+    incoterm_tier: 'cip',
     conserve_lots: [],
     cooperate: true,
     peer_buy: null,
@@ -504,7 +504,7 @@ describe('InTransit and FuturesBook', () => {
   it('lists shipments with Day cells', () => {
     renderBoard({
       view: makeView({
-        in_transit: [{ shipped_day: 4, arrives_day: 6, qty: 40, lost: 15, incoterm: 'cip' }],
+        in_transit: [{ shipped_day: 4, arrives_day: 6, qty: 40, lost: 15, incoterm_tier: 'cip' }],
       }),
     })
     const table = screen.getByRole('table', { name: 'In transit' })

@@ -11,6 +11,8 @@ import {
   getDisplayName,
   getHostSecret,
   getSessionToken,
+  markGamePlayed,
+  setGameHostSecret,
   setHostSecret,
   setSessionToken,
 } from '../utils/storage'
@@ -38,6 +40,15 @@ import type {
 } from '../types/game'
 
 const CONNECT_ERROR_MESSAGE = 'Could not reach the game server.'
+
+/** The results page and export find this game by id; the room code is reissued later. */
+function rememberFinishedGame(gameId: string): void {
+  const { roomCode, myAlias } = store()
+  if (roomCode === null) return
+  const hostSecret = getHostSecret(roomCode)
+  if (hostSecret !== null) setGameHostSecret(gameId, hostSecret)
+  if (myAlias !== null) markGamePlayed(gameId)
+}
 
 const store = () => useGameStore.getState()
 
@@ -98,6 +109,9 @@ socket.on('participant_reconnected', (p: ParticipantReconnectedPayload) =>
 )
 socket.on('host_disconnected', (p: HostDisconnectedPayload) => store().applyHostDisconnected(p))
 socket.on('host_reconnected', (p: HostReconnectedPayload) => store().applyHostReconnected(p))
-socket.on('game_finished', (p: GameFinishedPayload) => store().applyGameFinished(p))
+socket.on('game_finished', (p: GameFinishedPayload) => {
+  rememberFinishedGame(p.game_id)
+  store().applyGameFinished(p)
+})
 socket.on('game_persisted', (p: GamePersistedPayload) => store().applyGamePersisted(p))
 socket.on('error', (p: ServerError) => store().applyError(p))

@@ -1,7 +1,7 @@
 import { ClipboardList, Lock } from 'lucide-react'
 import { useState, type ReactElement, type ReactNode } from 'react'
 import { canAfford, isWholeCents, outlayEstimate, type DecisionDraft } from '../../game/estimates'
-import { LIMITS, type Decision, type Incoterm, type PlayerView, type PublicConfig } from '../../types/game'
+import { LIMITS, type Decision, type IncotermTier, type PlayerView, type PublicConfig } from '../../types/game'
 import { formatMoney, formatQty } from '../../utils/format'
 import Badge from '../shared/Badge'
 import SectionCard from '../shared/SectionCard'
@@ -25,7 +25,7 @@ interface DecisionFormProps {
 interface FormState {
   spot: number | null
   futures: number | null
-  incoterm: Incoterm
+  incoterm_tier: IncotermTier
   conserve: string[]
   cooperate: boolean
   buyOn: boolean
@@ -65,11 +65,11 @@ function initialState(initial: Decision, view: PlayerView, config: PublicConfig)
   const peers = config.peer_market.enabled
   const buy = peers ? initial.peer_buy : null
   const sell = peers ? initial.peer_sell : null
-  const enabled = view.insurance_plans.some((p) => p.enabled && p.tier === initial.incoterm)
+  const enabled = view.tier_plans.some((p) => p.enabled && p.tier === initial.incoterm_tier)
   return {
     spot: initial.order_spot,
     futures: initial.order_futures,
-    incoterm: enabled ? initial.incoterm : 'exw',
+    incoterm_tier: enabled ? initial.incoterm_tier : 'exw',
     conserve: initial.conserve_lots,
     cooperate: initial.cooperate,
     buyOn: buy !== null,
@@ -89,7 +89,7 @@ function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, loc
   const peers = config.peer_market.enabled
   const spotOpen = view.order_windows.spot_open
   const futuresOpen = view.order_windows.futures_open
-  const incoterm: Incoterm = view.insurance_plans.some((p) => p.enabled && p.tier === state.incoterm) ? state.incoterm : 'exw'
+  const incoterm_tier: IncotermTier = view.tier_plans.some((p) => p.enabled && p.tier === state.incoterm_tier) ? state.incoterm_tier : 'exw'
   const conserveLots = view.cellar.filter((lot) => !lot.conserved && state.conserve.includes(lot.id)).map((lot) => lot.id)
 
   const buyActive = peers && state.buyOn
@@ -108,7 +108,7 @@ function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, loc
   const draft: DecisionDraft = {
     order_spot: spotOpen ? (state.spot ?? 0) : 0,
     order_futures: futuresOpen ? (state.futures ?? 0) : 0,
-    incoterm,
+    incoterm_tier,
     conserve_lots: conserveLots,
     cooperate: state.cooperate,
     peer_buy:
@@ -163,7 +163,7 @@ function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, loc
           />
         ) : null}
         <OrderSection kind="futures" view={view} value={state.futures} onChange={(futures) => patch({ futures })} locked={locked} />
-        <ShipSection view={view} incoterm={incoterm} onChange={(next) => patch({ incoterm: next })} shipmentMax={outlay.shipmentMax} locked={locked} />
+        <ShipSection view={view} incoterm_tier={incoterm_tier} onChange={(next) => patch({ incoterm_tier: next })} shipmentMax={outlay.shipmentMax} locked={locked} />
         <ConserveSection view={view} config={config} selected={conserveLots} onToggle={toggleLot} locked={locked} />
         {peers ? (
           <PeerSellSection

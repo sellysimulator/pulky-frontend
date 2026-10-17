@@ -96,7 +96,7 @@ function makeView(o: ViewOverrides = {}): PlayerView {
     market_share: 0.25,
     cash: o.cash ?? 6120,
     cumulative_profit: 0,
-    insurance_plans: o.plans ?? makePlans(),
+    tier_plans: o.plans ?? makePlans(),
     order_windows: {
       spot_open: true,
       futures_open: true,
@@ -127,7 +127,7 @@ function makePrefill(over: Partial<Decision> = {}): Decision {
     day: 5,
     order_spot: 40,
     order_futures: 25,
-    incoterm: 'cip',
+    incoterm_tier: 'cip',
     conserve_lots: [],
     cooperate: true,
     peer_buy: null,

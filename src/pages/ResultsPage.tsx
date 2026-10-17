@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useState, type ReactElement } from 'react'
 import { useParams } from 'react-router-dom'
 import { errorMessage } from '../api/http'
-import { getResultsByCode, getResultsById } from '../api/results'
+import { getResultsById } from '../api/results'
 import { applyChartScale } from '../components/charts/chartSetup'
 import { resultsViewFromLive, resultsViewFromResponse, type ResultsView } from '../components/results/resultsView'
 import ResultsSummary from '../components/results/ResultsSummary'
@@ -10,13 +10,10 @@ import { InlineAlert } from '../components/shared/AlertContainer'
 import LoadingSpinner from '../components/shared/LoadingSpinner'
 import type { PageRoute } from '../routes/registry'
 import { useGameStore } from '../store/gameStore'
-import { getHostSecret } from '../utils/storage'
+import { getGameHostSecret } from '../utils/storage'
 
 // eslint-disable-next-line react-refresh/only-export-components
-export const route: PageRoute[] = [
-  { path: '/results/:roomCode', guard: 'public' },
-  { path: '/results/g/:gameId', guard: 'public' },
-]
+export const route: PageRoute[] = [{ path: '/results/:gameId', guard: 'public' }]
 
 /** A 404 means persistence is still running: retry after 1 s, then after 2 s (spec §13.8). */
 const RETRY_DELAYS_MS = [1000, 2000]
@@ -32,8 +29,7 @@ function isNotFound(err: unknown): boolean {
 }
 
 export default function ResultsPage(): ReactElement {
-  const { roomCode: rawCode, gameId } = useParams()
-  const code = rawCode?.toUpperCase() ?? null
+  const { gameId = '' } = useParams()
 
   const finished = useGameStore((s) => s.finished)
   const storeRoom = useGameStore((s) => s.roomCode)
@@ -52,27 +48,25 @@ export default function ResultsPage(): ReactElement {
     }
   }, [])
 
-  const liveUsable =
-    finished !== null && (code !== null ? storeRoom === code : gameId !== undefined && gamePublicId === gameId)
   const liveView = useMemo(
     () =>
-      liveUsable && finished !== null
+      finished !== null && finished.game_id === gameId
         ? resultsViewFromLive(finished, {
-            roomCode: code ?? storeRoom ?? '',
+            roomCode: storeRoom ?? '',
             durationDays: durationDays ?? finished.days_played,
           })
         : null,
-    [liveUsable, finished, code, storeRoom, durationDays],
+    [finished, gameId, storeRoom, durationDays],
   )
 
-  const key = code !== null ? `code:${code}` : `id:${gameId ?? ''}`
+  const key = gameId
   const [outcome, setOutcome] = useState<Outcome | null>(null)
 
   useEffect(() => {
     if (liveView !== null) return
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | undefined
-    const load = code !== null ? () => getResultsByCode(code) : () => getResultsById(gameId ?? '')
+    const load = () => getResultsById(gameId)
 
     const attempt = async (n: number): Promise<void> => {
       try {
@@ -97,18 +91,18 @@ export default function ResultsPage(): ReactElement {
       cancelled = true
       if (timer !== undefined) clearTimeout(timer)
     }
-  }, [liveView, code, gameId, key])
+  }, [liveView, gameId, key])
 
   const current = outcome !== null && outcome.key === key ? outcome : null
   const view = liveView ?? (current?.kind === 'ok' ? current.view : null)
 
   let body: ReactElement
   if (view !== null) {
-    const hostSecret = getHostSecret(view.room_code)
+    const hostSecret = getGameHostSecret(view.game_id)
     body = (
       <ResultsSummary
         view={view}
-        viewer={{ isHost: hostSecret !== null, myAlias: storeRoom === view.room_code ? myAliasInStore : null }}
+        viewer={{ isHost: hostSecret !== null, myAlias: gamePublicId === view.game_id ? myAliasInStore : null }}
         showActions
         hostSecret={hostSecret}
       />

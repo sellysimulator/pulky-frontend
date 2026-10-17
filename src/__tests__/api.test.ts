@@ -46,7 +46,7 @@ vi.mock('../../firebase', () => ({
 import http from '../api/http'
 import { createRoom, getRoomConfig, getRoomStatus, putRoomConfig } from '../api/rooms'
 import { getConfigDefaults, validateConfig } from '../api/config'
-import { claimGames, exportGame, getResultsByCode, getResultsById } from '../api/results'
+import { claimGames, exportGame, getResultsById } from '../api/results'
 import { getMe, getMyGame, getMyGames, getMyStats, upsertUser } from '../api/users'
 import {
   endGameEarly,
@@ -203,14 +203,6 @@ describe('config.ts', () => {
 })
 
 describe('results.ts', () => {
-  it('getResultsByCode GETs /games/{code}/results', async () => {
-    reply.data = { game_id: 'g1' }
-    const out = await getResultsByCode('ABC234')
-    expect(method(seen[0])).toBe('GET')
-    expect(path(seen[0])).toBe('games/ABC234/results')
-    expect(out).toEqual(reply.data)
-  })
-
   it('getResultsById GETs /games/id/{public_id}/results', async () => {
     reply.data = { game_id: 'f00d' }
     const out = await getResultsById('f00d')
@@ -219,11 +211,11 @@ describe('results.ts', () => {
     expect(out).toEqual(reply.data)
   })
 
-  it('exportGame GETs /games/{code}/export?format=csv with X-Host-Secret when given one', async () => {
+  it('exportGame GETs /games/id/{public_id}/export?format=csv with X-Host-Secret when given one', async () => {
     reply.data = new Blob(['a,b\n1,2\n'], { type: 'text/csv' })
-    const out = await exportGame('ABC234', 'csv', 'sekrit')
+    const out = await exportGame('f00d', 'csv', 'sekrit')
     expect(method(seen[0])).toBe('GET')
-    expect(path(seen[0])).toBe('games/ABC234/export')
+    expect(path(seen[0])).toBe('games/id/f00d/export')
     expect(query(seen[0]).get('format')).toBe('csv')
     expect(header(seen[0], 'X-Host-Secret')).toBe('sekrit')
     expect(out).toBeInstanceOf(Blob)
@@ -232,7 +224,7 @@ describe('results.ts', () => {
   it('exportGame with a null secret sends no X-Host-Secret and relies on the bearer', async () => {
     h.state.currentUser = { getIdToken: async () => 'id-token-xyz' }
     reply.data = new Blob(['{}'], { type: 'application/json' })
-    await exportGame('ABC234', 'json', null)
+    await exportGame('f00d', 'json', null)
     expect(query(seen[0]).get('format')).toBe('json')
     expect(header(seen[0], 'X-Host-Secret')).toBeUndefined()
     expect(header(seen[0], 'Authorization')).toBe('Bearer id-token-xyz')
@@ -361,7 +353,7 @@ describe('games.ts emits the spec 12.1 events (criterion 11)', () => {
     day: 3,
     order_spot: 40,
     order_futures: 10,
-    incoterm: 'cip',
+    incoterm_tier: 'cip',
     conserve_lots: ['L1', 'L2'],
     cooperate: true,
     peer_buy: { max_price: 14.5, min_quality: 60 },

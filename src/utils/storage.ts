@@ -69,6 +69,14 @@ function hostSecretKey(roomCode: string): string {
   return `pulky.host_secret.${roomCode.toUpperCase()}`
 }
 
+function gameHostSecretKey(gameId: string): string {
+  return `pulky.game_host_secret.${gameId}`
+}
+
+function playedGameKey(gameId: string): string {
+  return `pulky.played_game.${gameId}`
+}
+
 // ---------------------------------------------------------------- guest id
 
 let unsavedGuestId: string | null = null
@@ -122,6 +130,28 @@ export function setHostSecret(roomCode: string, secret: string): void {
 
 export function clearHostSecret(roomCode: string): void {
   removeSession(hostSecretKey(roomCode))
+}
+
+// ---------------------------------------------------------------- finished games
+// A room code is reissued once its room expires, so after the end everything is
+// keyed by the game id that `game_finished` carries (spec §11.3).
+
+/** The live room's host secret, copied for this game when it finished in this tab. */
+export function getGameHostSecret(gameId: string): string | null {
+  return readSession(gameHostSecretKey(gameId))
+}
+
+export function setGameHostSecret(gameId: string, secret: string): void {
+  writeSession(gameHostSecretKey(gameId), secret)
+}
+
+/** Whether this browser held a seat in that game. */
+export function hasPlayedGame(gameId: string): boolean {
+  return readLocal(playedGameKey(gameId)) === '1'
+}
+
+export function markGamePlayed(gameId: string): void {
+  writeLocal(playedGameKey(gameId), '1')
 }
 
 // ---------------------------------------------------------------- display name

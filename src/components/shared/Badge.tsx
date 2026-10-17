@@ -1,8 +1,10 @@
 import type { LucideIcon } from 'lucide-react'
 import { useId, type ReactElement, type ReactNode } from 'react'
+import { hasSecondChannel, slotIndex, SLOT_FILL } from '../../styles/slots'
+import { TONE_CHIP, type StatusTone } from '../../styles/tones'
 
 interface BadgeProps {
-  tone: 'neutral' | 'accent' | 'success' | 'warning' | 'danger' | 'info' | 'shown'
+  tone: 'neutral' | 'accent' | StatusTone | 'shown'
   icon?: LucideIcon
   children: ReactNode
 }
@@ -10,10 +12,7 @@ interface BadgeProps {
 const TONES: Record<BadgeProps['tone'], string> = {
   neutral: 'bg-muted text-ink-muted',
   accent: 'bg-accent-subtle text-accent-hover border border-accent-line',
-  success: 'bg-success-subtle text-success-ink',
-  warning: 'bg-warning-subtle text-warning-ink',
-  danger: 'bg-danger-subtle text-danger-ink',
-  info: 'bg-info-subtle text-info-ink',
+  ...TONE_CHIP,
   // design.md §2.4: the dashed edge belongs to this badge alone.
   shown: 'bg-muted text-ink border border-dashed border-border-control',
 }
@@ -32,13 +31,10 @@ export default function Badge({ tone, icon: Icon, children }: BadgeProps): React
   )
 }
 
-const SLOT_FILL = ['fill-p1', 'fill-p2', 'fill-p3', 'fill-p4', 'fill-p5', 'fill-p6']
-
 /** Pulquería chip: swatch (hatched for P7-P12) then the name in ink (design.md §3.1). */
 export function PulqueriaChip({ alias, displayName, you = false }: { alias: string; displayName: string; you?: boolean }): ReactElement {
-  const n = Number(/^P(\d+)$/.exec(alias)?.[1] ?? 1)
-  const slot = (((n - 1) % 6) + 6) % 6
-  const hatched = n > 6
+  const slot = slotIndex(alias)
+  const hatched = hasSecondChannel(alias)
   const patternId = `hatch-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   return (
     <span className="inline-flex items-center gap-2 text-ink">

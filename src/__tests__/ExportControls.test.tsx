@@ -12,7 +12,7 @@ import ExportControls from '../components/results/ExportControls'
 import { INITIAL_STATE, useGameStore } from '../store/gameStore'
 import { header, mockHttp, urlPath, verb, type HttpSpy } from './fixtures/resultsHelpers'
 
-const NOTE = 'Download the data during the debrief: the room expires 24 hours after it was created.'
+const NOTE = 'Download the data during the debrief: the room expires 24 hours after its last activity.'
 const FORBIDDEN = 'Only the host who created this room can export it.'
 
 let spy: HttpSpy
@@ -37,7 +37,7 @@ afterEach(() => {
 })
 
 function show(hostSecret: string | null = 'sec-1') {
-  return render(<ExportControls roomCode="ABC234" hostSecret={hostSecret} />)
+  return render(<ExportControls gameId="9f2c1a0b77" roomCode="ABC234" hostSecret={hostSecret} />)
 }
 
 /** The message is either on screen or raised as an error alert in the store. */
@@ -58,7 +58,7 @@ describe('the controls', () => {
 })
 
 describe('downloading', () => {
-  it('Export CSV requests format=csv with the host secret and saves pulky-ABC234.csv through an object URL', async () => {
+  it('Export CSV requests the game by id with the host secret and saves pulky-ABC234-9f2c1a0b.csv through an object URL', async () => {
     spy = mockHttp(() => ({ status: 200, data: new Blob(['a,b\n1,2'], { type: 'text/csv' }) }))
     show('sec-9')
     await userEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
@@ -66,23 +66,23 @@ describe('downloading', () => {
 
     expect(spy.seen).toHaveLength(1)
     expect(verb(spy.seen[0])).toBe('GET')
-    expect(urlPath(spy.seen[0])).toBe('games/ABC234/export')
+    expect(urlPath(spy.seen[0])).toBe('games/id/9f2c1a0b77/export')
     expect((spy.seen[0].params as Record<string, unknown>).format).toBe('csv')
     expect(header(spy.seen[0], 'X-Host-Secret')).toBe('sec-9')
 
     expect(createObjectURL).toHaveBeenCalledTimes(1)
     expect(createObjectURL.mock.calls[0][0]).toBeInstanceOf(Blob)
-    expect(clicked[0].download).toBe('pulky-ABC234.csv')
+    expect(clicked[0].download).toBe('pulky-ABC234-9f2c1a0b.csv')
     expect(clicked[0].href).toBe('blob:pulky-1')
   })
 
-  it('Export JSON requests format=json and saves pulky-ABC234.json', async () => {
+  it('Export JSON requests format=json and saves pulky-ABC234-9f2c1a0b.json', async () => {
     spy = mockHttp(() => ({ status: 200, data: new Blob(['{}'], { type: 'application/json' }) }))
     show()
     await userEvent.click(screen.getByRole('button', { name: 'Export JSON' }))
     await waitFor(() => expect(clicked).toHaveLength(1))
     expect((spy.seen[0].params as Record<string, unknown>).format).toBe('json')
-    expect(clicked[0].download).toBe('pulky-ABC234.json')
+    expect(clicked[0].download).toBe('pulky-ABC234-9f2c1a0b.json')
   })
 
   it('without a host secret it sends no X-Host-Secret and relies on the bearer', async () => {

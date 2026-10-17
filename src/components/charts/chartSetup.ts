@@ -14,6 +14,7 @@ import {
   Tooltip,
   type Plugin,
 } from 'chart.js'
+import { hasSecondChannel, slotIndex } from '../../styles/slots'
 
 /**
  * Canvases cannot read CSS variables, so every chart colour is a literal named
@@ -88,9 +89,8 @@ const SLOT_POINTS = ['circle', 'rect', 'triangle', 'rectRot', 'star', 'crossRot'
 
 /** Colour follows the alias: Pn wears slot n; P7-P12 reuse slot n-6 with a second channel (design.md §3.1). */
 export function pulqueriaStyle(alias: string): PulqueriaStyle {
-  const n = Number(/^P(\d+)$/.exec(alias)?.[1] ?? 1)
-  const slot = (((n - 1) % 6) + 6) % 6
-  const second = n > 6
+  const slot = slotIndex(alias)
+  const second = hasSecondChannel(alias)
   return {
     color: CHART_COLORS[SLOT_COLORS[slot]],
     pointStyle: SLOT_POINTS[slot],

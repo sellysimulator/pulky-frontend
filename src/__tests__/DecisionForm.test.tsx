@@ -99,7 +99,7 @@ function makeView(o: ViewOverrides = {}): PlayerView {
     market_share: 0.25,
     cash: o.cash ?? 6120,
     cumulative_profit: 0,
-    insurance_plans: o.plans ?? makePlans(),
+    tier_plans: o.plans ?? makePlans(),
     order_windows: {
       spot_open: true,
       futures_open: true,
@@ -130,7 +130,7 @@ function makePrefill(over: Partial<Decision> = {}): Decision {
     day: 5,
     order_spot: 40,
     order_futures: 25,
-    incoterm: 'cip',
+    incoterm_tier: 'cip',
     conserve_lots: [],
     cooperate: true,
     peer_buy: null,
@@ -278,7 +278,7 @@ describe('state and prefill (acceptance criterion 2)', () => {
   it('on day 1 the zero decision shows zeros, EXW, no conserve ticks and both peer rows unticked', () => {
     renderForm({
       view: makeView({ day: 1 }),
-      initialDecision: makePrefill({ day: 1, order_spot: 0, order_futures: 0, incoterm: 'exw', cooperate: false }),
+      initialDecision: makePrefill({ day: 1, order_spot: 0, order_futures: 0, incoterm_tier: 'exw', cooperate: false }),
     })
     expect(spot().value).toBe('0')
     expect(futures().value).toBe('0')
@@ -322,7 +322,7 @@ describe('state and prefill (acceptance criterion 2)', () => {
     expect(spot().value).toBe('77')
     rerenderForm({
       view: makeView({ day: 6 }),
-      initialDecision: makePrefill({ day: 6, order_spot: 8, order_futures: 3, incoterm: 'exw', cooperate: false }),
+      initialDecision: makePrefill({ day: 6, order_spot: 8, order_futures: 3, incoterm_tier: 'exw', cooperate: false }),
     })
     expect(spot().value).toBe('8')
     expect(futures().value).toBe('3')
@@ -338,7 +338,7 @@ describe('state and prefill (acceptance criterion 2)', () => {
     await user.click(lotBox('L4'))
     rerenderForm({
       view: makeView({ cash: 5000 }),
-      initialDecision: makePrefill({ order_spot: 40, order_futures: 99, incoterm: 'cip' }),
+      initialDecision: makePrefill({ order_spot: 40, order_futures: 99, incoterm_tier: 'cip' }),
     })
     expect(spot().value).toBe('77')
     expect(futures().value).toBe('5')
@@ -350,12 +350,12 @@ describe('state and prefill (acceptance criterion 2)', () => {
     const user = userEvent.setup()
     const { onSubmit } = renderForm({
       view: makeView({ plans: makePlans(['dap']) }),
-      initialDecision: makePrefill({ incoterm: 'dap' }),
+      initialDecision: makePrefill({ incoterm_tier: 'dap' }),
     })
     expect(radio('EXW')).toBeChecked()
     await user.click(submitBtn())
     expect(onSubmit).toHaveBeenCalledTimes(1)
-    expect(onSubmit.mock.calls[0][0].incoterm).toBe('exw')
+    expect(onSubmit.mock.calls[0][0].incoterm_tier).toBe('exw')
   })
 })
 
@@ -444,7 +444,7 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
     const user = userEvent.setup()
     const { onSubmit } = renderForm({
       view: makeView({ cash: -20, futures_book: [{ contract_day: 0, ships_day: 5, delivery_day: 6, qty: 10 }] }),
-      initialDecision: makePrefill({ order_spot: 0, order_futures: 0, incoterm: 'exw', cooperate: false }),
+      initialDecision: makePrefill({ order_spot: 0, order_futures: 0, incoterm_tier: 'exw', cooperate: false }),
     })
     expect(submitBtn()).toBeEnabled()
     setField(spot(), 1)
@@ -458,7 +458,7 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
   it('a zero total with cash 0 is submittable, a cent over is not', () => {
     renderForm({
       view: makeView({ cash: 0 }),
-      initialDecision: makePrefill({ order_spot: 0, order_futures: 0, incoterm: 'exw', cooperate: false }),
+      initialDecision: makePrefill({ order_spot: 0, order_futures: 0, incoterm_tier: 'exw', cooperate: false }),
     })
     expect(submitBtn()).toBeEnabled()
     setField(spot(), 1)
@@ -482,7 +482,7 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
       day: 5,
       order_spot: 40,
       order_futures: 25,
-      incoterm: 'cip',
+      incoterm_tier: 'cip',
       conserve_lots: ['L3'],
       cooperate: true,
       peer_buy: { max_price: 16, min_quality: 90 },
@@ -501,7 +501,7 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
       day: 5,
       order_spot: 40,
       order_futures: 25,
-      incoterm: 'cip',
+      incoterm_tier: 'cip',
       conserve_lots: [],
       cooperate: true,
       peer_buy: null,
@@ -523,7 +523,7 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
       day: 5,
       order_spot: 3,
       order_futures: 0,
-      incoterm: 'ddp',
+      incoterm_tier: 'ddp',
       conserve_lots: ['L3', 'L4'],
       cooperate: false,
     })

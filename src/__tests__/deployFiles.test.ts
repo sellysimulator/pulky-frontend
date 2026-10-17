@@ -103,6 +103,99 @@ describe('hosting workflows', () => {
   })
 })
 
+// ------------------------------------------------------- CI and coverage
+
+const CI = join(WORKFLOWS, 'ci.yml')
+const VITE_CONFIG = join(ROOT, 'vite.config.ts')
+const COVERAGE_METRICS = ['lines', 'statements', 'functions', 'branches'] as const
+
+/** The gates workflow: every push and pull request, forks included, so no secret and no deploy. */
+function checkCiWorkflow(text: string): string[] {
+  const problems: string[] = []
+  const body = text
+    .split('\n')
+    .filter((l) => !l.trim().startsWith('#'))
+    .join('\n')
+
+  const ordered = [
+    'actions/checkout@v4',
+    'actions/setup-node@v4',
+    "node-version-file: '.nvmrc'",
+    'cache: npm',
+    '- run: npm ci',
+    '- run: npx tsc -b',
+    '- run: npx eslint .',
+    '- run: npx vitest run --coverage',
+    '- run: npm run build',
+  ]
+  let cursor = 0
+  for (const needle of ordered) {
+    const at = body.indexOf(needle, cursor)
+    if (at < 0) problems.push(`missing or out of order: ${needle}`)
+    else cursor = at
+  }
+
+  if (!/^name:\s*CI\s*$/m.test(body)) problems.push('must be named CI')
+  const triggers = /^on:(.*(?:\n[ \t]+.*)*)/m.exec(body)?.[1] ?? ''
+  if (!/\bpush\b/.test(triggers)) problems.push('must run on push')
+  if (!/\bpull_request\b/.test(triggers)) problems.push('must run on pull_request')
+  if (/pull_request_target/.test(triggers)) problems.push('pull_request_target hands secrets to fork code')
+  if (/\b(branches|branches-ignore|paths|paths-ignore|tags)\s*:/.test(triggers)) problems.push('triggers must not be filtered')
+  if (/\bif:/.test(body)) problems.push('no job or step may be skipped')
+
+  if (/secrets\./.test(body)) problems.push('uses a secret')
+  if (/action-hosting-deploy|firebase\s+deploy/.test(body)) problems.push('deploys')
+  if (/REQUIRE_BACKEND_ENV/.test(body)) problems.push('a non-deploy build needs no backend URLs')
+  for (const line of body.split('\n')) {
+    if (/^\s*-?\s*run:.*(echo|printenv|set -x)/.test(line)) problems.push(`prints environment: ${line.trim()}`)
+  }
+  return problems
+}
+
+/** The numeric `coverage.thresholds` entries of `vite.config.ts`. */
+function coverageThresholds(text: string): Record<string, number> {
+  const coverage = /coverage:\s*\{[\s\S]*?thresholds:\s*\{([^}]*)\}/.exec(text)?.[1] ?? ''
+  return Object.fromEntries([...coverage.matchAll(/(\w+):\s*(\d+(?:\.\d+)?)/g)].map((m) => [m[1], Number(m[2])]))
+}
+
+describe('CI workflow', () => {
+  it('runs every gate, coverage included, on push and pull_request with no secret and no deploy', () => {
+    expect(existsSync(CI)).toBe(true)
+    expect(checkCiWorkflow(read(CI))).toEqual([])
+  })
+
+  it('the checker rejects a missing gate, a filtered trigger, a secret and a deploy', () => {
+    const text = read(CI)
+    expect(checkCiWorkflow(text.replace('- run: npx vitest run --coverage', '- run: npx vitest run'))).not.toEqual([])
+    expect(checkCiWorkflow(text.replace('- run: npx eslint .\n', ''))).not.toEqual([])
+    expect(checkCiWorkflow(text.replace('- run: npm run build', '- run: npx vite'))).not.toEqual([])
+    expect(checkCiWorkflow(text.replace(/^ {2}pull_request:\n/m, ''))).not.toEqual([])
+    expect(checkCiWorkflow(text.replace(/^ {2}push:\n/m, '  push:\n    branches:\n      - main\n'))).not.toEqual([])
+    const deploy =
+      '      - uses: FirebaseExtended/action-hosting-deploy@v0\n' +
+      '        with:\n' +
+      '          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PULKY_DA26C }}\n'
+    expect(checkCiWorkflow(text + deploy)).not.toEqual([])
+  })
+
+  it('vite.config.ts gates coverage with the v8 provider on all four metrics', () => {
+    const text = read(VITE_CONFIG)
+    expect(text).toContain("provider: 'v8'")
+    const thresholds = coverageThresholds(text)
+    for (const metric of COVERAGE_METRICS) {
+      expect(thresholds[metric], metric).toBeGreaterThan(0)
+      expect(thresholds[metric], metric).toBeLessThanOrEqual(100)
+    }
+    const pkg = JSON.parse(read(join(ROOT, 'package.json'))) as { devDependencies: Record<string, string> }
+    expect(pkg.devDependencies).toHaveProperty('@vitest/coverage-v8')
+  })
+
+  it('the threshold reader misses a metric that is not declared', () => {
+    const text = read(VITE_CONFIG).replace(/\bbranches:\s*\d+(?:\.\d+)?,?\s*/, '')
+    expect(coverageThresholds(text).branches).toBeUndefined()
+  })
+})
+
 // ------------------------------------------------------- build-guard (AC 4)
 
 const VITE_BIN = join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js')

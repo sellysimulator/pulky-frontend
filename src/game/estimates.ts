@@ -1,10 +1,10 @@
-import type { Incoterm, PeerBuy, PeerSell, PlayerView, PublicConfig } from '../types/game'
+import type { IncotermTier, PeerBuy, PeerSell, PlayerView, PublicConfig } from '../types/game'
 import { roundCents } from '../utils/money'
 
 export interface DecisionDraft {
   order_spot: number
   order_futures: number
-  incoterm: Incoterm
+  incoterm_tier: IncotermTier
   conserve_lots: string[]
   cooperate: boolean
   peer_buy: PeerBuy | null
@@ -31,9 +31,9 @@ export function futuresDueToday(view: PlayerView): number {
 }
 
 /** The tier's fee per unit shipped, from the view's plans; EXW is free. */
-export function tierFee(incoterm: Incoterm, view: PlayerView): number {
-  if (incoterm === 'exw') return 0
-  return view.insurance_plans.find((p) => p.tier === incoterm)?.fee_per_unit ?? 0
+export function tierFee(incoterm_tier: IncotermTier, view: PlayerView): number {
+  if (incoterm_tier === 'exw') return 0
+  return view.tier_plans.find((p) => p.tier === incoterm_tier)?.fee_per_unit ?? 0
 }
 
 /** Unrounded conservation cost of the ticked cellar lots. */
@@ -46,7 +46,7 @@ export function conservationCost(lotIds: string[], view: PlayerView, config: Pub
 export function outlayEstimate(draft: DecisionDraft, view: PlayerView, config: PublicConfig): OutlayEstimate {
   const spotPrice = view.brief?.supplier.spot_price ?? 0
   const basePrice = view.brief?.supplier.base_price ?? 0
-  const fee = tierFee(draft.incoterm, view)
+  const fee = tierFee(draft.incoterm_tier, view)
   const due = futuresDueToday(view)
   const spot = spotPrice * draft.order_spot
   const futures = basePrice * draft.order_futures

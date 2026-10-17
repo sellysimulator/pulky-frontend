@@ -1,36 +1,17 @@
 import { CircleCheck, CircleX, Info, TriangleAlert, X, type LucideIcon } from 'lucide-react'
 import { useEffect, type ReactElement, type ReactNode } from 'react'
 import { useGameStore } from '../../store/gameStore'
+import { TONE_BORDER, TONE_INLINE, TONE_MARK, type StatusTone } from '../../styles/tones'
 
 const AUTO_DISMISS_MS = 5000
 
-type Status = 'success' | 'warning' | 'danger' | 'info'
-
-const ICONS: Record<Status, LucideIcon> = {
+const ICONS: Record<StatusTone, LucideIcon> = {
   success: CircleCheck,
   warning: TriangleAlert,
   danger: CircleX,
   info: Info,
 }
-const MARK: Record<Status, string> = {
-  success: 'text-success',
-  warning: 'text-warning',
-  danger: 'text-danger',
-  info: 'text-info',
-}
-const INLINE: Record<Status, string> = {
-  success: 'border-success-line bg-success-subtle text-success-ink',
-  warning: 'border-warning-line bg-warning-subtle text-warning-ink',
-  danger: 'border-danger-line bg-danger-subtle text-danger-ink',
-  info: 'border-info-line bg-info-subtle text-info-ink',
-}
-const TOAST_BORDER: Record<Status, string> = {
-  success: 'border-success-line',
-  warning: 'border-warning-line',
-  danger: 'border-danger-line',
-  info: 'border-info-line',
-}
-const KIND_STATUS: Record<'info' | 'success' | 'error', Status> = { info: 'info', success: 'success', error: 'danger' }
+const KIND_STATUS: Record<'info' | 'success' | 'error', StatusTone> = { info: 'info', success: 'success', error: 'danger' }
 
 /** Inline alert: icon, optional title, body in the status ink (design.md §7.13). */
 export function InlineAlert({
@@ -38,14 +19,14 @@ export function InlineAlert({
   title,
   children,
 }: {
-  tone: Status
+  tone: StatusTone
   title?: string
   children: ReactNode
 }): ReactElement {
   const Icon = ICONS[tone]
   return (
-    <div role={tone === 'danger' ? 'alert' : 'status'} className={['flex gap-3 rounded-md border px-4 py-3', INLINE[tone]].join(' ')}>
-      <Icon size={20} aria-hidden="true" className={['mt-0.5 shrink-0', MARK[tone]].join(' ')} />
+    <div role={tone === 'danger' ? 'alert' : 'status'} className={['flex gap-3 rounded-md border px-4 py-3', TONE_INLINE[tone]].join(' ')}>
+      <Icon size={20} aria-hidden="true" className={['mt-0.5 shrink-0', TONE_MARK[tone]].join(' ')} />
       <div className="min-w-0">
         {title ? <p className="font-semibold">{title}</p> : null}
         <div>{children}</div>
@@ -66,8 +47,8 @@ function Toast({ id, kind, message }: { id: string; kind: 'info' | 'success' | '
   }, [id, kind, dismissAlert])
 
   return (
-    <div className={['pointer-events-auto flex gap-3 rounded-md border bg-card px-4 py-3 shadow-raised', TOAST_BORDER[status]].join(' ')}>
-      <Icon size={20} aria-hidden="true" className={['mt-0.5 shrink-0', MARK[status]].join(' ')} />
+    <div className={['pointer-events-auto flex gap-3 rounded-md border bg-card px-4 py-3 shadow-raised', TONE_BORDER[status]].join(' ')}>
+      <Icon size={20} aria-hidden="true" className={['mt-0.5 shrink-0', TONE_MARK[status]].join(' ')} />
       <p className="min-w-0 flex-1 text-ink">{message}</p>
       <button
         type="button"

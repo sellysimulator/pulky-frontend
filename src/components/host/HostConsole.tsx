@@ -40,12 +40,14 @@ export default function HostConsole({
         </h1>
         <div className="ml-auto flex items-center">
           {finished ? (
-            <Link
-              to={resultsPath(roomCode, gamePublicId)}
-              className="inline-flex h-11 items-center justify-center rounded-md bg-accent px-4 text-base font-semibold whitespace-nowrap text-on-accent transition-colors hover:bg-accent-hover"
-            >
-              See the results
-            </Link>
+            gamePublicId !== null ? (
+              <Link
+                to={resultsPath(gamePublicId)}
+                className="inline-flex h-11 items-center justify-center rounded-md bg-accent px-4 text-base font-semibold whitespace-nowrap text-on-accent transition-colors hover:bg-accent-hover"
+              >
+                See the results
+              </Link>
+            ) : null
           ) : (
             <>
               <Button variant="secondary" icon={Presentation} onClick={onPresent}>

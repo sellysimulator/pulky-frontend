@@ -103,7 +103,7 @@ function hostView(over: Obj = {}, submitted: string[] = ['P1'], extra: Obj = {})
       cash: 6120.55,
       fill_rate: 0.9,
       waste_rate: 0.05,
-      last_incoterm: 'cip',
+      last_incoterm_tier: 'cip',
       last_peer_bought: 10,
       last_peer_sold: 4,
       ...extra,
@@ -199,6 +199,7 @@ const gameFinished = (seq = 90) =>
   act(() =>
     useGameStore.getState().applyGameFinished({
       seq,
+      game_id: 'g-host-1',
       days_played: 14,
       ended_early: false,
       leaderboard: [],
@@ -289,19 +290,20 @@ describe('HostRoom states (acceptance 1, 2)', () => {
     expect(screen.queryByRole('link', { name: 'See the results' })).toBeNull()
   })
 
-  it('a finished room: the console with See the results to the room-code path, and no controls', () => {
-    seedRunning({ roomState: 'finished' }, hostView({ state: 'finished', phase: 'finished' }))
+  it('a finished room: the console with See the results to the game by id, and no controls', () => {
+    seedRunning({ roomState: 'finished', gamePublicId: 'g8f2c1' }, hostView({ state: 'finished', phase: 'finished' }))
     mount()
-    expect(screen.getByRole('link', { name: 'See the results' })).toHaveAttribute('href', `/results/${CODE}`)
+    expect(screen.getByRole('link', { name: 'See the results' })).toHaveAttribute('href', '/results/g8f2c1')
     expect(screen.queryByRole('button', { name: 'End game early' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Presentation mode' })).toBeNull()
   })
 
-  it('the link follows the persisted game id once game_persisted arrives', () => {
+  it('the link appears with the game id that game_finished carries', () => {
     seedRunning({ roomState: 'finished' }, hostView({ state: 'finished', phase: 'finished' }))
     mount()
-    act(() => useGameStore.getState().applyGamePersisted({ seq: 95, game_id: 'g8f2c1' }))
-    expect(screen.getByRole('link', { name: 'See the results' })).toHaveAttribute('href', '/results/g/g8f2c1')
+    expect(screen.queryByRole('link', { name: 'See the results' })).toBeNull()
+    gameFinished(95)
+    expect(screen.getByRole('link', { name: 'See the results' })).toHaveAttribute('href', '/results/g-host-1')
   })
 })
 
@@ -323,7 +325,7 @@ describe('HostRoom at the end of the game (failure mode 6)', () => {
     const { router } = mount()
     gameFinished()
     fireEvent.click(screen.getByRole('link', { name: 'See the results' }))
-    expect(router.state.location.pathname).toBe(`/results/${CODE}`)
+    expect(router.state.location.pathname).toBe('/results/g-host-1')
   })
 })
 

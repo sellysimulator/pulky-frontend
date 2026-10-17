@@ -9,6 +9,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { ReactElement } from 'react'
+import { TONE_INK } from '../../styles/tones'
 import type { DayRecord, Participant, PlayerView, PublicDayResults } from '../../types/game'
 import { formatMoney, formatPercent, formatQty } from '../../utils/format'
 import DataTable, { type Column } from '../shared/DataTable'
@@ -63,7 +64,7 @@ interface EventLine {
   trades?: string[]
 }
 
-const TONES = { bad: 'text-danger-ink', warn: 'text-warning-ink' }
+const TONES = { bad: TONE_INK.danger, warn: TONE_INK.warning }
 
 /** The events of the day, in spec §13.7's order, each only when its condition holds. */
 function eventsOf(r: DayRecord, view: PlayerView, publicHistory: PublicDayResults[], participants: Participant[]): EventLine[] {

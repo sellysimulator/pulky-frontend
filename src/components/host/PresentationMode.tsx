@@ -1,5 +1,6 @@
 import { ArrowLeftRight, CircleCheck, CircleDashed, Factory, FileClock, Flame, ShoppingCart, Users } from 'lucide-react'
 import { useEffect, type ReactElement } from 'react'
+import { slotIndex, SLOT_BG } from '../../styles/slots'
 import { formatMoney, formatPercent, formatQty, weekdayLong } from '../../utils/format'
 import { InlineAlert } from '../shared/AlertContainer'
 import Badge from '../shared/Badge'
@@ -21,15 +22,8 @@ interface ResultRow {
   reputation: number
 }
 
-const SLOT_BG = ['bg-p1', 'bg-p2', 'bg-p3', 'bg-p4', 'bg-p5', 'bg-p6']
-
 function aliasNumber(alias: string): number {
   return Number(/^P(\d+)$/.exec(alias)?.[1] ?? Number.MAX_SAFE_INTEGER)
-}
-
-function slotFor(alias: string): string {
-  const n = aliasNumber(alias)
-  return SLOT_BG[(((n - 1) % 6) + 6) % 6] ?? SLOT_BG[0]
 }
 
 /** Short projector labels, deliberately shorter than the spec §4.2 window copy. */
@@ -76,7 +70,7 @@ export default function PresentationMode({ data, onExit }: PresentationModeProps
         <span className="flex items-center gap-3">
           <span aria-hidden="true" className="h-3 w-24 shrink-0 rounded-xs bg-muted">
             <span
-              className={['block h-3 rounded-xs', slotFor(r.alias)].join(' ')}
+              className={['block h-3 rounded-xs', SLOT_BG[slotIndex(r.alias)]].join(' ')}
               style={{ width: `${Math.min(100, Math.max(0, r.marketShare * 100))}%` }}
             />
           </span>

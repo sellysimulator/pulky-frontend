@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import type { InTransit as Shipment } from '../../types/game'
-import { formatQty } from '../../utils/format'
+import { INCOTERM_TIER_NAMES, formatQty } from '../../utils/format'
 import DataTable, { type Column } from '../shared/DataTable'
 
 const COLUMNS: Column<Shipment>[] = [
@@ -8,7 +8,7 @@ const COLUMNS: Column<Shipment>[] = [
   { key: 'arrives', header: 'Arrives', render: (s) => `Day ${s.arrives_day}` },
   { key: 'units', header: 'Units', align: 'right', render: (s) => formatQty(s.qty) },
   { key: 'lost', header: 'Lost', align: 'right', render: (s) => formatQty(s.lost) },
-  { key: 'tier', header: 'Tier', render: (s) => s.incoterm.toUpperCase() },
+  { key: 'tier', header: 'Tier', render: (s) => INCOTERM_TIER_NAMES[s.incoterm_tier] },
 ]
 
 export default function InTransit({ shipments }: { shipments: Shipment[] }): ReactElement {
@@ -22,7 +22,7 @@ export default function InTransit({ shipments }: { shipments: Shipment[] }): Rea
           caption="In transit"
           columns={COLUMNS}
           rows={shipments}
-          rowKey={(s) => `${s.shipped_day}-${s.arrives_day}-${s.incoterm}-${s.qty}`}
+          rowKey={(s) => `${s.shipped_day}-${s.arrives_day}-${s.incoterm_tier}-${s.qty}`}
           density="compact"
         />
       )}

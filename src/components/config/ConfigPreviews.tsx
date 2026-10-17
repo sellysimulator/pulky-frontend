@@ -3,7 +3,7 @@ import { Flame } from 'lucide-react'
 import type { ReactElement } from 'react'
 import { Bar } from 'react-chartjs-2'
 import { hazard, marketLambda, shares, spotRange, weekdayMultipliers } from '../../game/configMath'
-import type { GameConfig, Weekday } from '../../types/game'
+import { WEEKDAYS, type GameConfig } from '../../types/game'
 import { formatMoney, formatPercent, weekdayLong, weekdayShort } from '../../utils/format'
 import { CHART_COLORS, MEASURE_STYLES, registerCharts } from '../charts/chartSetup'
 import ChartBox from '../shared/ChartBox'
@@ -13,8 +13,6 @@ import { Table } from './docs/primitives'
 interface PreviewProps {
   config: GameConfig
 }
-
-const WEEKDAYS: Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 
 /** A draft value that is mid-edit (empty) counts as 0 so a preview never shows NaN. */
 function finite(value: number): number {
