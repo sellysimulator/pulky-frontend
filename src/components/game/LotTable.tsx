@@ -1,7 +1,7 @@
 import { Gauge, Snowflake } from 'lucide-react'
 import type { ReactElement } from 'react'
 import type { CellarLot } from '../../types/game'
-import { formatQty, riskFromQuality } from '../../utils/format'
+import { formatQty, lotNumber, riskFromQuality } from '../../utils/format'
 import Badge from '../shared/Badge'
 import RiskIndicator from '../shared/RiskIndicator'
 
@@ -35,7 +35,7 @@ export default function LotTable({ lots }: { lots: CellarLot[] }): ReactElement 
             <tr key={lot.id} className="border-t border-border hover:bg-inset">
               <td className={CELL}>
                 <span className="inline-flex flex-wrap items-center gap-2">
-                  <span className="font-semibold">{lot.id}</span>
+                  <span className="font-semibold">{lotNumber(lot.id)}</span>
                   {lot.conserved ? (
                     <Badge tone="info" icon={Snowflake}>
                       Conserved

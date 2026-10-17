@@ -73,7 +73,6 @@ export function makeBrief(over: Partial<Brief> = {}, day = 5): Brief {
     weekday_multipliers: { mon: 0.25, tue: 0.5, wed: 0.75, thu: 1, fri: 1, sat: 1, sun: 0.75 },
     expected_demand: 99.6,
     supplier: {
-      capacity: 81,
       disrupted: false,
       disruption_message: null,
       spot_price: 13.4,
@@ -233,7 +232,6 @@ export function makePublic(day: number, over: Partial<PublicDayResults> = {}): P
     demand_total: 400,
     units_sold_total: 380,
     spot_price: 13.4,
-    capacity: 81,
     disrupted: false,
     cooperation: false,
     cooperators: 2,
@@ -570,7 +568,7 @@ describe('GameRoom at the end of the game (acceptance 1, 8, 9)', () => {
     finish()
     mount()
     const link = screen.getByRole('link', { name: 'See the results' })
-    expect(before(link, screen.getByText('Market demand'))).toBe(true)
+    expect(before(link, screen.getByText('Your demand'))).toBe(true)
     expect(screen.getByText('The game is over')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: "Today's decision" })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Submit day' })).toBeNull()

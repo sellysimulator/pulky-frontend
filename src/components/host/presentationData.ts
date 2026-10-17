@@ -40,7 +40,6 @@ function copyLatest(latest: PublicDayResults | undefined): PublicDayResults | nu
     demand_total: latest.demand_total,
     units_sold_total: latest.units_sold_total,
     spot_price: latest.spot_price,
-    capacity: latest.capacity,
     disrupted: latest.disrupted,
     cooperation: latest.cooperation,
     cooperators: latest.cooperators,
@@ -75,7 +74,6 @@ export function selectPresentationData(state: GameState): PresentationData | nul
     brief: {
       expected_demand: brief.expected_demand,
       supplier: {
-        capacity: brief.supplier.capacity,
         disrupted: brief.supplier.disrupted,
         disruption_message: brief.supplier.disruption_message,
         spot_price: brief.supplier.spot_price,

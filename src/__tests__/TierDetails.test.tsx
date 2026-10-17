@@ -1,13 +1,13 @@
 /**
- * Section 26 - the tier choice (ShipSection) and the Plan details panel (spec 6.3).
+ * Section 26 - the tier choice (ShipSection) and each tier's details tooltip (spec 6.3).
  * Acceptance criteria 7 and 8; failure modes 6 and 7.
  */
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import DecisionForm from '../components/game/DecisionForm'
-import { getUiFlag, setUiFlag } from '../utils/storage'
-import type { Decision, PlayerView, PublicConfig, QualityGuideRow } from '../types/game'
+import InTransit from '../components/game/InTransit'
+import type { Decision, IncotermTierPlan, PlayerView, PublicConfig, QualityGuideRow } from '../types/game'
 
 type Props = React.ComponentProps<typeof DecisionForm>
 
@@ -77,7 +77,7 @@ function makeView(o: ViewOverrides = {}): PlayerView {
       weekday_multiplier: 1,
       weekday_multipliers: { mon: 0.25, tue: 0.5, wed: 0.75, thu: 1, fri: 1, sat: 1, sun: 0.75 },
       expected_demand: 100,
-      supplier: { capacity: 81, disrupted: false, disruption_message: null, spot_price: 13.4, base_price: 12, lead_time_days: 1 },
+      supplier: { disrupted: false, disruption_message: null, spot_price: 13.4, base_price: 12, lead_time_days: 1 },
       spot: { open: true, arrives_day: 6 },
       futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, last_day_to_buy: 7, days_left_to_buy: 3 },
       transport: { shared: false },
@@ -158,16 +158,19 @@ const card = () => screen.getByRole('region', { name: "Today's decision" })
 const squash = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, '')
 const cardHas = (text: string) => squash(card().textContent).includes(squash(text))
 const input = (name: string | RegExp) => screen.getByLabelText(name) as HTMLInputElement
-const spot = () => input('Spot')
+const spot = () => input('Buy from Supplier')
 const submitBtn = () => screen.getByRole('button', { name: 'Submit day' })
 const setField = (el: HTMLElement, v: string | number) => fireEvent.change(el, { target: { value: String(v) } })
 
 const radio = (label: string) => screen.getByRole('radio', { name: new RegExp(`^${label}`) })
-
-
-const planDetails = () => screen.getByText('Plan details').closest('details') as HTMLDetailsElement
-const detailsText = () => squash(planDetails().textContent)
 const optionText = (label: string) => squash(radio(label).closest('label')!.textContent)
+
+/** Focuses the named info button and returns its open tooltip's text. */
+function tipText(name: string): string {
+  const button = screen.getByRole('button', { name: `About ${name}` })
+  act(() => button.focus())
+  return squash(screen.getByRole('tooltip').textContent)
+}
 
 describe('tier options (acceptance criterion 7)', () => {
   it('offers one radio per enabled plan, labelled with the plan label', () => {
@@ -180,6 +183,7 @@ describe('tier options (acceptance criterion 7)', () => {
     renderForm({ view: makeView({ plans: makePlans(['ddp']) }) })
     expect(screen.getAllByRole('radio')).toHaveLength(3)
     expect(screen.queryByRole('radio', { name: /^DDP/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'About DDP details' })).toBeNull()
     expect(radio('EXW')).toBeInTheDocument()
     expect(radio('CIP')).toBeInTheDocument()
     expect(radio('DAP')).toBeInTheDocument()
@@ -191,140 +195,144 @@ describe('tier options (acceptance criterion 7)', () => {
     expect(radio('EXW')).toBeChecked()
   })
 
-  it('each option shows its fee and its refund line', () => {
+  it('each card shows its fee only; the refund is in its tooltip', () => {
     renderForm()
-    expect(optionText('EXW')).toContain(squash('Fee $0.00/u'))
-    expect(optionText('EXW')).toContain(squash('No refund'))
-    expect(optionText('CIP')).toContain(squash('Fee $0.55/u'))
-    expect(optionText('CIP')).toContain(squash('Refund $13.40/u lost'))
-    expect(optionText('DAP')).toContain(squash('Fee $0.55/u'))
-    expect(optionText('DAP')).toContain(squash("Refund at the arrival day's spot price"))
-    expect(optionText('DDP')).toContain(squash('Fee $1.39/u'))
-    expect(optionText('DDP')).toContain(squash('Refund $30.00/u lost'))
+    expect(optionText('EXW')).toBe(squash('EXWFee $0.00/unit'))
+    expect(optionText('CIP')).toBe(squash('CIPFee $0.55/unit'))
+    expect(optionText('DAP')).toBe(squash('DAPFee $0.55/unit'))
+    expect(optionText('DDP')).toBe(squash('DDPFee $1.39/unit'))
+    expect(cardHas('Refund')).toBe(false)
   })
 
   it("takes the fee and the refund value from the view's plans, not from constants", () => {
-    const plans = makePlans().map((p) =>
-      p.tier === 'cip' ? { ...p, fee_per_unit: 0.55, refund_value_today: 14.25 } : p,
-    )
+    const plans = makePlans().map((p) => (p.tier === 'cip' ? { ...p, fee_per_unit: 0.6, refund_value_today: 14.25 } : p))
     renderForm({ view: makeView({ plans }) })
-    expect(optionText('CIP')).toContain(squash('Fee $0.55/u'))
-    expect(optionText('CIP')).toContain(squash('Refund $14.25/u lost'))
+    expect(optionText('CIP')).toContain(squash('Fee $0.60/unit'))
+    expect(tipText('CIP details')).toContain(squash('Refund per lost unit: $14.25'))
   })
 
-  it('selecting a card changes the tier that is submitted and the fee estimate line', async () => {
+  it('selecting a card changes the tier that is submitted', async () => {
     const user = userEvent.setup()
     const { onSubmit } = renderForm()
-    expect(cardHas("Fee for today's shipment: ~$22.00")).toBe(true)
     await user.click(radio('DDP'))
     expect(radio('DDP')).toBeChecked()
     expect(radio('CIP')).not.toBeChecked()
-    expect(cardHas("Fee for today's shipment: ~$55.60")).toBe(true)
     await user.click(submitBtn())
     expect(onSubmit.mock.calls[0][0].incoterm_tier).toBe('ddp')
   })
 
-  it('the fee estimate counts the futures due today and ignores new futures', () => {
+  it('opening a tier tooltip does not select that tier', async () => {
+    const user = userEvent.setup()
+    renderForm()
+    await user.click(screen.getByRole('button', { name: 'About DDP details' }))
+    expect(screen.getByRole('tooltip')).toBeInTheDocument()
+    expect(radio('CIP')).toBeChecked()
+    expect(radio('DDP')).not.toBeChecked()
+  })
+
+  it('no Plan details panel is left under the cards', () => {
+    renderForm()
+    expect(screen.queryByText('Plan details')).toBeNull()
+    expect(cardHas("Fee for today's shipment")).toBe(false)
+  })
+})
+
+describe('tier details tooltip (acceptance criterion 8)', () => {
+  it('is closed at rest', () => {
+    renderForm()
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('opens with what each Incoterm means', () => {
+    renderForm()
+    expect(tipText('EXW details')).toContain(
+      squash("EXW (Ex Works): you collect the pulque at the supplier's door and carry the risk of the whole trip."),
+    )
+    expect(tipText('CIP details')).toContain(squash('CIP (Carriage and Insurance Paid): the supplier pays for the trip and insures it to your cellar.'))
+    expect(tipText('DAP details')).toContain(squash('DAP (Delivered at Place): the supplier carries the risk until the pulque reaches your cellar.'))
+    expect(tipText('DDP details')).toContain(squash('DDP (Delivered Duty Paid): the supplier carries every cost and risk to your door.'))
+  })
+
+  it("the Shipping Details row's tooltip explains blockchain tracking", () => {
+    renderForm()
+    expect(tipText('Shipping Details (Incoterm)')).toContain(squash('so the supplier cannot dispute a loss'))
+  })
+
+  it('stacks the tier cards one per row, each the full width of the row', () => {
+    renderForm()
+    const cards = screen.getAllByRole('radio').map((r) => r.closest('label')!.parentElement!)
+    const list = cards[0].parentElement!
+    expect(cards.every((c) => c.parentElement === list)).toBe(true)
+    expect(list.className).toContain('flex-col')
+    expect(list.className).not.toMatch(/grid-cols/)
+  })
+
+  it('names what each tier refunds, the refund per lost unit, the fee and the shipment estimate', () => {
+    renderForm()
+    const exw = tipText('EXW details')
+    expect(exw).toContain(squash('Refunds: Nothing: you carry the risk'))
+    expect(exw).toContain(squash('Refund per lost unit: $0.00'))
+    expect(exw).toContain(squash("Fee: $0.00/unit · ~$0.00 for today's shipment"))
+    const cip = tipText('CIP details')
+    expect(cip).toContain(squash("Refunds: What you paid: today's spot price for spot units, the base price for futures units"))
+    expect(cip).toContain(squash('Refund per lost unit: $13.40'))
+    expect(cip).toContain(squash("Fee: $0.55/unit · ~$22.00 for today's shipment"))
+    const dap = tipText('DAP details')
+    expect(dap).toContain(squash('Refunds: The spot price on the arrival day'))
+    expect(dap).toContain(squash('Refund per lost unit: Set on the arrival day'))
+    const ddp = tipText('DDP details')
+    expect(ddp).toContain(squash('Refunds: The retail price'))
+    expect(ddp).toContain(squash('Refund per lost unit: $30.00'))
+    expect(ddp).toContain(squash("Fee: $1.39/unit · ~$55.60 for today's shipment"))
+  })
+
+  it("the shipment estimate follows the form's quantities and the futures due today, not new futures", () => {
     renderForm({
       view: makeView({ futures_book: [{ contract_day: 0, ships_day: 5, delivery_day: 6, qty: 10 }] }),
       initialDecision: makePrefill({ order_futures: 500 }),
     })
     // 0.55 x (40 + 10); 500 new futures do not ship today
-    expect(cardHas("Fee for today's shipment: ~$27.50")).toBe(true)
-  })
-})
-
-describe('Plan details (acceptance criterion 8)', () => {
-  it('is closed by default', () => {
-    renderForm()
-    expect(planDetails().tagName).toBe('DETAILS')
-    expect(planDetails().open).toBe(false)
-    expect(planDetails().querySelector('summary')).toHaveTextContent('Plan details')
-  })
-
-  it('remembers its state through setUiFlag: clicking opens it and stores the flag, clicking again closes it', async () => {
-    const user = userEvent.setup()
-    renderForm()
-    expect(getUiFlag('plan_details_open')).toBe(false)
-    await user.click(screen.getByText('Plan details'))
-    expect(getUiFlag('plan_details_open')).toBe(true)
-    expect(planDetails().open).toBe(true)
-    await user.click(screen.getByText('Plan details'))
-    expect(getUiFlag('plan_details_open')).toBe(false)
-    expect(planDetails().open).toBe(false)
-  })
-
-  it('starts open when the stored flag says so', () => {
-    setUiFlag('plan_details_open', true)
-    renderForm()
-    expect(planDetails().open).toBe(true)
-  })
-
-  it('has one row per enabled plan: label, refund basis in words, refund per lost unit, fee and shipment estimate', () => {
-    renderForm()
-    const text = detailsText()
-    for (const label of ['EXW', 'CIP', 'DAP', 'DDP']) expect(text).toContain(label)
-    expect(text).toContain(squash('Refunds:'))
-    expect(text).toContain(squash('Nothing: you carry the risk'))
-    expect(text).toContain(squash("What you paid: today's spot price for spot units, the base price for futures units"))
-    expect(text).toContain(squash('The spot price on the arrival day'))
-    expect(text).toContain(squash('The retail price'))
-    expect(text).toContain(squash('Refund per lost unit:'))
-    expect(text).toContain(squash('$0.00'))
-    expect(text).toContain(squash('$13.40'))
-    expect(text).toContain(squash('Set on the arrival day'))
-    expect(text).toContain(squash('$30.00'))
-    expect(text).toContain(squash('Fee:'))
-    expect(text).toContain(squash('$0.55/u'))
-    expect(text).toContain(squash('$1.39/u'))
-    expect(text).toContain(squash("~$22.00 for today's shipment"))
-    expect(text).toContain(squash("~$55.60 for today's shipment"))
-    expect(text).toContain(squash("~$0.00 for today's shipment"))
-  })
-
-  it("the shipment estimate follows the form's quantities and the futures due today", () => {
-    renderForm({ view: makeView({ futures_book: [{ contract_day: 0, ships_day: 5, delivery_day: 6, qty: 10 }] }) })
-    // shipmentMax = 40 + 10 = 50
-    expect(detailsText()).toContain(squash("~$27.50 for today's shipment"))
-    expect(detailsText()).toContain(squash("~$69.50 for today's shipment"))
+    expect(tipText('CIP details')).toContain(squash("~$27.50 for today's shipment"))
+    expect(tipText('DDP details')).toContain(squash("~$69.50 for today's shipment"))
     setField(spot(), 0)
     // shipmentMax = 10
-    expect(detailsText()).toContain(squash("~$5.50 for today's shipment"))
-    expect(detailsText()).toContain(squash("~$13.90 for today's shipment"))
+    expect(tipText('CIP details')).toContain(squash("~$5.50 for today's shipment"))
   })
 
-  it("ends with the sentence on DAP's and CIP's refunds", () => {
+  it("the Ship row's tooltip says DAP's refund swings with the market and CIP's is fixed", () => {
     renderForm()
-    expect(detailsText()).toContain(squash("DAP's refund swings with the market; CIP's is fixed at what you paid."))
-  })
-
-  it('lists only the enabled plans', () => {
-    renderForm({ view: makeView({ plans: makePlans(['ddp']) }) })
-    expect(detailsText()).not.toContain('DDP')
-    expect(detailsText()).not.toContain('$30.00')
-    expect(detailsText()).toContain('CIP')
+    expect(tipText('Shipping Details (Incoterm)')).toContain(squash("DAP's refund swings with the market; CIP's is fixed at what you paid."))
   })
 
   it('failure mode 6: shows no failure chance and no expected loss (no "%", "chance" or "probability")', () => {
     renderForm()
-    const text = planDetails().textContent ?? ''
-    // the panel is really rendered, so the assertions below cannot pass on an empty panel
-    expect(text).toContain('Refunds:')
-    expect(text).toContain('Fee:')
-    expect(text).not.toContain('%')
-    expect(text).not.toMatch(/chance/i)
-    expect(text).not.toMatch(/probabilit/i)
-    expect(text).not.toMatch(/expected loss/i)
+    for (const name of ['Shipping Details (Incoterm)', 'EXW details', 'CIP details', 'DAP details', 'DDP details']) {
+      const text = tipText(name)
+      // the tip is really rendered, so the assertions below cannot pass on an empty tip
+      expect(text.length).toBeGreaterThan(10)
+      expect(text).not.toContain('%')
+      expect(text).not.toMatch(/chance/i)
+      expect(text).not.toMatch(/probabilit/i)
+      expect(text).not.toMatch(/expectedloss/i)
+    }
   })
 
-  it('stays available when the form is locked: it can still be opened, and it still lists the plans', async () => {
-    const user = userEvent.setup()
+  it('stays available when the form is locked', () => {
     renderForm({ locked: true })
-    expect(planDetails().open).toBe(false)
-    await user.click(screen.getByText('Plan details'))
-    expect(planDetails().open).toBe(true)
-    expect(getUiFlag('plan_details_open')).toBe(true)
-    expect(detailsText()).toContain(squash('Refund per lost unit:'))
-    expect(detailsText()).toContain('CIP')
+    expect(screen.getByRole('button', { name: 'About CIP details' })).toBeEnabled()
+    expect(tipText('CIP details')).toContain(squash('Refund per lost unit: $13.40'))
+  })
+
+  it('each in-transit shipment carries its tier tooltip, with the refund basis and no estimate for today', () => {
+    render(
+      <InTransit
+        shipments={[{ shipped_day: 4, arrives_day: 5, qty: 30, lost: 0, incoterm_tier: 'ddp' }]}
+        plans={makePlans() as IncotermTierPlan[]}
+      />,
+    )
+    const text = tipText('DDP details')
+    expect(text).toContain(squash('DDP (Delivered Duty Paid)'))
+    expect(text).toContain(squash('Refunds: The retail price'))
+    expect(text).not.toContain(squash("today's shipment"))
   })
 })

@@ -178,7 +178,7 @@ export function setDisplayName(name: string): void {
 
 // ---------------------------------------------------------------- UI flags
 
-export type UiFlag = 'plan_details_open' | 'details_open'
+export type UiFlag = 'details_open'
 
 export function getUiFlag(flag: UiFlag): boolean {
   return readLocal(`pulky.ui.${flag}`) === '1'

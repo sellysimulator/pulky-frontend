@@ -8,6 +8,9 @@ import {
   formatQuality,
   formatQualityGuide,
   formatSignedMoney,
+  formatUnits,
+  lotLabel,
+  lotNumber,
   riskFromQuality,
   riskState,
   weekdayLong,
@@ -38,6 +41,29 @@ describe('formatQty', () => {
     expect(formatQty(0)).toBe('0')
     expect(formatQty(1234567)).toBe('1,234,567')
     expect(formatQty(999)).toBe('999')
+  })
+})
+
+describe('formatUnits', () => {
+  it('spells the unit out, singular for one', () => {
+    expect(formatUnits(1)).toBe('1 unit')
+    expect(formatUnits(0)).toBe('0 units')
+    expect(formatUnits(12)).toBe('12 units')
+    expect(formatUnits(1234)).toBe('1,234 units')
+  })
+})
+
+describe('lot names (spec 13.7)', () => {
+  it('a delivered lot reads by its number', () => {
+    expect(lotNumber('L0')).toBe('0')
+    expect(lotNumber('L12')).toBe('12')
+    expect(lotLabel('L0')).toBe('Lot #0')
+    expect(lotLabel('L3')).toBe('Lot #3')
+  })
+
+  it('a lot bought from another pulquería keeps its id', () => {
+    expect(lotNumber('B5-1')).toBe('B5-1')
+    expect(lotLabel('B5-1')).toBe('Lot #B5-1')
   })
 })
 

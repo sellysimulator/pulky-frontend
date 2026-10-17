@@ -67,6 +67,9 @@ export default function NumberField({
   const [draft, setDraft] = useState<string | null>(null)
 
   const shownPrefix = prefix ?? (kind === 'money' ? '$' : undefined)
+  // A unit spelled out as a word ("units", "/unit") takes 2rem more than a symbol (design.md §7.2).
+  const wordSuffix = (suffix?.length ?? 0) > 2
+  const width = kind === 'quantity' ? (wordSuffix ? 'w-36' : 'w-28') : wordSuffix ? 'w-40' : 'w-32'
   const allowNegative = min === undefined || min < 0
   // While typing, keep what was typed ("1." or "12.5") as long as it still means the current value.
   const showDraft = focused && draft !== null && (parse(draft) === value || parse(draft) === null)
@@ -119,7 +122,7 @@ export default function NumberField({
       <label htmlFor={inputId} className={hideLabel ? 'sr-only' : 'text-base font-medium'}>
         {label}
       </label>
-      <div className={['flex h-11 items-center gap-1 rounded-md border px-3', kind === 'quantity' ? 'w-28' : 'w-32', border, fill].join(' ')}>
+      <div className={['flex h-11 items-center gap-1 rounded-md border px-3', width, border, fill].join(' ')}>
         {shownPrefix ? <span className="text-base text-ink-subtle">{shownPrefix}</span> : null}
         <input
           id={inputId}

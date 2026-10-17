@@ -73,7 +73,6 @@ export function makeBrief(over: Partial<Brief> = {}, day = 5): Brief {
     weekday_multipliers: { mon: 0.25, tue: 0.5, wed: 0.75, thu: 1, fri: 1, sat: 1, sun: 0.75 },
     expected_demand: 99.6,
     supplier: {
-      capacity: 81,
       disrupted: false,
       disruption_message: null,
       spot_price: 13.4,
@@ -233,7 +232,6 @@ export function makePublic(day: number, over: Partial<PublicDayResults> = {}): P
     demand_total: 400,
     units_sold_total: 380,
     spot_price: 13.4,
-    capacity: 81,
     disrupted: false,
     cooperation: false,
     cooperators: 2,
@@ -364,10 +362,10 @@ export function before(a: HTMLElement, b: HTMLElement): boolean {
 import { describe, expect, it } from 'vitest'
 
 describe('DayStats tiles', () => {
-  it('shows day, weekday multiplier, demand, spot, reputation and cash from the brief and view', () => {
+  it("shows day, weekday multiplier, the player's own demand, spot, reputation and cash from the brief and view", () => {
     renderBoard()
-    expect(tileText('Day').some((t) => t.includes('5/14') && /Fri\w* · weekday ×1\.00/.test(t))).toBe(true)
-    expect(tileText('Market demand').some((t) => t.includes('~100') && t.includes('~27 yours'))).toBe(true)
+    expect(tileText('Day').some((t) => t.includes('5/14') && t.includes('Friday · weekday ×1.00'))).toBe(true)
+    expect(tileText('Your demand').some((t) => t.includes('~27'))).toBe(true)
     expect(tileText('Spot price').some((t) => t.includes('$13.40') && t.includes('base $12.00'))).toBe(true)
     expect(tileText('Reputation').some((t) => t.includes('0.62'))).toBe(true)
     expect(tileText('Cash').some((t) => t.includes('$6,120.00'))).toBe(true)
@@ -377,7 +375,14 @@ describe('DayStats tiles', () => {
     renderBoard({
       view: makeView({ brief: makeBrief({ expected_demand: 100.4 }), expected_demand_own: 27.4 }),
     })
-    expect(tileText('Market demand').some((t) => t.includes('~100') && !t.includes('100.4') && t.includes('~27 yours'))).toBe(true)
+    expect(tileText('Your demand').some((t) => t.includes('~27') && !t.includes('27.4'))).toBe(true)
+  })
+
+  it('leaves the market total to the Market section: no market demand tile', () => {
+    renderBoard()
+    const stats = screen.getByRole('region', { name: 'Day stats' })
+    expect(within(stats).queryByText('Market demand')).toBeNull()
+    expect(within(stats).queryByText(/~100/)).toBeNull()
   })
 
   it('shows the weekday multiplier with two decimals', () => {
@@ -408,27 +413,11 @@ describe('WeekdayStrip and FuturesCountdown', () => {
     expect(document.querySelectorAll('.lucide-flame')).toHaveLength(3)
   })
 
-  it('shows the futures message in a neutral chip, and a warning chip on the last day to buy', () => {
-    const { unmount } = renderBoard()
-    const neutral = screen.getByText('Futures: 3 days left to buy (delivery in 7 days, at $12.00)')
-    expect(neutral.closest('[class*="warning"]')).toBeNull()
-    unmount()
-    const brief = makeBrief()
-    brief.futures.days_left_to_buy = 1
-    renderBoard({
-      view: makeView({
-        brief,
-        order_windows: {
-          spot_open: true,
-          futures_open: true,
-          futures_days_left_to_buy: 1,
-          futures_message: 'Futures: last day to buy',
-          spot_message: 'Spot open',
-        },
-      }),
-    })
-    const warn = screen.getByText('Futures: last day to buy')
-    expect(warn.closest('[class*="warning"]')).not.toBeNull()
+  it('leaves the futures countdown to the futures row', () => {
+    renderBoard()
+    const stats = screen.getByRole('region', { name: 'Day stats' })
+    expect(within(stats).queryByText(/days left to buy/)).toBeNull()
+    expect(screen.getByText('3 days left to buy')).toBeInTheDocument()
   })
 })
 

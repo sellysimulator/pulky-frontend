@@ -2,7 +2,7 @@
  * Section 26 - the peer rows (If short / Sell), the quality guide and the offer estimate.
  * Acceptance criteria 11, 12, 13, 15; failure modes 10, 11, 12, 14, 15.
  */
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import DecisionForm from '../components/game/DecisionForm'
@@ -77,7 +77,7 @@ function makeView(o: ViewOverrides = {}): PlayerView {
       weekday_multiplier: 1,
       weekday_multipliers: { mon: 0.25, tue: 0.5, wed: 0.75, thu: 1, fri: 1, sat: 1, sun: 0.75 },
       expected_demand: 100,
-      supplier: { capacity: 81, disrupted: false, disruption_message: null, spot_price: 13.4, base_price: 12, lead_time_days: 1 },
+      supplier: { disrupted: false, disruption_message: null, spot_price: 13.4, base_price: 12, lead_time_days: 1 },
       spot: { open: true, arrives_day: 6 },
       futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, last_day_to_buy: 7, days_left_to_buy: 3 },
       transport: { shared: false },
@@ -161,7 +161,7 @@ const input = (name: string | RegExp) => screen.getByLabelText(name) as HTMLInpu
 const submitBtn = () => screen.getByRole('button', { name: 'Submit day' })
 const setField = (el: HTMLElement, v: string | number) => fireEvent.change(el, { target: { value: String(v) } })
 
-const SHORT_TICK = /Buy what the supplier cannot fill from other pulquerías, today/
+const SHORT_TICK = /Buy the shortfall from other pulquerías/
 const SELL_TICK = /Offer units to other pulquerías/
 const buyBox = () => screen.getByRole('checkbox', { name: SHORT_TICK })
 const sellBox = () => screen.getByRole('checkbox', { name: SELL_TICK })
@@ -170,7 +170,14 @@ const buyQuality = () => input(/^quality at least$/i)
 const sellPrice = () => input(/^at$/i)
 const sellQuality = () => input(/^quality up to$/i)
 const sellUnits = () => input(/^max$/i)
-const lotBox = (id: string) => screen.getByRole('checkbox', { name: new RegExp(`^${id} ·`) })
+const lotBox = (id: string) => screen.getByRole('checkbox', { name: new RegExp(`^Lot #${id.replace(/^L/, '')} ·`) })
+
+/** Focuses the named info button and returns its open tooltip's text. */
+function tipText(name: string): string {
+  const button = screen.getByRole('button', { name: `About ${name}` })
+  act(() => button.focus())
+  return squash(screen.getByRole('tooltip').textContent)
+}
 
 /** The text an input points at through aria-describedby (the NumberField error line sits there). */
 function described(el: HTMLElement): string {
@@ -358,12 +365,13 @@ describe('If short with spot closed (acceptance criterion 12)', () => {
 })
 
 describe('the quality guide (acceptance criterion 11, failure mode 14)', () => {
-  it('shows the guide line for the minimum quality in the spec copy, then the note', async () => {
+  it("shows the guide line for the minimum quality in the spec copy; the note is in the row's tooltip", async () => {
     const user = userEvent.setup()
     renderForm()
     await tickBuy(user, 16, 90)
     expect(cardHas('90%: 10% risk tonight · half spoiled by day 7 · lasts at most 4 days (through day 8)')).toBe(true)
-    expect(screen.getAllByText(QUALITY_GUIDE_NOTE, { exact: false })).toHaveLength(1)
+    expect(screen.queryByText(QUALITY_GUIDE_NOTE, { exact: false })).toBeNull()
+    expect(tipText('Buy from Players')).toContain(squash(QUALITY_GUIDE_NOTE))
   })
 
   it('follows the minimum quality as it changes, from the matching row', async () => {
@@ -398,10 +406,8 @@ describe('the quality guide (acceptance criterion 11, failure mode 14)', () => {
     renderForm()
     await tickBuy(user, 16, 90)
     setField(buyQuality(), '')
-    expect(screen.queryByText(QUALITY_GUIDE_NOTE, { exact: false })).toBeNull()
     expect(cardHas('risk tonight')).toBe(false)
     setField(buyQuality(), 101)
-    expect(screen.queryByText(QUALITY_GUIDE_NOTE, { exact: false })).toBeNull()
     expect(cardHas('risk tonight')).toBe(false)
   })
 })
@@ -411,47 +417,55 @@ describe('the "now in your cellar" estimate (acceptance criterion 13, failure mo
     const user = userEvent.setup()
     renderForm()
     await tickSell(user, 15, 60, 10)
-    expect(cardHas('now in your cellar: 10 u at 60% or less (L3, L4) · retail $30.00 · spot $13.40')).toBe(true)
+    expect(cardHas('now in your cellar: 10 units at 60% or less (Lot #3, Lot #4)')).toBe(true)
     setField(sellUnits(), 99)
-    expect(cardHas('now in your cellar: 42 u at 60% or less (L3, L4) · retail $30.00 · spot $13.40')).toBe(true)
+    expect(cardHas('now in your cellar: 42 units at 60% or less (Lot #3, Lot #4)')).toBe(true)
   })
 
   it('counts only lots at or below the limit', async () => {
     const user = userEvent.setup()
     renderForm()
     await tickSell(user, 15, 35, 99)
-    expect(cardHas('now in your cellar: 12 u at 35% or less (L3) · retail $30.00 · spot $13.40')).toBe(true)
+    expect(cardHas('now in your cellar: 12 units at 35% or less (Lot #3)')).toBe(true)
   })
 
   it('says so when no lot matches', async () => {
     const user = userEvent.setup()
     renderForm()
     await tickSell(user, 15, 30, 10)
-    expect(cardHas('now in your cellar: no lots at 30% or less · retail $30.00 · spot $13.40')).toBe(true)
+    expect(cardHas('now in your cellar: no lots at 30% or less')).toBe(true)
   })
 
   it('failure mode 12: ticking L4 to conserve drops it from the line, ticking L3 too leaves no lots', async () => {
     const user = userEvent.setup()
     renderForm()
     await tickSell(user, 15, 60, 99)
-    expect(cardHas('now in your cellar: 42 u at 60% or less (L3, L4)')).toBe(true)
+    expect(cardHas('now in your cellar: 42 units at 60% or less (Lot #3, Lot #4)')).toBe(true)
     await user.click(lotBox('L4'))
-    expect(cardHas('now in your cellar: 12 u at 60% or less (L3)')).toBe(true)
-    expect(cardHas('(L3, L4)')).toBe(false)
+    expect(cardHas('now in your cellar: 12 units at 60% or less (Lot #3)')).toBe(true)
+    expect(cardHas('(Lot #3, Lot #4)')).toBe(false)
     await user.click(lotBox('L3'))
     expect(cardHas('now in your cellar: no lots at 60% or less')).toBe(true)
     await user.click(lotBox('L4'))
     // unticking L4 brings it back (L3 stays conserved)
-    expect(cardHas('now in your cellar: 30 u at 60% or less (L4)')).toBe(true)
-    expect(cardHas('(L3')).toBe(false)
+    expect(cardHas('now in your cellar: 30 units at 60% or less (Lot #4)')).toBe(true)
+    expect(cardHas('(Lot #3')).toBe(false)
   })
 
-  it('the worked example: 10 u at 60% or less (L4) once L3 is ticked to conserve', async () => {
+  it("leaves today's retail and spot prices to the Sell row's tooltip", async () => {
+    const user = userEvent.setup()
+    renderForm()
+    await tickSell(user, 15, 60, 10)
+    expect(cardHas('retail $30.00')).toBe(false)
+    expect(tipText('Sell to Players')).toContain(squash('Today: retail $30.00 · spot $13.40'))
+  })
+
+  it('the worked example: 10 units at 60% or less (Lot #4) once Lot #3 is ticked to conserve', async () => {
     const user = userEvent.setup()
     renderForm()
     await user.click(lotBox('L3'))
     await tickSell(user, 15, 60, 10)
-    expect(cardHas('now in your cellar: 10 u at 60% or less (L4) · retail $30.00 · spot $13.40')).toBe(true)
+    expect(cardHas('now in your cellar: 10 units at 60% or less (Lot #4)')).toBe(true)
   })
 })
 

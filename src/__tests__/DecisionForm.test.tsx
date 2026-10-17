@@ -4,7 +4,7 @@
  * Acceptance criteria 1, 2, 4, 5, 6, 9, 10, 14; failure modes 3, 4, 5, 9, 13.
  * Queries are by role, label or text; copy is only what the spec or the section document quotes.
  */
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import DecisionForm from '../components/game/DecisionForm'
@@ -80,7 +80,7 @@ function makeView(o: ViewOverrides = {}): PlayerView {
       weekday_multiplier: 1,
       weekday_multipliers: { mon: 0.25, tue: 0.5, wed: 0.75, thu: 1, fri: 1, sat: 1, sun: 0.75 },
       expected_demand: 100,
-      supplier: { capacity: 81, disrupted: false, disruption_message: null, spot_price: 13.4, base_price: 12, lead_time_days: 1 },
+      supplier: { disrupted: false, disruption_message: null, spot_price: 13.4, base_price: 12, lead_time_days: 1 },
       spot: { open: true, arrives_day: 6 },
       futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, last_day_to_buy: 7, days_left_to_buy: 3 },
       transport: { shared: false },
@@ -161,12 +161,12 @@ const card = () => screen.getByRole('region', { name: "Today's decision" })
 const squash = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, '')
 const cardHas = (text: string) => squash(card().textContent).includes(squash(text))
 const input = (name: string | RegExp) => screen.getByLabelText(name) as HTMLInputElement
-const spot = () => input('Spot')
+const spot = () => input('Buy from Supplier')
 const futures = () => input('Futures')
 const submitBtn = () => screen.getByRole('button', { name: 'Submit day' })
 const setField = (el: HTMLElement, v: string | number) => fireEvent.change(el, { target: { value: String(v) } })
 
-const SHORT_TICK = /Buy what the supplier cannot fill from other pulquerías, today/
+const SHORT_TICK = /Buy the shortfall from other pulquerías/
 const SELL_TICK = /Offer units to other pulquerías/
 const buyBox = () => screen.getByRole('checkbox', { name: SHORT_TICK })
 const sellBox = () => screen.getByRole('checkbox', { name: SELL_TICK })
@@ -175,8 +175,15 @@ const buyQuality = () => input(/^quality at least$/i)
 const sellPrice = () => input(/^at$/i)
 const sellQuality = () => input(/^quality up to$/i)
 const sellUnits = () => input(/^max$/i)
-const lotBox = (id: string) => screen.getByRole('checkbox', { name: new RegExp(`^${id} ·`) })
+const lotBox = (id: string) => screen.getByRole('checkbox', { name: new RegExp(`^Lot #${id.replace(/^L/, '')} ·`) })
 const radio = (label: string) => screen.getByRole('radio', { name: new RegExp(`^${label}`) })
+
+/** Focuses the named info button and returns its open tooltip's text. */
+function tipText(name: string): string {
+  const button = screen.getByRole('button', { name: `About ${name}` })
+  act(() => button.focus())
+  return squash(screen.getByRole('tooltip').textContent)
+}
 
 /** The text an input points at through aria-describedby (the NumberField error line sits there). */
 function described(el: HTMLElement): string {
@@ -204,15 +211,24 @@ describe('layout (acceptance criterion 1)', () => {
       spot(),
       buyBox(),
       futures(),
-      screen.getByRole('group', { name: 'Ship' }),
+      screen.getByRole('group', { name: 'Shipping Details (Incoterm)' }),
       lotBox('L3'),
       lotBox('L4'),
       sellBox(),
-      screen.getByRole('switch', { name: 'Cooperate on allocation' }),
+      screen.getByRole('switch', { name: 'Vote for equal supply' }),
       screen.getByText(/Today:/),
       submitBtn(),
     ])
-    expect(within(card()).getByText(/Conserving adds 2 nights to a lot's fresh period\./)).toBeInTheDocument()
+    expect(cardHas('Conserving')).toBe(false)
+    expect(tipText('Conserve')).toContain(squash('Conserving a lot adds 2 nights to its fresh period, at $1.00/unit paid today.'))
+  })
+
+  it('every row with an explanation carries it in an info tooltip, closed at rest', () => {
+    renderForm()
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    for (const name of ['Buy from Supplier', 'Buy from Players', 'Futures', 'Shipping Details (Incoterm)', 'Conserve', 'Sell to Players', 'Equal Supply']) {
+      expect(tipText(name).length).toBeGreaterThan(20)
+    }
   })
 
   it('renders six rows without If short and Sell when the peer market is off', () => {
@@ -224,10 +240,10 @@ describe('layout (acceptance criterion 1)', () => {
     expectDomOrder([
       spot(),
       futures(),
-      screen.getByRole('group', { name: 'Ship' }),
+      screen.getByRole('group', { name: 'Shipping Details (Incoterm)' }),
       lotBox('L3'),
       lotBox('L4'),
-      screen.getByRole('switch', { name: 'Cooperate on allocation' }),
+      screen.getByRole('switch', { name: 'Vote for equal supply' }),
       screen.getByText(/Today:/),
       submitBtn(),
     ])
@@ -261,8 +277,31 @@ describe('layout (acceptance criterion 1)', () => {
 
   it('spot and futures rows carry their context from the brief', () => {
     renderForm()
-    expect(cardHas('at $13.40 · capacity 81 · arrives day 6 (Sat)')).toBe(true)
-    expect(cardHas('at $12.00, paid today · delivered day 12 · Futures: 3 days left to buy (delivery in 7 days, at $12.00)')).toBe(true)
+    expect(cardHas('$13.40 · arrives day 6 (Saturday)')).toBe(true)
+    expect(cardHas('$12.00 · delivered day 12 (Friday)')).toBe(true)
+    expect(cardHas('3 days left to buy')).toBe(true)
+  })
+
+  it('never shows the supplier capacity', () => {
+    renderForm()
+    expect(cardHas('capacity')).toBe(false)
+    expect(tipText('Buy from Supplier')).not.toMatch(/capacity/i)
+  })
+
+  it('the spot and futures tooltips explain the order, with its days', () => {
+    renderForm()
+    expect(tipText('Buy from Supplier')).toContain(squash("Bought at today's spot price, arriving on day 6 (Saturday). You pay only for the units the supplier fills."))
+    expect(tipText('Futures')).toContain(squash('Bought at the base price of $12.00 and paid today, delivered on day 12 (Friday).'))
+    expect(tipText('Futures')).toContain(squash('units the supplier cannot ship are refunded'))
+  })
+
+  it('the futures countdown is a neutral chip, and a warning chip on the last day to buy', () => {
+    const { unmount } = renderForm()
+    expect(screen.getByText('3 days left to buy').closest('[class*="warning"]')).toBeNull()
+    unmount()
+    const view = makeView()
+    renderForm({ view: { ...view, brief: { ...view.brief!, futures: { ...view.brief!.futures, days_left_to_buy: 1 } } } })
+    expect(screen.getByText('Last day to buy').closest('[class*="warning"]')).not.toBeNull()
   })
 
   it('bounds the quantity fields at 0..9999', () => {
@@ -287,7 +326,7 @@ describe('state and prefill (acceptance criterion 2)', () => {
     expect(lotBox('L4')).not.toBeChecked()
     expect(buyBox()).not.toBeChecked()
     expect(sellBox()).not.toBeChecked()
-    expect(screen.getByRole('switch', { name: 'Cooperate on allocation' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('switch', { name: 'Vote for equal supply' })).toHaveAttribute('aria-checked', 'false')
   })
 
   it("starts from the server's prefill", () => {
@@ -295,7 +334,7 @@ describe('state and prefill (acceptance criterion 2)', () => {
     expect(spot().value).toBe('40')
     expect(futures().value).toBe('25')
     expect(radio('CIP')).toBeChecked()
-    expect(screen.getByRole('switch', { name: 'Cooperate on allocation' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('switch', { name: 'Vote for equal supply' })).toHaveAttribute('aria-checked', 'true')
     expect(buyBox()).not.toBeChecked()
     expect(sellBox()).not.toBeChecked()
   })
@@ -383,10 +422,10 @@ describe('outlay line and bar (acceptance criterion 4)', () => {
     expect(cardHas('Today: $903.50 of $6,120.00')).toBe(true)
   })
 
-  it("shows the labelled fee estimate for today's shipment under the cards", () => {
+  it("shows the labelled fee estimate for today's shipment in the chosen tier's tooltip", () => {
     renderForm({ view: makeView({ futures_book: [{ contract_day: 0, ships_day: 5, delivery_day: 6, qty: 10 }] }) })
     // fee 0.55 x (40 spot + 10 due) = 27.50
-    expect(cardHas("Fee for today's shipment: ~$27.50")).toBe(true)
+    expect(tipText('CIP details')).toContain(squash("~$27.50 for today's shipment"))
   })
 
   it('failure mode 9: a peer purchase limit adds nothing to the outlay', async () => {
@@ -515,7 +554,7 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
     await user.click(lotBox('L4'))
     await user.click(lotBox('L3'))
     await user.click(radio('DDP'))
-    await user.click(screen.getByRole('switch', { name: 'Cooperate on allocation' }))
+    await user.click(screen.getByRole('switch', { name: 'Vote for equal supply' }))
     setField(spot(), 3)
     setField(futures(), 0)
     await user.click(submitBtn())
@@ -572,7 +611,7 @@ describe('closed windows (acceptance criterion 6)', () => {
     expect(spot().value).toBe('0')
     expect(cardHas('Server says: spot is shut (test copy 1)')).toBe(true)
     // the open-window context is replaced, not appended
-    expect(cardHas('capacity 81')).toBe(false)
+    expect(cardHas('arrives day 6')).toBe(false)
   })
 
   it("a closed futures window disables the field at 0 and shows the server's message verbatim", () => {
@@ -608,7 +647,7 @@ describe('locked form (acceptance criterion 5)', () => {
     expect(inert(futures())).toBe(true)
     expect(inert(lotBox('L3'))).toBe(true)
     expect(inert(radio('EXW'))).toBe(true)
-    expect(inert(screen.getByRole('switch', { name: 'Cooperate on allocation' }))).toBe(true)
+    expect(inert(screen.getByRole('switch', { name: 'Vote for equal supply' }))).toBe(true)
     expect(inert(buyBox())).toBe(true)
     expect(inert(sellBox())).toBe(true)
     expect(within(card()).getByText('Submitted')).toBeInTheDocument()
@@ -638,10 +677,10 @@ describe('conserve rows (acceptance criteria 10 and 14)', () => {
     renderForm()
     const l3 = lotBox('L3').closest('label')!
     const l4 = lotBox('L4').closest('label')!
-    expect(squash(l3.textContent)).toContain(squash('L3 · 12 u · 0%'))
+    expect(squash(l3.textContent)).toContain(squash('Lot #3 · 12 units · 0%'))
     expect(squash(l3.textContent)).toContain('100%')
     expect(squash(l3.textContent)).toContain('$12.00')
-    expect(squash(l4.textContent)).toContain(squash('L4 · 30 u · 23%'))
+    expect(squash(l4.textContent)).toContain(squash('Lot #4 · 30 units · 23%'))
     expect(squash(l4.textContent)).toContain('77%')
     expect(squash(l4.textContent)).toContain('$30.00')
   })
@@ -649,7 +688,7 @@ describe('conserve rows (acceptance criteria 10 and 14)', () => {
   it('failure mode 13: a lot at quality 13 with risk_tonight 0.875 shows 87%, not 88%', () => {
     renderForm({ view: makeView({ cellar: [lot('L7', 4, 13, { risk_tonight: 0.875 })] }) })
     const row = lotBox('L7').closest('label')!
-    expect(squash(row.textContent)).toContain(squash('L7 · 4 u · 13%'))
+    expect(squash(row.textContent)).toContain(squash('Lot #7 · 4 units · 13%'))
     expect(row.textContent).toContain('87%')
     expect(row.textContent).not.toContain('88%')
   })
@@ -686,3 +725,75 @@ describe('conserve rows (acceptance criteria 10 and 14)', () => {
     expect(cardHas('Today: $898.00 of $6,120.00')).toBe(true)
   })
 })
+
+describe('conserve list: three lots, then Show all (spec 13.7)', () => {
+  const five = () => [lot('L1', 5, 10), lot('L2', 6, 20), lot('L3', 12, 0), lot('L4', 30, 23), lot('L5', 8, 90)]
+  const toggle = (name: RegExp | string) => within(card()).getByRole('button', { name })
+
+  it('lists only the first three lots in cellar order, with Show all naming the count', () => {
+    renderForm({ view: makeView({ cellar: five() }) })
+    expect(lotBox('L1')).toBeInTheDocument()
+    expect(lotBox('L2')).toBeInTheDocument()
+    expect(lotBox('L3')).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /^Lot #4 ·/ })).toBeNull()
+    expect(screen.queryByRole('checkbox', { name: /^Lot #5 ·/ })).toBeNull()
+    expect(toggle('Show all 5 lots')).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('Show all lists every lot and becomes Hide; Hide goes back to three', async () => {
+    const user = userEvent.setup()
+    renderForm({ view: makeView({ cellar: five() }) })
+    await user.click(toggle('Show all 5 lots'))
+    expect(lotBox('L4')).toBeInTheDocument()
+    expect(lotBox('L5')).toBeInTheDocument()
+    expect(toggle('Hide')).toHaveAttribute('aria-expanded', 'true')
+    await user.click(toggle('Hide'))
+    expect(screen.queryByRole('checkbox', { name: /^Lot #4 ·/ })).toBeNull()
+    expect(toggle('Show all 5 lots')).toBeInTheDocument()
+  })
+
+  it('a lot ticked and then hidden is still conserved and still costs', async () => {
+    const user = userEvent.setup()
+    const { onSubmit } = renderForm({ view: makeView({ cellar: five() }), initialDecision: makePrefill({ order_spot: 0, order_futures: 0 }) })
+    await user.click(toggle('Show all 5 lots'))
+    await user.click(lotBox('L5'))
+    await user.click(toggle('Hide'))
+    expect(cardHas('Today: $8.00 of $6,120.00')).toBe(true)
+    await user.click(submitBtn())
+    expect(onSubmit.mock.calls[0][0].conserve_lots).toEqual(['L5'])
+  })
+
+  it('has no toggle with three lots or fewer', () => {
+    renderForm({ view: makeView({ cellar: five().slice(0, 3) }) })
+    expect(within(card()).queryByRole('button', { name: /Show all/ })).toBeNull()
+  })
+
+  it('the toggle still works on a locked form', async () => {
+    const user = userEvent.setup()
+    renderForm({ view: makeView({ cellar: five() }), locked: true })
+    await user.click(toggle('Show all 5 lots'))
+    expect(lotBox('L5')).toBeInTheDocument()
+  })
+})
+
+describe('no abbreviations on the decision card (spec 13.7)', () => {
+  it('names lots "Lot #n", spells units out, and spells weekdays out', () => {
+    renderForm()
+    const text = card().textContent ?? ''
+    expect(text).toContain('Lot #3 · 12 units · 0%')
+    expect(text).not.toMatch(/\bL\d/)
+    expect(text).not.toMatch(/\d u\b/)
+    expect(text).not.toMatch(/\/u\b/)
+    expect(text).not.toMatch(/\((Mon|Tue|Wed|Thu|Fri|Sat|Sun)\)/)
+    expect(text).toContain('Fee $0.55/unit')
+  })
+
+  it('uses the row names Buy from Supplier, Buy from Players, Shipping Details (Incoterm), Sell to Players and Equal Supply', () => {
+    renderForm()
+    for (const name of ['Buy from Supplier', 'Buy from Players', 'Shipping Details (Incoterm)', 'Sell to Players', 'Equal Supply']) {
+      expect(within(card()).getAllByText(name).length).toBeGreaterThan(0)
+    }
+    for (const old of ['Spot', 'If short', 'Ship', 'Sell']) expect(within(card()).queryByText(old)).toBeNull()
+  })
+})
+

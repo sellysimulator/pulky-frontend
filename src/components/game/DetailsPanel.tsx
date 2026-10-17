@@ -153,7 +153,7 @@ function CollaborationChart({ own, pub }: { own: DayRecord[]; pub: PublicDayResu
     datasets: [
       {
         type: 'bar',
-        label: 'Pulquerías that voted to cooperate',
+        label: 'Pulquerías that voted for equal supply',
         data: cooperators,
         backgroundColor: pub.map((p) => (p.cooperation ? CHART_COLORS['series-sold'] : CHART_COLORS['border-strong'])),
       },
@@ -178,8 +178,8 @@ function CollaborationChart({ own, pub }: { own: DayRecord[]; pub: PublicDayResu
   const yesNo = (v: number): string => (v > 0 ? 'Yes' : 'No')
   return (
     <Box
-      title="Collaboration decisions"
-      ariaLabel="Bars of how many pulquerías voted to cooperate each day, with your own vote marked"
+      title="Equal supply votes"
+      ariaLabel="Bars of how many pulquerías voted for equal supply each day, with your own vote marked"
       legend={[
         { key: 'agreed', label: 'Everyone agreed', swatch: { kind: 'fill', color: CHART_COLORS['series-sold'] } },
         { key: 'not', label: 'Not everyone agreed', swatch: { kind: 'fill', color: CHART_COLORS['border-strong'] } },
@@ -187,10 +187,10 @@ function CollaborationChart({ own, pub }: { own: DayRecord[]; pub: PublicDayResu
       ]}
       table={
         <SeriesTable
-          caption="Collaboration decisions"
+          caption="Equal supply votes"
           days={days(pub)}
           series={[
-            { key: 'cooperators', label: 'Cooperating', values: cooperators, format: (v) => `${v} of ${players}` },
+            { key: 'cooperators', label: 'Voted for equal supply', values: cooperators, format: (v) => `${v} of ${players}` },
             { key: 'agreed', label: 'Everyone agreed', values: pub.map((p) => (p.cooperation ? 1 : 0)), format: yesNo },
             { key: 'vote', label: 'Your vote', values: myVote.map((v) => (v === null ? null : v ? 1 : 0)), format: yesNo },
           ]}
