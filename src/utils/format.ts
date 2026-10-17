@@ -41,6 +41,21 @@ export function formatQty(value: number): string {
   return `${value < 0 && digits !== '0' ? MINUS : ''}${digits}`
 }
 
+/** A quantity with its unit spelled out: "1 unit", "12 units". */
+export function formatUnits(value: number): string {
+  return `${formatQty(value)} ${value === 1 ? 'unit' : 'units'}`
+}
+
+/** A lot's number from its server id: "L3" → "3"; a lot bought from another pulquería keeps its id ("B5-1"). */
+export function lotNumber(id: string): string {
+  return /^L\d+$/.test(id) ? id.slice(1) : id
+}
+
+/** "Lot #3", "Lot #B5-1" (spec §13.7: no abbreviations on the player screen). */
+export function lotLabel(id: string): string {
+  return `Lot #${lotNumber(id)}`
+}
+
 export function formatPercent(value: number | null, digits = 0): string {
   if (value === null) return DASH
   return `${(value * 100).toFixed(digits)}%`

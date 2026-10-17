@@ -1,7 +1,7 @@
-import { CalendarDays, CircleCheck, CircleDashed, Flame, FileClock, ShoppingCart, Star, Truck, Users, Wallet } from 'lucide-react'
+import { CalendarDays, CircleCheck, CircleDashed, Flame, ShoppingCart, Star, Truck, Users, Wallet } from 'lucide-react'
 import type { ReactElement } from 'react'
 import { WEEKDAYS, type Brief, type Participant, type PlayerView, type Weekday } from '../../types/game'
-import { formatMoney, weekdayShort } from '../../utils/format'
+import { formatMoney, weekdayLong, weekdayShort } from '../../utils/format'
 import { InlineAlert } from '../shared/AlertContainer'
 import Badge from '../shared/Badge'
 import SectionCard from '../shared/SectionCard'
@@ -51,7 +51,6 @@ export default function DayStats({ view, awaiting, participants }: DayStatsProps
   const change = view.yesterday?.reputation_change ?? null
   const names = awaiting.map((alias) => participants.find((p) => p.alias === alias)?.display_name ?? alias)
   const waiting = names.length > 0 ? `Waiting for: ${names.join(', ')}` : 'Everyone has submitted.'
-  const lastDayToBuy = brief?.futures.days_left_to_buy === 1
 
   return (
     <SectionCard title="Day stats" icon={CalendarDays}>
@@ -63,18 +62,11 @@ export default function DayStats({ view, awaiting, participants }: DayStatsProps
             value={`${view.day}/${view.duration_days}`}
             sub={
               brief
-                ? `${weekdayShort(brief.weekday)} · weekday ×${brief.weekday_multiplier.toFixed(2)}`
-                : weekdayShort(view.weekday)
+                ? `${weekdayLong(brief.weekday)} · weekday ×${brief.weekday_multiplier.toFixed(2)}`
+                : weekdayLong(view.weekday)
             }
           />
-          {brief ? (
-            <StatTile
-              label="Market demand"
-              icon={Users}
-              value={`~${Math.round(brief.expected_demand)}`}
-              sub={`~${Math.round(view.expected_demand_own)} yours`}
-            />
-          ) : null}
+          {brief ? <StatTile label="Your demand" icon={Users} value={`~${Math.round(view.expected_demand_own)}`} /> : null}
           {brief ? (
             <StatTile
               label="Spot price"
@@ -102,16 +94,13 @@ export default function DayStats({ view, awaiting, participants }: DayStatsProps
 
         {brief ? <WeekdayStrip multipliers={brief.weekday_multipliers} today={brief.weekday} /> : null}
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge tone={lastDayToBuy ? 'warning' : 'neutral'} icon={FileClock}>
-            {view.order_windows.futures_message}
-          </Badge>
-          {brief?.transport.shared ? (
+        {brief?.transport.shared ? (
+          <div className="flex flex-wrap items-center gap-2">
             <Badge tone="neutral" icon={Truck}>
               Shared transport
             </Badge>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
 
         {brief?.supplier.disruption_message ? (
           <InlineAlert tone="warning">{brief.supplier.disruption_message}</InlineAlert>

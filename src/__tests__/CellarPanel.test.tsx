@@ -73,7 +73,6 @@ export function makeBrief(over: Partial<Brief> = {}, day = 5): Brief {
     weekday_multipliers: { mon: 0.25, tue: 0.5, wed: 0.75, thu: 1, fri: 1, sat: 1, sun: 0.75 },
     expected_demand: 99.6,
     supplier: {
-      capacity: 81,
       disrupted: false,
       disruption_message: null,
       spot_price: 13.4,
@@ -233,7 +232,6 @@ export function makePublic(day: number, over: Partial<PublicDayResults> = {}): P
     demand_total: 400,
     units_sold_total: 380,
     spot_price: 13.4,
-    capacity: 81,
     disrupted: false,
     cooperation: false,
     cooperators: 2,
@@ -386,20 +384,20 @@ describe('CellarPanel header and LotTable', () => {
     expect(heads).toEqual(['Lot', 'Units', 'Age', 'Quality', 'Risk tonight', 'Last day', 'Expected loss tonight'])
   })
 
-  it('shows one row per cellar lot in the view order, bought lots among them', () => {
+  it('shows one row per cellar lot in the view order, by lot number, bought lots among them', () => {
     renderBoard({
       view: makeView({
         cellar: [makeLot('L3', 12, 33), makeLot('B5-1', 6, 62), makeLot('L4', 30, 57)],
       }),
     })
-    expect(cellarRows().map((r) => r[0])).toEqual(['L3', 'B5-1', 'L4'])
+    expect(cellarRows().map((r) => r[0])).toEqual(['3', 'B5-1', '4'])
   })
 
   it('shows quality, risk as 100 minus quality, the label and the last day (worked example)', () => {
     renderBoard({
       view: makeView({ cellar: [makeLot('L3', 12, 33), makeLot('L4', 30, 57, { risk_tonight: 0.4333, expected_loss_tonight: 13 })] }),
     })
-    const row = cellarRows().find((r) => r[0].startsWith('L4'))
+    const row = cellarRows().find((r) => r[0].startsWith('4'))
     expect(row).toBeDefined()
     expect(row![1]).toBe('30')
     expect(row![3]).toContain('57%')

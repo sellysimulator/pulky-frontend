@@ -2,8 +2,9 @@ import { ArrowLeftRight } from 'lucide-react'
 import type { ReactElement } from 'react'
 import { LIMITS, type PlayerView, type PublicConfig } from '../../types/game'
 import { unitsOnOffer } from '../../game/estimates'
-import { formatMoney, formatQty } from '../../utils/format'
+import { formatMoney, formatUnits, lotLabel } from '../../utils/format'
 import Checkbox from '../shared/Checkbox'
+import InfoTip from '../shared/InfoTip'
 import NumberField from '../shared/NumberField'
 import { FormRow } from './OrderSection'
 import { QualityField } from './PeerBuySection'
@@ -44,17 +45,30 @@ export default function PeerSellSection({
   locked,
 }: PeerSellSectionProps): ReactElement {
   const fieldsOff = !ticked
-  const prices = `retail ${formatMoney(config.demand.retail_price)} · spot ${formatMoney(view.brief?.supplier.spot_price ?? 0)}`
   let context: string | null = null
   if (maxQuality !== null) {
     const offer = unitsOnOffer(maxQuality, maxUnits ?? Number.MAX_SAFE_INTEGER, conserveLots, view)
     context =
       offer.lotIds.length === 0
-        ? `now in your cellar: no lots at ${maxQuality}% or less · ${prices}`
-        : `now in your cellar: ${formatQty(offer.units)} u at ${maxQuality}% or less (${offer.lotIds.join(', ')}) · ${prices}`
+        ? `now in your cellar: no lots at ${maxQuality}% or less`
+        : `now in your cellar: ${formatUnits(offer.units)} at ${maxQuality}% or less (${offer.lotIds.map(lotLabel).join(', ')})`
   }
   return (
-    <FormRow icon={ArrowLeftRight} label="Sell">
+    <FormRow
+      icon={ArrowLeftRight}
+      label="Sell to Players"
+      info={
+        <InfoTip label="Sell to Players">
+          <span>
+            Offer the units of your lots at or below this quality, up to the maximum, to pulquerías the supplier leaves short
+            today. Units sold leave your cellar before your own customers are served.
+          </span>
+          <span className="tabular-nums">
+            Today: retail {formatMoney(config.demand.retail_price)} · spot {formatMoney(view.brief?.supplier.spot_price ?? 0)}
+          </span>
+        </InfoTip>
+      }
+    >
       <Checkbox checked={ticked} onChange={onTick} disabled={locked} label="Offer units to other pulquerías" />
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2 px-3 pt-1">
         <span className="flex items-start gap-2">
@@ -66,7 +80,7 @@ export default function PeerSellSection({
             hideLabel
             kind="decimal"
             prefix="$"
-            suffix="/u"
+            suffix="/unit"
             min={0.01}
             max={LIMITS.MAX_PEER_PRICE}
             value={price}
@@ -97,7 +111,7 @@ export default function PeerSellSection({
             label="max"
             hideLabel
             kind="quantity"
-            suffix="u"
+            suffix="units"
             min={1}
             max={LIMITS.MAX_ORDER}
             value={maxUnits}

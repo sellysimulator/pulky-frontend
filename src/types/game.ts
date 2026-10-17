@@ -162,7 +162,6 @@ export interface Brief {
   weekday_multipliers: Record<Weekday, number>
   expected_demand: number
   supplier: {
-    capacity: number
     disrupted: boolean
     disruption_message: string | null
     spot_price: number
@@ -277,7 +276,6 @@ export interface PublicDayResults {
   demand_total: number
   units_sold_total: number
   spot_price: number
-  capacity: number
   disrupted: boolean
   cooperation: boolean
   cooperators: number

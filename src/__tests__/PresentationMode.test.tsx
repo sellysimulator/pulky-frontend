@@ -24,7 +24,7 @@ function brief(over: Record<string, unknown> = {}): Brief {
     weekday_multiplier: 1,
     weekday_multipliers: { mon: 0.25, tue: 0.5, wed: 0.75, thu: 1, fri: 1, sat: 1, sun: 0.75 },
     expected_demand: 100,
-    supplier: { capacity: 81, disrupted: false, disruption_message: null, spot_price: 13.4, base_price: 12, lead_time_days: 1 },
+    supplier: { disrupted: false, disruption_message: null, spot_price: 13.4, base_price: 12, lead_time_days: 1 },
     spot: { open: true, arrives_day: 6 },
     futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, last_day_to_buy: 7, days_left_to_buy: 3 },
     transport: { shared: false },
@@ -40,7 +40,6 @@ function pub(over: Record<string, unknown> = {}): PublicDayResults {
     demand_total: 100,
     units_sold_total: 90,
     spot_price: 13.4,
-    capacity: 81,
     disrupted: false,
     cooperation: false,
     cooperators: 1,
@@ -142,21 +141,21 @@ describe('PresentationMode header and brief tiles', () => {
     expect(screen.queryByText('Peak day')).toBeNull()
   })
 
-  it('shows the four brief tiles with their values', () => {
+  it('shows the three brief tiles with their values, and never the supplier capacity', () => {
     render(<PresentationMode data={data()} onExit={() => {}} />)
-    for (const label of ['Expected demand', 'Spot price', 'Supplier capacity', 'Futures']) {
+    for (const label of ['Expected demand', 'Spot price', 'Futures']) {
       expect(screen.getByText(label)).toBeInTheDocument()
     }
     expect(screen.getByText('~100')).toBeInTheDocument()
     expect(screen.getByText('$13.40')).toBeInTheDocument()
-    expect(screen.getByText('81')).toBeInTheDocument()
+    expect(screen.queryByText(/capacity/i)).toBeNull()
   })
 
   it('shows the disruption message as a sub-line only when there is one', () => {
     const msg = 'Day 5 (Fri): supplier capacity cut to 40%'
     const { unmount } = render(
       <PresentationMode
-        data={data({ brief: setBrief({ supplier: { capacity: 32, disrupted: true, disruption_message: msg, spot_price: 13.4, base_price: 12, lead_time_days: 1 } }) })}
+        data={data({ brief: setBrief({ supplier: { disrupted: true, disruption_message: msg, spot_price: 13.4, base_price: 12, lead_time_days: 1 } }) })}
         onExit={() => {}}
       />,
     )

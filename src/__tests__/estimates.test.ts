@@ -58,7 +58,6 @@ function makeView(o: Overrides = {}): PlayerView {
       weekday_multipliers: { mon: 0.25, tue: 0.5, wed: 0.75, thu: 1, fri: 1, sat: 1, sun: 0.75 },
       expected_demand: 100,
       supplier: {
-        capacity: 81,
         disrupted: false,
         disruption_message: null,
         spot_price: o.spot_price ?? 13.4,

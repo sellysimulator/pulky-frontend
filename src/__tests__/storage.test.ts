@@ -204,15 +204,13 @@ describe('display name (spec 3.4)', () => {
 })
 
 describe('ui flags', () => {
-  it('default to false and round-trip independently', () => {
-    expect(getUiFlag('plan_details_open')).toBe(false)
+  it('default to false and round-trip', () => {
     expect(getUiFlag('details_open')).toBe(false)
-    setUiFlag('plan_details_open', true)
-    expect(getUiFlag('plan_details_open')).toBe(true)
+    setUiFlag('details_open', true)
+    expect(getUiFlag('details_open')).toBe(true)
+    expect(window.localStorage.getItem('pulky.ui.details_open')).not.toBeNull()
+    setUiFlag('details_open', false)
     expect(getUiFlag('details_open')).toBe(false)
-    expect(window.localStorage.getItem('pulky.ui.plan_details_open')).not.toBeNull()
-    setUiFlag('plan_details_open', false)
-    expect(getUiFlag('plan_details_open')).toBe(false)
   })
 })
 

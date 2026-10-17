@@ -1,7 +1,9 @@
 import { ArrowLeftRight } from 'lucide-react'
 import type { KeyboardEvent, ReactElement } from 'react'
 import { LIMITS, type PlayerView } from '../../types/game'
+import { QUALITY_GUIDE_NOTE } from '../../utils/format'
 import Checkbox from '../shared/Checkbox'
+import InfoTip from '../shared/InfoTip'
 import NumberField from '../shared/NumberField'
 import { FormRow } from './OrderSection'
 import QualityGuide from './QualityGuide'
@@ -75,12 +77,24 @@ export default function PeerBuySection({
 }: PeerBuySectionProps): ReactElement {
   const fieldsOff = closed || !ticked
   return (
-    <FormRow icon={ArrowLeftRight} label="If short">
+    <FormRow
+      icon={ArrowLeftRight}
+      label="Buy from Players"
+      info={
+        <InfoTip label="Buy from Players">
+          <span>
+            If the supplier cannot fill your whole order, buy the missing units today from other pulquerías&apos; offers,
+            within your price, your minimum quality and your cash.
+          </span>
+          <span>{QUALITY_GUIDE_NOTE}</span>
+        </InfoTip>
+      }
+    >
       <Checkbox
         checked={ticked}
         onChange={onTick}
         disabled={closed || locked}
-        label="Buy what the supplier cannot fill from other pulquerías, today"
+        label="Buy the shortfall from other pulquerías"
       />
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2 px-3 pt-1">
         <span className="flex items-start gap-2">
@@ -92,7 +106,7 @@ export default function PeerBuySection({
             hideLabel
             kind="decimal"
             prefix="$"
-            suffix="/u"
+            suffix="/unit"
             min={0.01}
             max={LIMITS.MAX_PEER_PRICE}
             value={maxPrice}

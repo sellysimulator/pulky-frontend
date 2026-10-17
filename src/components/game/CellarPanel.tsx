@@ -21,7 +21,7 @@ export default function CellarPanel({ view }: { view: PlayerView }): ReactElemen
           <LotTable lots={view.cellar} />
         )}
         {view.stock_by_age.length > 0 ? <StockByAgeChart rows={view.stock_by_age} /> : null}
-        <InTransit shipments={view.in_transit} />
+        <InTransit shipments={view.in_transit} plans={view.tier_plans} />
         <FuturesBook contracts={view.futures_book} />
       </div>
     </SectionCard>

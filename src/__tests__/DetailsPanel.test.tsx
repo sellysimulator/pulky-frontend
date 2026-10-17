@@ -73,7 +73,6 @@ export function makeBrief(over: Partial<Brief> = {}, day = 5): Brief {
     weekday_multipliers: { mon: 0.25, tue: 0.5, wed: 0.75, thu: 1, fri: 1, sat: 1, sun: 0.75 },
     expected_demand: 99.6,
     supplier: {
-      capacity: 81,
       disrupted: false,
       disruption_message: null,
       spot_price: 13.4,
@@ -233,7 +232,6 @@ export function makePublic(day: number, over: Partial<PublicDayResults> = {}): P
     demand_total: 400,
     units_sold_total: 380,
     spot_price: 13.4,
-    capacity: 81,
     disrupted: false,
     cooperation: false,
     cooperators: 2,
@@ -436,7 +434,7 @@ describe('DetailsPanel contents', () => {
     details()
     const titles = [
       'Inventory vs backlog',
-      'Collaboration decisions',
+      'Equal supply votes',
       'Costs per day',
       'Sold vs spoiled',
       'Reputation',
@@ -454,7 +452,7 @@ describe('DetailsPanel contents', () => {
     details()
     for (const title of [
       'Inventory vs backlog',
-      'Collaboration decisions',
+      'Equal supply votes',
       'Costs per day',
       'Sold vs spoiled',
       'Reputation',
@@ -478,9 +476,9 @@ describe('DetailsPanel contents', () => {
     expect(data).toContainEqual([-3, 0, -8])
   })
 
-  it('Collaboration decisions: cooperators per day from the public history, plus the own vote', () => {
+  it('Equal supply votes: cooperators per day from the public history, plus the own vote', () => {
     details()
-    const data = sets('Collaboration decisions')
+    const data = sets('Equal supply votes')
     expect(data).toContainEqual([2, 1, 3])
     expect(data.length).toBeGreaterThanOrEqual(2)
   })

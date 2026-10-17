@@ -1,4 +1,4 @@
-import { ArrowLeftRight, CircleCheck, CircleDashed, Factory, FileClock, Flame, ShoppingCart, Users } from 'lucide-react'
+import { ArrowLeftRight, CircleCheck, CircleDashed, FileClock, Flame, ShoppingCart, Users } from 'lucide-react'
 import { useEffect, type ReactElement } from 'react'
 import { slotIndex, SLOT_BG } from '../../styles/slots'
 import { formatMoney, formatPercent, formatQty, weekdayLong } from '../../utils/format'
@@ -97,13 +97,12 @@ export default function PresentationMode({ data, onExit }: PresentationModeProps
         </div>
       </header>
 
-      <div className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-3">
         <StatTile label="Expected demand" icon={Users} value={`~${formatQty(brief.expected_demand)}`} />
-        <StatTile label="Spot price" icon={ShoppingCart} value={formatMoney(brief.supplier.spot_price)} />
         <StatTile
-          label="Supplier capacity"
-          icon={Factory}
-          value={formatQty(brief.supplier.capacity)}
+          label="Spot price"
+          icon={ShoppingCart}
+          value={formatMoney(brief.supplier.spot_price)}
           sub={
             brief.supplier.disruption_message !== null ? (
               <span className="font-semibold text-warning-ink">{brief.supplier.disruption_message}</span>
