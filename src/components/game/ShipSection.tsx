@@ -1,14 +1,14 @@
 import { ShieldCheck } from 'lucide-react'
 import type { ReactElement } from 'react'
 import { tierFee } from '../../game/estimates'
-import type { Incoterm, InsurancePlan, PlayerView } from '../../types/game'
+import type { IncotermTier, IncotermTierPlan, PlayerView } from '../../types/game'
 import { formatMoney } from '../../utils/format'
 import { roundCents } from '../../utils/money'
 import RadioCards from '../shared/RadioCards'
 import { FormRow } from './OrderSection'
 import PlanDetails from './PlanDetails'
 
-function refundLine(plan: InsurancePlan): string {
+function refundLine(plan: IncotermTierPlan): string {
   switch (plan.refund_basis) {
     case 'none':
       return 'No refund'
@@ -21,21 +21,21 @@ function refundLine(plan: InsurancePlan): string {
 
 interface ShipSectionProps {
   view: PlayerView
-  incoterm: Incoterm
-  onChange(incoterm: Incoterm): void
+  incoterm_tier: IncotermTier
+  onChange(incoterm_tier: IncotermTier): void
   shipmentMax: number
   locked: boolean
 }
 
-export default function ShipSection({ view, incoterm, onChange, shipmentMax, locked }: ShipSectionProps): ReactElement {
-  const plans = view.insurance_plans.filter((p) => p.enabled)
-  const fee = tierFee(incoterm, view)
+export default function ShipSection({ view, incoterm_tier, onChange, shipmentMax, locked }: ShipSectionProps): ReactElement {
+  const plans = view.tier_plans.filter((p) => p.enabled)
+  const fee = tierFee(incoterm_tier, view)
   return (
     <FormRow icon={ShieldCheck}>
       <RadioCards
         legend="Ship"
-        name="incoterm"
-        value={incoterm}
+        name="incoterm_tier"
+        value={incoterm_tier}
         locked={locked}
         onChange={onChange}
         options={plans.map((plan) => ({

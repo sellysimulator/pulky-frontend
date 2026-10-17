@@ -41,9 +41,9 @@ export default function ResultsSummary({ view, viewer, showActions, hostSecret }
         <div className="print:hidden">
           <SectionCard title="6. Actions">
             <div className="flex flex-col gap-4">
-              {viewer.isHost ? <ExportControls roomCode={view.room_code} hostSecret={hostSecret} /> : null}
-              <GuestClaimPrompt roomCode={view.room_code} />
-              {viewer.isHost ? <PlayAgainButton roomCode={view.room_code} /> : null}
+              {viewer.isHost ? <ExportControls gameId={view.game_id} roomCode={view.room_code} hostSecret={hostSecret} /> : null}
+              <GuestClaimPrompt gameId={view.game_id} />
+              {viewer.isHost ? <PlayAgainButton gameId={view.game_id} /> : null}
               {viewer.isHost ? <DebriefNotes /> : null}
             </div>
           </SectionCard>

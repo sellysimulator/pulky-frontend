@@ -1,19 +1,17 @@
 import { CalendarDays, CircleCheck, CircleDashed, Flame, FileClock, ShoppingCart, Star, Truck, Users, Wallet } from 'lucide-react'
 import type { ReactElement } from 'react'
-import type { Brief, Participant, PlayerView, Weekday } from '../../types/game'
+import { WEEKDAYS, type Brief, type Participant, type PlayerView, type Weekday } from '../../types/game'
 import { formatMoney, weekdayShort } from '../../utils/format'
 import { InlineAlert } from '../shared/AlertContainer'
 import Badge from '../shared/Badge'
 import SectionCard from '../shared/SectionCard'
 import StatTile from '../shared/StatTile'
 
-const WEEK: Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
-
 function WeekdayStrip({ multipliers, today }: { multipliers: Record<Weekday, number>; today: Weekday }): ReactElement {
-  const todayIndex = WEEK.indexOf(today)
+  const todayIndex = WEEKDAYS.indexOf(today)
   return (
     <ul className="grid grid-cols-7 gap-1">
-      {WEEK.map((day, index) => {
+      {WEEKDAYS.map((day, index) => {
         const multiplier = multipliers[day]
         const peak = multiplier === 1
         const isToday = day === today

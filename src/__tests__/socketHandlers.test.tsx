@@ -359,6 +359,43 @@ describe('credentials: where they are stored (criterion 4, failure modes 4 and 5
   })
 })
 
+describe('game_finished keys this tab\'s credentials by game id (the room code is reissued)', () => {
+  const finished = (gameId: string) => ({
+    seq: 30,
+    game_id: gameId,
+    days_played: 14,
+    ended_early: false,
+    leaderboard: [],
+    stats: { players: {}, market: {} },
+  })
+
+  it('the host tab copies the room\'s host secret to the game', async () => {
+    const { useGameStore, storage } = await load()
+    useGameStore.getState().setRoom('ABC234', true)
+    storage.setHostSecret('ABC234', 'the-host-secret')
+    fire('game_finished', finished('9f2c1a'))
+    expect(storage.getGameHostSecret('9f2c1a')).toBe('the-host-secret')
+    expect(storage.hasPlayedGame('9f2c1a')).toBe(false)
+  })
+
+  it('a seated player\'s tab marks the game played and gets no host secret', async () => {
+    const { useGameStore, storage } = await load()
+    useGameStore.getState().setRoom('ABC234', false)
+    fire('joined', { alias: 'P2', session_token: 'tok', display_name: 'Bo' })
+    fire('game_finished', finished('9f2c1a'))
+    expect(storage.hasPlayedGame('9f2c1a')).toBe(true)
+    expect(storage.getGameHostSecret('9f2c1a')).toBeNull()
+  })
+
+  it('a tab with neither credential stores nothing', async () => {
+    const { useGameStore, storage } = await load()
+    useGameStore.getState().setRoom('ABC234', false)
+    fire('game_finished', finished('9f2c1a'))
+    expect(storage.hasPlayedGame('9f2c1a')).toBe(false)
+    expect(storage.getGameHostSecret('9f2c1a')).toBeNull()
+  })
+})
+
 describe('every server event reaches the store', () => {
   it('drives each of the twenty events through its listener', async () => {
     const { useGameStore } = await load()
@@ -406,8 +443,9 @@ describe('every server event reaches the store', () => {
     fire('host_reconnected', { seq: 13 })
     expect(S().hostConnected).toBe(true)
 
-    fire('game_finished', { seq: 14, days_played: 1, ended_early: true, leaderboard: [], stats: { players: {}, market: {} } })
+    fire('game_finished', { seq: 14, game_id: 'f00d', days_played: 1, ended_early: true, leaderboard: [], stats: { players: {}, market: {} } })
     expect(S().roomState).toBe('finished')
+    expect(S().gamePublicId).toBe('f00d')
     fire('game_persisted', { seq: 15, game_id: 'f00d' })
     expect(S().gamePublicId).toBe('f00d')
 

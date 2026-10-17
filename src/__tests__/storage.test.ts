@@ -6,13 +6,17 @@ import {
   clearHostSecret,
   clearSessionToken,
   getDisplayName,
+  getGameHostSecret,
   getGuestId,
   getGuestMode,
   getHostSecret,
   getOrCreateGuestId,
   getSessionToken,
   getUiFlag,
+  hasPlayedGame,
+  markGamePlayed,
   setDisplayName,
+  setGameHostSecret,
   setGuestMode,
   setHostSecret,
   setSessionToken,
@@ -122,6 +126,32 @@ describe('host secret (per room, sessionStorage only)', () => {
     setSessionToken('ABC234', 'the-token')
     expect(valuesOf(window.localStorage)).not.toContain('the-secret')
     expect(valuesOf(window.sessionStorage)).not.toContain('the-token')
+  })
+})
+
+describe('a finished game (per game id: the room code is reissued)', () => {
+  it('keeps the host secret under pulky.game_host_secret.<id> in sessionStorage only', () => {
+    expect(getGameHostSecret('9f2c1a')).toBeNull()
+    setGameHostSecret('9f2c1a', 'secret-g')
+    expect(getGameHostSecret('9f2c1a')).toBe('secret-g')
+    expect(window.sessionStorage.getItem('pulky.game_host_secret.9f2c1a')).toBe('secret-g')
+    expect(valuesOf(window.localStorage)).not.toContain('secret-g')
+    expect(getGameHostSecret('ffff00')).toBeNull()
+  })
+
+  it('remembers which games this browser played, per id, in localStorage', () => {
+    expect(hasPlayedGame('9f2c1a')).toBe(false)
+    markGamePlayed('9f2c1a')
+    expect(hasPlayedGame('9f2c1a')).toBe(true)
+    expect(window.localStorage.getItem('pulky.played_game.9f2c1a')).toBe('1')
+    expect(hasPlayedGame('ffff00')).toBe(false)
+  })
+
+  it('never reads the room-code credentials for a game', () => {
+    setHostSecret('ABC234', 'room-secret')
+    setSessionToken('ABC234', 'room-token')
+    expect(getGameHostSecret('ABC234')).toBeNull()
+    expect(hasPlayedGame('ABC234')).toBe(false)
   })
 })
 

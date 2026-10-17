@@ -2,12 +2,12 @@ import { useState, type ReactElement } from 'react'
 import { claimGames } from '../../api/results'
 import { errorMessage } from '../../api/http'
 import { useAuth } from '../../auth/AuthContext'
-import { getGuestId, getSessionToken } from '../../utils/storage'
+import { getGuestId, hasPlayedGame } from '../../utils/storage'
 import { InlineAlert } from '../shared/AlertContainer'
 import Button from '../shared/Button'
 
 /** Block 6, guests only: sign in with Google, then attach this browser's guest games to the account. */
-export default function GuestClaimPrompt({ roomCode }: { roomCode: string }): ReactElement | null {
+export default function GuestClaimPrompt({ gameId }: { gameId: string }): ReactElement | null {
   const { mode, signInWithGoogle } = useAuth()
   const [pending, setPending] = useState(false)
   const [claimed, setClaimed] = useState<number | null>(null)
@@ -18,7 +18,7 @@ export default function GuestClaimPrompt({ roomCode }: { roomCode: string }): Re
   }
 
   const guestId = getGuestId()
-  if (mode !== 'guest' || guestId === null || getSessionToken(roomCode) === null) return null
+  if (mode !== 'guest' || guestId === null || !hasPlayedGame(gameId)) return null
 
   const claim = async (): Promise<void> => {
     setFailure(null)

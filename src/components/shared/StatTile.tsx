@@ -1,5 +1,6 @@
 import { TrendingDown, TrendingUp, type LucideIcon } from 'lucide-react'
 import type { ReactElement, ReactNode } from 'react'
+import { TONE_INK } from '../../styles/tones'
 
 interface StatTileProps {
   label: string
@@ -11,8 +12,8 @@ interface StatTileProps {
 }
 
 const DELTA_TONE: Record<'good' | 'bad' | 'neutral', string> = {
-  good: 'text-success-ink',
-  bad: 'text-danger-ink',
+  good: TONE_INK.success,
+  bad: TONE_INK.danger,
   neutral: 'text-ink-muted',
 }
 

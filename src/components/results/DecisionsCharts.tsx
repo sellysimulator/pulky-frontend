@@ -1,7 +1,8 @@
 import type { ChartData, ChartOptions } from 'chart.js'
 import type { ReactElement } from 'react'
 import { Bar, Line } from 'react-chartjs-2'
-import { formatMoney, formatQty, weekdayShort } from '../../utils/format'
+import { INCOTERM_TIERS, type IncotermTier } from '../../types/game'
+import { INCOTERM_TIER_NAMES, formatMoney, formatQty, weekdayShort } from '../../utils/format'
 import { CHART_COLORS, MEASURE_STYLES } from '../charts/chartSetup'
 import ChartBox from '../shared/ChartBox'
 import DataTable, { type Column } from '../shared/DataTable'
@@ -16,8 +17,7 @@ const PEER_PX = 240
 const SPOT_PX = 280
 
 /** One-hue ordinal ramp for the tiers, light to dark (design.md §3.3), from the blue token at rising alpha. */
-const TIER_ALPHA = { exw: '55', cip: '88', dap: 'BB', ddp: 'FF' } as const
-const TIERS = ['exw', 'cip', 'dap', 'ddp'] as const
+const TIER_ALPHA = { exw: '55', cip: '88', dap: 'BB', ddp: 'FF' } as const satisfies Record<IncotermTier, string>
 
 const horizontal = (xTitle: string): ChartOptions<'bar'> =>
   ({
@@ -78,23 +78,23 @@ function CooperationVotes({ view }: { view: ResultsView }): ReactElement {
 
 function TiersUsed({ view }: { view: ResultsView }): ReactElement {
   const players = rankRows(view)
-  const colorOf = (tier: (typeof TIERS)[number]): string => `${CHART_COLORS['p1']}${TIER_ALPHA[tier]}`
+  const colorOf = (tier: IncotermTier): string => `${CHART_COLORS['p1']}${TIER_ALPHA[tier]}`
   const data: ChartData<'bar'> = {
     labels: players.map((p) => p.display_name),
-    datasets: TIERS.map((tier) => ({
-      label: tier.toUpperCase(),
-      data: players.map((p) => p.incoterm_days[tier]),
+    datasets: INCOTERM_TIERS.map((tier) => ({
+      label: INCOTERM_TIER_NAMES[tier],
+      data: players.map((p) => p.incoterm_tier_days[tier]),
       backgroundColor: colorOf(tier),
     })),
   }
   const columns: Column<PulqueriaResultView>[] = [
     { key: 'name', header: 'Pulquería', render: (p) => p.display_name },
-    ...TIERS.map(
+    ...INCOTERM_TIERS.map(
       (tier): Column<PulqueriaResultView> => ({
         key: tier,
-        header: tier.toUpperCase(),
+        header: INCOTERM_TIER_NAMES[tier],
         align: 'right',
-        render: (p) => formatQty(p.incoterm_days[tier]),
+        render: (p) => formatQty(p.incoterm_tier_days[tier]),
       }),
     ),
   ]
@@ -105,9 +105,9 @@ function TiersUsed({ view }: { view: ResultsView }): ReactElement {
       height={ROW_PX * players.length + EXTRA_PX}
       legend={
         <Legend
-          items={TIERS.map((tier) => ({
+          items={INCOTERM_TIERS.map((tier) => ({
             key: tier,
-            label: tier.toUpperCase(),
+            label: INCOTERM_TIER_NAMES[tier],
             swatch: { kind: 'fill' as const, color: colorOf(tier) },
           }))}
         />

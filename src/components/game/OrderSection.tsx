@@ -1,10 +1,8 @@
 import { FileClock, ShoppingCart, type LucideIcon } from 'lucide-react'
 import type { ReactElement, ReactNode } from 'react'
-import { LIMITS, type PlayerView, type Weekday } from '../../types/game'
+import { LIMITS, WEEKDAYS, type PlayerView, type Weekday } from '../../types/game'
 import { formatMoney, formatQty, weekdayShort } from '../../utils/format'
 import NumberField from '../shared/NumberField'
-
-const WEEKDAYS: Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 
 const ORDER_ERROR = `Orders must be whole numbers from 0 to ${formatQty(LIMITS.MAX_ORDER)}.`
 

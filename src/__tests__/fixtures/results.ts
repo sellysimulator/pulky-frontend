@@ -11,6 +11,7 @@ import type { PulqueriaResultView, ResultsView } from '../../components/results/
 
 export const DAYS = 14
 export const ROOM = 'ABC234'
+export const GAME_ID = '9f2c1a'
 
 export const NAMES: Record<string, string> = { P1: 'Don Agave', P2: 'La Chula', P3: 'El Tinacal' }
 export const RANK_ORDER = ['P2', 'P3', 'P1']
@@ -57,7 +58,7 @@ export const PLAYER_SCALAR_KEYS = [
   'cost_peer',
   'revenue_peer',
   'peer_net',
-  'incoterm_days',
+  'incoterm_tier_days',
 ] as const
 
 export const PEER_PLAYER_KEYS = [
@@ -149,7 +150,7 @@ function player(alias: string, rank: number, over: Dict, seriesOver: Dict = {}):
     days_cooperated: 0,
     peak_stock: 80,
     peak_backlog: 0,
-    incoterm_days: { exw: 14, cip: 0, dap: 0, ddp: 0 },
+    incoterm_tier_days: { exw: 14, cip: 0, dap: 0, ddp: 0 },
     final_settlement: { liquidated_units: 0, revenue_liquidation: 5 },
     series: {
       delivered: repeat([20, 25, 30, 35, 40, 38, 22]),
@@ -210,7 +211,7 @@ export function makeStats(): StatsBundle {
         cost_peer: 240,
         revenue_peer: 70,
         peer_net: -170,
-        incoterm_days: { exw: 1, cip: 2, dap: 3, ddp: 8 },
+        incoterm_tier_days: { exw: 1, cip: 2, dap: 3, ddp: 8 },
       },
       { peer_bought: sparse({ 2: 16 }), peer_sold: sparse({ 1: 4 }) },
     ),
@@ -246,7 +247,7 @@ export function makeStats(): StatsBundle {
         cost_peer: 30,
         revenue_peer: 55,
         peer_net: 12.34,
-        incoterm_days: { exw: 4, cip: 0, dap: 6, ddp: 4 },
+        incoterm_tier_days: { exw: 4, cip: 0, dap: 6, ddp: 4 },
       },
       { peer_bought: sparse({ 2: 2 }), peer_sold: sparse({}) },
     ),
@@ -265,7 +266,7 @@ export function makeStats(): StatsBundle {
       days_with_backlog: 9,
       lots_conserved: 4,
       days_cooperated: 14,
-      incoterm_days: { exw: 5, cip: 5, dap: 2, ddp: 2 },
+      incoterm_tier_days: { exw: 5, cip: 5, dap: 2, ddp: 2 },
     }),
   }
 
@@ -334,6 +335,7 @@ export function makeFinished(mutate?: (s: StatsBundle) => void): Record<string, 
   mutate?.(s)
   return {
     seq: 40,
+    game_id: GAME_ID,
     days_played: DAYS,
     ended_early: false,
     leaderboard: s.leaderboard,
@@ -346,7 +348,7 @@ export function makeResponse(mutate?: (s: StatsBundle) => void): Record<string, 
   const s = makeStats()
   mutate?.(s)
   return {
-    game_id: '9f2c1a',
+    game_id: GAME_ID,
     room_code: ROOM,
     host_display_name: 'Ana',
     duration_days: DAYS,
@@ -377,6 +379,7 @@ export function makeView(mutate?: (s: StatsBundle) => void): ResultsView {
     return out as unknown as PulqueriaResultView
   })
   return {
+    game_id: GAME_ID,
     room_code: ROOM,
     days_played: DAYS,
     duration_days: DAYS,

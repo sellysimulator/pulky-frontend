@@ -101,6 +101,20 @@ export default defineConfig(({ mode }) => {
         '/socket.io': { target: 'http://localhost:8080', ws: true },
       },
     },
-    test: { environment: 'jsdom', setupFiles: ['./src/__tests__/setup.ts'], globals: true },
+    test: {
+      environment: 'jsdom',
+      setupFiles: ['./src/__tests__/setup.ts'],
+      globals: true,
+      // ConfigPanel tests take up to 2 s locally and 2–3x that on a GitHub runner; the 5 s default timed them out there.
+      testTimeout: 15_000,
+      coverage: {
+        provider: 'v8',
+        include: ['src/**/*.{ts,tsx}'],
+        exclude: ['src/__tests__/**', 'src/main.tsx', 'src/vite-env.d.ts'],
+        reporter: ['text-summary', 'text'],
+        // Measured coverage floored to an integer, minus 2 points so small changes cannot flake it (docs/spec/13-testing.md §13.12).
+        thresholds: { lines: 92, statements: 91, functions: 93, branches: 83 },
+      },
+    },
   }
 })

@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react'
-import type { InsurancePlan } from '../../types/game'
+import type { IncotermTierPlan } from '../../types/game'
 import { formatMoney } from '../../utils/format'
 import { roundCents } from '../../utils/money'
 import { getUiFlag, setUiFlag } from '../../utils/storage'
@@ -12,14 +12,14 @@ const BASIS_WORDS: Record<string, string> = {
   retail: 'The retail price',
 }
 
-function refundPerUnit(plan: InsurancePlan): string {
+function refundPerUnit(plan: IncotermTierPlan): string {
   if (plan.refund_basis === 'none') return formatMoney(0)
   if (plan.refund_basis === 'arrival_spot' || plan.refund_value_today === null) return 'Set on the arrival day'
   return formatMoney(plan.refund_value_today)
 }
 
 interface PlanDetailsProps {
-  plans: InsurancePlan[]
+  plans: IncotermTierPlan[]
   shipmentMax: number
 }
 

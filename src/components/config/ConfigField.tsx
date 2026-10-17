@@ -1,6 +1,6 @@
 import { CircleAlert, TriangleAlert } from 'lucide-react'
 import { useId, type ReactElement, type ReactNode } from 'react'
-import type { ConfigFieldMeta, GameConfig, Weekday } from '../../types/game'
+import { WEEKDAYS, type ConfigFieldMeta, type GameConfig } from '../../types/game'
 import { weekdayShort } from '../../utils/format'
 import NumberField from '../shared/NumberField'
 import Switch from '../shared/Switch'
@@ -20,8 +20,6 @@ export interface SectionProps {
   onPatch(patch: object): void
   insuranceIssues?: Record<string, { kind: 'error' | 'warning'; message: string }>
 }
-
-const WEEKDAYS: Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 
 /** Float keys that hold money (prices, costs, cash, fees, penalties). */
 const MONEY_PATHS = new Set([

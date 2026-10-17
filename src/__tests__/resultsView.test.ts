@@ -66,6 +66,11 @@ describe('the same game from the two sources (criterion 2)', () => {
     expect(b.ended_early).toBe(true)
   })
 
+  it('carries the game id from the live payload and from the response: the key of everything after the end', () => {
+    expect(live({ ...makeFinished(), game_id: 'live-id' }).game_id).toBe('live-id')
+    expect(stored({ ...makeResponse(), game_id: 'stored-id' }).game_id).toBe('stored-id')
+  })
+
   it('carries ended_early from the live payload', () => {
     expect(live({ ...makeFinished(), ended_early: true, days_played: 6 }).ended_early).toBe(true)
     expect(live({ ...makeFinished(), ended_early: true, days_played: 6 }).days_played).toBe(6)

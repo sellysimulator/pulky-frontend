@@ -9,5 +9,5 @@ The game, its architecture, its plumbing rules and its build order are specified
 nvm use            # Node 20.19.0 (.nvmrc)
 npm ci
 npm run dev        # http://localhost:5173, proxies /api and /socket.io to localhost:8080
-npx tsc -b && npx eslint . && npx vitest run && npm run build
+npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build   # the gates ci.yml runs
 ```

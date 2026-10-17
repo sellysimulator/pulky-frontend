@@ -16,10 +16,18 @@ import {
   worstSingleFailureLoss,
   type BreakEvenInput,
   type RatioBadge,
-  type Tier,
 } from '../../../game/configMath'
-import { PLAYER_CONFIG_KEYS, SECRET_CONFIG_KEYS, type GameConfig, type Weekday } from '../../../types/game'
 import {
+  INSURED_TIERS,
+  PLAYER_CONFIG_KEYS,
+  SECRET_CONFIG_KEYS,
+  WEEKDAYS,
+  type GameConfig,
+  type InsuredTier,
+  type Weekday,
+} from '../../../types/game'
+import {
+  INCOTERM_TIER_NAMES,
   QUALITY_GUIDE_NOTE,
   formatMoney,
   formatPercent,
@@ -37,7 +45,6 @@ export interface HelpEntry {
   example(cfg: GameConfig): ReactNode
 }
 
-const WEEKDAYS: Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 const WEEKDAY_LABELS = WEEKDAYS.map(weekdayShort)
 
 /** A quantity with one decimal only when it is not whole. */
@@ -220,7 +227,7 @@ function weekdayFormula(cfg: GameConfig): ReactNode {
   )
 }
 
-function tierRows(cfg: GameConfig, tier: Tier): ReactNode {
+function tierRows(cfg: GameConfig, tier: InsuredTier): ReactNode {
   const fee = cfg.insurance.tiers[tier].fee
   const columns = [false, true].map((shared) => {
     const input = breakEvenInput(cfg, shared)
@@ -236,7 +243,7 @@ function tierRows(cfg: GameConfig, tier: Tier): ReactNode {
   }
   return (
     <Table
-      caption={`Calculator row for ${tier.toUpperCase()}`}
+      caption={`Calculator row for ${INCOTERM_TIER_NAMES[tier]}`}
       head={['', 'Not shared', `Shared (N = ${cfg.max_players})`]}
       rows={[
         ['Break-even fee', ...columns.map((c) => formatMoney(c.be))],
@@ -264,12 +271,11 @@ function tierFormula(): ReactNode {
   )
 }
 
-function tierExample(tier: Tier): (cfg: GameConfig) => ReactNode {
-  return (cfg) => <Example title={`The calculator row for ${tier.toUpperCase()}`}>{tierRows(cfg, tier)}</Example>
+function tierExample(tier: InsuredTier): (cfg: GameConfig) => ReactNode {
+  return (cfg) => <Example title={`The calculator row for ${INCOTERM_TIER_NAMES[tier]}`}>{tierRows(cfg, tier)}</Example>
 }
 
-const TIER_NAMES: Record<Tier, string> = { cip: 'CIP', dap: 'DAP', ddp: 'DDP' }
-const TIER_EFFECTS: Record<Tier, string> = {
+const INSURED_TIER_EFFECTS: Record<InsuredTier, string> = {
   cip: 'Refunds lost units at what the player paid.',
   dap: 'Refunds lost units at the spot price on the arrival day.',
   ddp: 'Refunds lost units at the retail price.',
@@ -277,18 +283,18 @@ const TIER_EFFECTS: Record<Tier, string> = {
 
 function tierEntries(): Record<string, HelpEntry> {
   const out: Record<string, HelpEntry> = {}
-  for (const tier of ['cip', 'dap', 'ddp'] as const) {
-    const name = `${TIER_NAMES[tier]} + blockchain`
+  for (const tier of INSURED_TIERS) {
+    const name = `${INCOTERM_TIER_NAMES[tier]} + blockchain`
     out[`insurance.tiers.${tier}.enabled`] = {
       label: `${name}: offered`,
       formula: tierFormula,
-      effect: TIER_EFFECTS[tier],
+      effect: INSURED_TIER_EFFECTS[tier],
       example: tierExample(tier),
     }
     out[`insurance.tiers.${tier}.fee`] = {
       label: `${name}: fee per unit`,
       formula: tierFormula,
-      effect: TIER_EFFECTS[tier],
+      effect: INSURED_TIER_EFFECTS[tier],
       example: tierExample(tier),
     }
   }
@@ -846,9 +852,9 @@ function build(): Record<string, HelpEntry> {
             <Table
               caption="Fees from margin"
               head={['Tier', 'Break-even fee', 'Fee from margin']}
-              rows={(['cip', 'dap', 'ddp'] as const).map((tier) => {
+              rows={INSURED_TIERS.map((tier) => {
                 const be = breakEvenFee(tier, input)
-                return [TIER_NAMES[tier], formatMoney(be), formatMoney(feeFromMargin(be, cfg.insurance.target_margin))]
+                return [INCOTERM_TIER_NAMES[tier], formatMoney(be), formatMoney(feeFromMargin(be, cfg.insurance.target_margin))]
               })}
             />
           </Example>

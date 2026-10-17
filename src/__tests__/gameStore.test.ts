@@ -232,7 +232,7 @@ describe('the seq gate (criterion 2, failure modes 1 and 2)', () => {
     },
     {
       action: 'applyGameFinished',
-      payload: (seq) => ({ seq, days_played: 3, ended_early: true, leaderboard: [], stats: { players: {}, market: {} } }),
+      payload: (seq) => ({ seq, game_id: 'g1', days_played: 3, ended_early: true, leaderboard: [], stats: { players: {}, market: {} } }),
       applied: () => S().finished !== null,
     },
     { action: 'applyGamePersisted', payload: (seq) => ({ seq, game_id: 'abc123' }), applied: () => S().gamePublicId === 'abc123' },
@@ -435,11 +435,12 @@ describe('what each applier writes (spec 3.2)', () => {
     expect(S().hostConnected).toBe(true)
   })
 
-  it('game_finished keeps the payload and finishes the room; game_persisted keeps the public id', () => {
-    const payload = { seq: 8, days_played: 14, ended_early: false, leaderboard: [{ rank: 1, alias: 'P1' }], stats: { players: {}, market: {} } }
+  it('game_finished keeps the payload, finishes the room and takes the game id; game_persisted keeps it', () => {
+    const payload = { seq: 8, game_id: 'f00d', days_played: 14, ended_early: false, leaderboard: [{ rank: 1, alias: 'P1' }], stats: { players: {}, market: {} } }
     call('applyGameFinished', payload)
     expect(S().finished).toEqual(payload)
     expect(S().roomState).toBe('finished')
+    expect(S().gamePublicId).toBe('f00d')
     call('applyGamePersisted', { seq: 9, game_id: 'f00d' })
     expect(S().gamePublicId).toBe('f00d')
   })

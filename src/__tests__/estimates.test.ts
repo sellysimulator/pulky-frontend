@@ -83,7 +83,7 @@ function makeView(o: Overrides = {}): PlayerView {
     market_share: 0.25,
     cash: 6120,
     cumulative_profit: 0,
-    insurance_plans: [
+    tier_plans: [
       { tier: 'exw', label: 'EXW', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
       { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
       { tier: 'dap', label: 'DAP', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.55 },
@@ -116,7 +116,7 @@ function draft(over: Partial<DecisionDraft> = {}): DecisionDraft {
   return {
     order_spot: 0,
     order_futures: 0,
-    incoterm: 'exw',
+    incoterm_tier: 'exw',
     conserve_lots: [],
     cooperate: false,
     peer_buy: null,
@@ -125,7 +125,7 @@ function draft(over: Partial<DecisionDraft> = {}): DecisionDraft {
   }
 }
 
-const MOCK = draft({ order_spot: 40, order_futures: 25, incoterm: 'cip', conserve_lots: ['L3'], cooperate: true })
+const MOCK = draft({ order_spot: 40, order_futures: 25, incoterm_tier: 'cip', conserve_lots: ['L3'], cooperate: true })
 const DUE_10 = [{ contract_day: 0, ships_day: 5, delivery_day: 6, qty: 10 }]
 
 describe('futuresDueToday', () => {
@@ -189,7 +189,7 @@ describe('outlayEstimate (acceptance criterion 3; spec 8.3)', () => {
   })
 
   it('failure mode 1: under EXW the futures due today add nothing to shipping (no fee, no transport)', () => {
-    const e = outlayEstimate(draft({ order_spot: 40, incoterm: 'exw' }), makeView({ futures_book: DUE_10 }), makeConfig())
+    const e = outlayEstimate(draft({ order_spot: 40, incoterm_tier: 'exw' }), makeView({ futures_book: DUE_10 }), makeConfig())
     expect(e.shipping).toBeCloseTo(40, 9)
   })
 
@@ -206,7 +206,7 @@ describe('outlayEstimate (acceptance criterion 3; spec 8.3)', () => {
   it('failure mode 8: the total is the rounded sum of the unrounded parts (13.41), not the sum of rounded parts (13.42)', () => {
     const view = makeView({ cellar: [lot('L9', 1, 50)] })
     const config = makeConfig({ transport: 0.005, conservation: 0.005 })
-    const e = outlayEstimate(draft({ order_spot: 1, incoterm: 'exw', conserve_lots: ['L9'] }), view, config)
+    const e = outlayEstimate(draft({ order_spot: 1, incoterm_tier: 'exw', conserve_lots: ['L9'] }), view, config)
     expect(e.shipping).toBeCloseTo(0.01, 9)
     expect(e.conservation).toBeCloseTo(0.01, 9)
     expect(e.spot).toBeCloseTo(13.4, 9)
@@ -241,7 +241,7 @@ describe('outlayEstimate (acceptance criterion 3; spec 8.3)', () => {
   })
 
   it('exposes whole-cent values in every component', () => {
-    const e = outlayEstimate(draft({ order_spot: 3, incoterm: 'dap' }), makeView(), makeConfig({ transport: 0.333 }))
+    const e = outlayEstimate(draft({ order_spot: 3, incoterm_tier: 'dap' }), makeView(), makeConfig({ transport: 0.333 }))
     for (const v of [e.spot, e.futures, e.shipping, e.conservation, e.total]) {
       expect(isWholeCents(v)).toBe(true)
     }

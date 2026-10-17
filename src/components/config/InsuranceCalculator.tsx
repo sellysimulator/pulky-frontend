@@ -9,10 +9,9 @@ import {
   worstSingleFailureLoss,
   type BreakEvenInput,
   type RatioBadge,
-  type Tier,
 } from '../../game/configMath'
-import type { GameConfig } from '../../types/game'
-import { formatMoney, formatPercent } from '../../utils/format'
+import { INSURED_TIERS, type GameConfig, type InsuredTier } from '../../types/game'
+import { INCOTERM_TIER_NAMES, formatMoney, formatPercent } from '../../utils/format'
 import { InlineAlert } from '../shared/AlertContainer'
 import Badge from '../shared/Badge'
 import Button from '../shared/Button'
@@ -30,8 +29,6 @@ interface InsuranceCalculatorProps {
   issues?: Record<string, { kind: 'error' | 'warning'; message: string }>
 }
 
-const TIERS: Tier[] = ['cip', 'dap', 'ddp']
-
 const VERDICTS: Record<RatioBadge, { tone: 'success' | 'info' | 'warning' | 'neutral'; icon: LucideIcon; text: string }> = {
   worth_it: { tone: 'success', icon: CircleCheck, text: 'Worth it' },
   break_even: { tone: 'info', icon: Scale, text: 'Break-even' },
@@ -40,7 +37,7 @@ const VERDICTS: Record<RatioBadge, { tone: 'success' | 'info' | 'warning' | 'neu
 }
 
 interface TierRow {
-  tier: Tier
+  tier: InsuredTier
   name: string
   enabled: boolean
   fee: number
@@ -90,11 +87,11 @@ export default function InsuranceCalculator({ config, onChange, readOnly, issues
   const p = finite(config.transport.failure_probability)
   const days = finite(config.duration_days)
 
-  const rows: TierRow[] = TIERS.map((tier) => {
+  const rows: TierRow[] = INSURED_TIERS.map((tier) => {
     const t = config.insurance.tiers[tier]
     return {
       tier,
-      name: tier.toUpperCase(),
+      name: INCOTERM_TIER_NAMES[tier],
       enabled: t.enabled,
       fee: finite(t.fee),
       solo: breakEvenFee(tier, solo),

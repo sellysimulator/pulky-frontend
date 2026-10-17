@@ -55,7 +55,7 @@ function hostView(peer = true, over: Obj = {}): HostView {
       cash: 6120.55,
       fill_rate: 0.9,
       waste_rate: 0.05,
-      last_incoterm: 'cip',
+      last_incoterm_tier: 'cip',
       last_peer_bought: 10,
       last_peer_sold: 4,
     }
@@ -288,17 +288,19 @@ describe('HostConsole End game early (acceptance 9, failure modes 5 and 7)', () 
 })
 
 describe('HostConsole when finished (acceptance 2)', () => {
-  it('replaces the controls with a See the results link to the room-code path before game_persisted', () => {
-    renderConsole({ finished: true, gamePublicId: null })
+  it('replaces the controls with a See the results link to the game, by id', () => {
+    renderConsole({ finished: true, gamePublicId: 'g8f2c1' })
     const link = screen.getByRole('link', { name: 'See the results' })
-    expect(link).toHaveAttribute('href', '/results/ABC234')
+    expect(link).toHaveAttribute('href', '/results/g8f2c1')
     expect(screen.queryByRole('button', { name: 'Presentation mode' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'End game early' })).toBeNull()
   })
 
-  it('points at the persisted game once it has a public id', () => {
-    renderConsole({ finished: true, gamePublicId: 'g8f2c1' })
-    expect(screen.getByRole('link', { name: 'See the results' })).toHaveAttribute('href', '/results/g/g8f2c1')
+  it('never links by room code: with no game id yet there is no link and no controls', () => {
+    renderConsole({ finished: true, gamePublicId: null })
+    expect(screen.queryByRole('link', { name: 'See the results' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Presentation mode' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'End game early' })).toBeNull()
   })
 
   it('shows no See the results link while the game runs', () => {
@@ -339,7 +341,7 @@ describe('SubmissionTracker (acceptance 4, failure mode 3)', () => {
 
   it('failure mode 3: carries names and state words only, no figure of any kind', () => {
     const view = hostView(true) as unknown as { players: Record<string, Obj> }
-    view.players.P1.pending_decision = { order_spot: 7771, order_futures: 6662, incoterm: 'ddp' }
+    view.players.P1.pending_decision = { order_spot: 7771, order_futures: 6662, incoterm_tier: 'ddp' }
     view.players.P1.decision = { order_spot: 7771 }
     renderConsole({ hostView: view as unknown as HostView })
     const card = screen.getByRole('region', { name: 'Submissions' })

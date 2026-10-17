@@ -1,7 +1,7 @@
 import { ClockAlert, ThermometerSun, Wifi, WifiOff } from 'lucide-react'
 import type { ReactElement } from 'react'
 import type { HostPlayerRow, HostView } from '../../types/game'
-import { formatMoney, formatPercent, formatQty } from '../../utils/format'
+import { INCOTERM_TIER_NAMES, formatMoney, formatPercent, formatQty } from '../../utils/format'
 import { PulqueriaChip } from '../shared/Badge'
 import DataTable, { type Column } from '../shared/DataTable'
 import type { HostHistories } from './presentationData'
@@ -94,7 +94,7 @@ export default function PlayersTable({ hostView, histories }: PlayersTableProps)
     { key: 'cash', header: 'Cash', align: 'right', render: (r) => formatMoney(r.player.cash) },
     { key: 'waste', header: 'Waste rate', align: 'right', render: (r) => formatPercent(r.player.waste_rate) },
     { key: 'fill', header: 'Fill rate', align: 'right', render: (r) => formatPercent(r.player.fill_rate) },
-    { key: 'tier', header: 'Last tier', render: (r) => (r.player.last_incoterm === null ? DASH : r.player.last_incoterm.toUpperCase()) },
+    { key: 'tier', header: 'Last tier', render: (r) => (r.player.last_incoterm_tier === null ? DASH : INCOTERM_TIER_NAMES[r.player.last_incoterm_tier]) },
   )
 
   const groups = [

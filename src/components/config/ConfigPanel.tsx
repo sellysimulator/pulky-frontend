@@ -5,7 +5,7 @@ import { updateConfig } from '../../api/games'
 import { errorMessage } from '../../api/http'
 import { getRoomConfig } from '../../api/rooms'
 import { useGameStore } from '../../store/gameStore'
-import type { ConfigDefaultsResponse, FieldIssue, GameConfig, ServerError } from '../../types/game'
+import { INSURED_TIERS, type ConfigDefaultsResponse, type FieldIssue, type GameConfig, type ServerError } from '../../types/game'
 import { InlineAlert } from '../shared/AlertContainer'
 import Button from '../shared/Button'
 import LoadingSpinner from '../shared/LoadingSpinner'
@@ -52,7 +52,7 @@ const LOAD_FAILED = 'Could not load the settings.'
 const INSURANCE_PATHS = [
   'insurance.reference_shipment',
   'insurance.target_margin',
-  ...['cip', 'dap', 'ddp'].flatMap((t) => [`insurance.tiers.${t}.enabled`, `insurance.tiers.${t}.fee`]),
+  ...INSURED_TIERS.flatMap((t) => [`insurance.tiers.${t}.enabled`, `insurance.tiers.${t}.fee`]),
 ]
 const CONTROL_PATHS = new Set([...Object.values(SECTION_PATHS).flat(), ...INSURANCE_PATHS])
 

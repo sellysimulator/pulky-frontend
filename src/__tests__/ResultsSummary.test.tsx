@@ -41,8 +41,8 @@ import { DEMAND_SUPPLY_LEGEND_ORDER } from '../components/results/demandSupplyCo
 import type { ResultsView } from '../components/results/resultsView'
 import { INITIAL_STATE, useGameStore } from '../store/gameStore'
 import { formatMoney } from '../utils/format'
-import { getHostSecret, getOrCreateGuestId, setSessionToken } from '../utils/storage'
-import { NAMES, PEAK_DAYS, ROOM, makeView, withoutPeer } from './fixtures/results'
+import { getHostSecret, getOrCreateGuestId, markGamePlayed, setSessionToken } from '../utils/storage'
+import { GAME_ID, NAMES, PEAK_DAYS, ROOM, makeView, withoutPeer } from './fixtures/results'
 import {
   chartWithDataset,
   figureTitled,
@@ -149,7 +149,7 @@ describe('the six blocks (criterion 1)', () => {
 
   it('shows no claim prompt with showActions false even when every condition holds', () => {
     auth.mode = 'guest'
-    setSessionToken(ROOM, 'tok')
+    markGamePlayed(GAME_ID)
     getOrCreateGuestId()
     renderSummary({ viewer: PLAYER, showActions: false, hostSecret: null })
     expect(screen.queryByText('Sign in to keep these results in your profile.')).not.toBeInTheDocument()
@@ -373,7 +373,7 @@ describe('block 6: host actions', () => {
     expect(screen.getByRole('button', { name: 'Export CSV' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Export JSON' })).toBeInTheDocument()
     expect(
-      screen.getByText('Download the data during the debrief: the room expires 24 hours after it was created.'),
+      screen.getByText('Download the data during the debrief: the room expires 24 hours after its last activity.'),
     ).toBeInTheDocument()
   })
 
@@ -433,22 +433,22 @@ describe('Debrief notes', () => {
 describe('the claim prompt appears only under all three conditions (criterion 8, failure mode 7)', () => {
   const PROMPT = 'Sign in to keep these results in your profile.'
 
-  function guestWithToken(room = ROOM) {
+  function guestWhoPlayed(gameId = GAME_ID) {
     auth.mode = 'guest'
     getOrCreateGuestId()
-    setSessionToken(room, 'tok')
+    markGamePlayed(gameId)
   }
   const player = () => renderSummary({ viewer: PLAYER, hostSecret: null })
 
-  it('shows it for a guest with a guest id and a session token for this room', () => {
-    guestWithToken()
+  it('shows it for a guest with a guest id who played this game', () => {
+    guestWhoPlayed()
     player()
     expect(screen.getByText(PROMPT)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Sign in with Google' })).toBeInTheDocument()
   })
 
   it('failure mode 7: not for a signed-in user', () => {
-    guestWithToken()
+    guestWhoPlayed()
     auth.mode = 'authenticated'
     player()
     expect(screen.queryByText(PROMPT)).not.toBeInTheDocument()
@@ -456,7 +456,7 @@ describe('the claim prompt appears only under all three conditions (criterion 8,
   })
 
   it('not before the visitor has chosen a mode', () => {
-    guestWithToken()
+    guestWhoPlayed()
     auth.mode = null
     player()
     expect(screen.queryByText(PROMPT)).not.toBeInTheDocument()
@@ -464,43 +464,54 @@ describe('the claim prompt appears only under all three conditions (criterion 8,
 
   it('not without a guest id', () => {
     auth.mode = 'guest'
-    setSessionToken(ROOM, 'tok')
+    markGamePlayed(GAME_ID)
     player()
     expect(screen.queryByText(PROMPT)).not.toBeInTheDocument()
   })
 
-  it('not without a session token for this room', () => {
+  it('not for a guest who did not play this game', () => {
     auth.mode = 'guest'
     getOrCreateGuestId()
     player()
     expect(screen.queryByText(PROMPT)).not.toBeInTheDocument()
   })
 
-  it('not when the only session token is for another room', () => {
-    guestWithToken('XYZ789')
+  it('not for a guest who played only another game', () => {
+    guestWhoPlayed('ffff00')
+    player()
+    expect(screen.queryByText(PROMPT)).not.toBeInTheDocument()
+  })
+
+  it('not for a guest whose only link is a session token under this room code', () => {
+    auth.mode = 'guest'
+    getOrCreateGuestId()
+    setSessionToken(ROOM, 'tok')
     player()
     expect(screen.queryByText(PROMPT)).not.toBeInTheDocument()
   })
 })
 
 describe('Play again', () => {
-  function asHostOfThisRoom(config: unknown = FULL_CONFIG, over: Record<string, unknown> = {}) {
-    useGameStore.setState({ roomCode: ROOM, isHost: true, config: config as never, ...over })
+  function asHostOfThisGame(config: unknown = FULL_CONFIG, over: Record<string, unknown> = {}) {
+    useGameStore.setState({ roomCode: ROOM, gamePublicId: GAME_ID, isHost: true, config: config as never, ...over })
   }
 
-  it('is offered to the host who holds this room\'s full config', () => {
-    asHostOfThisRoom()
+  it('is offered to the host who holds this game\'s full config', () => {
+    asHostOfThisGame()
     renderSummary({ viewer: HOST })
     expect(screen.getByRole('button', { name: 'Play again' })).toBeInTheDocument()
   })
 
   it.each([
-    ['the store holds no config (a summary loaded by URL)', () => asHostOfThisRoom(null)],
-    ['the store holds another room\'s config', () => asHostOfThisRoom(FULL_CONFIG, { roomCode: 'XYZ789' })],
+    ['the store holds no config (a summary loaded by URL)', () => asHostOfThisGame(null)],
+    [
+      'the store holds another game\'s config under the same room code',
+      () => asHostOfThisGame(FULL_CONFIG, { gamePublicId: 'ffff00' }),
+    ],
     [
       'the store holds only the public config',
       () =>
-        asHostOfThisRoom(
+        asHostOfThisGame(
           {
             demand: { retail_price: 30 },
             stock: { conservation_extra_fresh_days: 2, conservation_cost_per_unit: 1 },
@@ -517,13 +528,13 @@ describe('Play again', () => {
   })
 
   it('is not offered to a player', () => {
-    asHostOfThisRoom()
+    asHostOfThisGame()
     renderSummary({ viewer: PLAYER, hostSecret: null })
     expect(screen.queryByRole('button', { name: 'Play again' })).not.toBeInTheDocument()
   })
 
   it('creates a new room, stores its secret, sends the config with a null seed and opens its host page', async () => {
-    asHostOfThisRoom()
+    asHostOfThisGame()
     spy = mockHttp((cfg) => {
       if (verb(cfg) === 'POST' && urlPath(cfg) === 'rooms/create') {
         return { status: 200, data: { room_code: 'NEW123', host_secret: 'sec-new', state: 'lobby', config: {} } }
@@ -542,7 +553,7 @@ describe('Play again', () => {
   })
 
   it('does not send the finished game\'s seed to the new room', async () => {
-    asHostOfThisRoom()
+    asHostOfThisGame()
     spy = mockHttp((cfg) =>
       urlPath(cfg) === 'rooms/create'
         ? { status: 200, data: { room_code: 'NEW123', host_secret: 's', state: 'lobby', config: {} } }

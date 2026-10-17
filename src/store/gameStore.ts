@@ -299,7 +299,7 @@ export const useGameStore = create<GameState & GameActions>()((set, get) => {
     applyHostReconnected: (p) => sequenced(p.seq, () => ({ hostConnected: true })),
 
     applyGameFinished: (p) =>
-      sequenced(p.seq, () => ({ finished: p, roomState: 'finished' })),
+      sequenced(p.seq, () => ({ finished: p, roomState: 'finished', gamePublicId: p.game_id })),
 
     applyGamePersisted: (p) => sequenced(p.seq, () => ({ gamePublicId: p.game_id })),
 

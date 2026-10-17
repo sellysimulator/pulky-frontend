@@ -1,22 +1,17 @@
 import http from './http'
 import type { ResultsResponse } from '../types/game'
 
-export async function getResultsByCode(code: string): Promise<ResultsResponse> {
-  const res = await http.get<ResultsResponse>(`/games/${code}/results`)
-  return res.data
-}
-
 export async function getResultsById(gameId: string): Promise<ResultsResponse> {
   const res = await http.get<ResultsResponse>(`/games/id/${gameId}/results`)
   return res.data
 }
 
 export async function exportGame(
-  code: string,
+  gameId: string,
   format: 'csv' | 'json',
   hostSecret: string | null,
 ): Promise<Blob> {
-  const res = await http.get<Blob>(`/games/${code}/export`, {
+  const res = await http.get<Blob>(`/games/id/${gameId}/export`, {
     params: { format },
     responseType: 'blob',
     headers: hostSecret !== null ? { 'X-Host-Secret': hostSecret } : {},

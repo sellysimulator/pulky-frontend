@@ -60,7 +60,7 @@ export default function GameRoom(): ReactElement {
     const gameOver = state === 'finished'
     body = (
       <div className="flex flex-col gap-4">
-        {gameOver ? <GameOverPanel roomCode={code} gamePublicId={gamePublicId} /> : null}
+        {gameOver ? <GameOverPanel gamePublicId={gamePublicId} /> : null}
         <View
           view={playerView}
           ownHistory={ownHistory}

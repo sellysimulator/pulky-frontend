@@ -14,6 +14,7 @@ Spec: `docs/spec/13-deploy.md` section 13.13 (the checklist lives there; this fi
 2. GitHub repository variables `VITE_API_BASE_URL` and `VITE_SOCKET_URL`: both `https://pulky-backend.onrender.com`. The build fails if either is empty or a Hosting origin.
 3. GitHub repository secret `FIREBASE_SERVICE_ACCOUNT_PULKY_DA26C`, created by `firebase init hosting:github`.
 4. Merging to `main` runs `firebase-hosting-merge.yml` (live channel); pull requests run `firebase-hosting-pull-request.yml` (preview channel). Both run `npx tsc -b`, `npx eslint .`, `npx vitest run` and `npm run build` with `REQUIRE_BACKEND_ENV=1` first.
+5. Every push and every pull request, forks included, also runs `ci.yml`: `npx tsc -b`, `npx eslint .`, `npx vitest run --coverage` (it fails below the thresholds in `vite.config.ts`) and a plain `npm run build`. It needs no secret or variable and deploys nothing.
 
 ## Checklist (spec 13.13)
 
