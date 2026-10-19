@@ -28,13 +28,24 @@ function mount(config: GameConfig, readOnly = false, issues?: Issues) {
   return { onChange, ...view }
 }
 
-/** The table row whose cell reads exactly the tier name. */
-function rowFor(tier: 'CIP' | 'DAP' | 'DDP'): HTMLElement {
-  const row = screen
+type Tier = 'CIP' | 'DAP' | 'DDP'
+
+/** The block of one tier (a group named after it). */
+function blockFor(tier: Tier): HTMLElement {
+  return screen.getByRole('group', { name: tier })
+}
+
+/** The cell texts of a tier's two table rows, Not shared first: Transport, Break-even, Verdict, Worst single failure. */
+function caseRows(tier: Tier): string[][] {
+  return within(blockFor(tier))
     .getAllByRole('row')
-    .find((r) => Array.from(r.querySelectorAll('th,td')).some((c) => new RegExp(`^${tier}\\b`).test(c.textContent?.trim() ?? '')))
-  if (!row) throw new Error(`no row for ${tier}`)
-  return row
+    .filter((r) => within(r).queryAllByRole('columnheader').length === 0)
+    .map((r) => Array.from(r.querySelectorAll('th,td')).map((c) => c.textContent?.trim() ?? ''))
+}
+
+/** The verdict texts of a tier's two rows, Not shared first. */
+function verdicts(tier: Tier): string[] {
+  return caseRows(tier).map((r) => r[2])
 }
 
 const WORTH = 'Worth it'
@@ -55,32 +66,74 @@ function tileText(label: string, other: string): string {
 }
 
 describe('layout and strings (acceptance 8, 12)', () => {
-  it('shows the inputs and the three tier rows', () => {
+  it('shows the inputs and the three tier blocks', () => {
     mount(cfg())
     expect(screen.getByLabelText('Reference shipment (units)')).toBeInTheDocument()
     expect(screen.getByLabelText('Target margin')).toBeInTheDocument()
-    for (const t of ['CIP', 'DAP', 'DDP'] as const) expect(rowFor(t)).toBeInTheDocument()
+    for (const t of ['CIP', 'DAP', 'DDP'] as const) expect(blockFor(t)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Set fees from margin' })).toBeInTheDocument()
   })
 
-  it('has the column headers and the two groups, named with max_players', () => {
+  it('has the fee and refund labels, and the two cases named with max_players', () => {
     mount(cfg())
-    expect(screen.getAllByText('Fee per unit').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Not shared').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('Shared with 4').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByRole('columnheader', { name: 'Break-even' })).toHaveLength(2)
-    expect(screen.getAllByRole('columnheader', { name: 'Verdict' })).toHaveLength(2)
-    expect(screen.getByText('Refund per lost unit')).toBeInTheDocument()
-    expect(screen.getByText('Worst single failure')).toBeInTheDocument()
+    expect(screen.getAllByText('Fee per unit')).toHaveLength(3)
+    expect(screen.getAllByText('Refund per lost unit')).toHaveLength(3)
+    expect(screen.getAllByText('Not shared')).toHaveLength(3)
+    expect(screen.getAllByText('Shared with 4')).toHaveLength(3)
+  })
+})
+
+describe('long rather than wide (acceptance 14, failure mode 12)', () => {
+  it('has three blocks in the order CIP, DAP, DDP', () => {
+    mount(cfg())
+    expect(screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual(['CIP', 'DAP', 'DDP'])
+  })
+
+  it('gives each block a table with exactly four headers and no group header row', () => {
+    mount(cfg())
+    for (const t of ['CIP', 'DAP', 'DDP'] as const) {
+      const table = within(blockFor(t)).getByRole('table', { name: `${t} break-even` })
+      expect(within(table).getAllByRole('columnheader').map((h) => h.textContent?.trim())).toEqual([
+        'Transport',
+        'Break-even',
+        'Verdict',
+        'Worst single failure',
+      ])
+      expect(table.querySelectorAll('thead tr')).toHaveLength(1)
+    }
+  })
+
+  it('has no table with more than four columns', () => {
+    mount(cfg())
+    const tables = screen.getAllByRole('table')
+    expect(tables).toHaveLength(3)
+    for (const table of tables) expect(within(table).getAllByRole('columnheader').length).toBeLessThanOrEqual(4)
+  })
+
+  it('has the rows Not shared then Shared with 4, with the break-evens and verdicts never swapped', () => {
+    mount(cfg())
+    for (const t of ['CIP', 'DAP', 'DDP'] as const) {
+      expect(caseRows(t).map((r) => r[0])).toEqual(['Not shared', 'Shared with 4'])
+    }
+    const cip = caseRows('CIP')
+    expect([cip[0][1], cip[1][1]]).toEqual(['$0.50', '$0.08'])
+    const ddp = caseRows('DDP')
+    expect([ddp[0][1], ddp[1][1]]).toEqual(['$1.26', '$0.21'])
+    expect(verdicts('CIP')).toEqual([NOT_WORTH, NOT_WORTH])
+  })
+
+  it('judges each row against its own break-even: a fee of 0.084 is Worth it solo and Break-even shared', () => {
+    mount(cfg((c) => (c.insurance.tiers.cip.fee = 0.084)))
+    expect(verdicts('CIP')).toEqual([WORTH, BREAK])
   })
 })
 
 describe('worked examples with the defaults (acceptance 8)', () => {
   it('not shared break-evens are $0.50 / $0.50 / $1.26 and shared with 4 are $0.08 / $0.08 / $0.21', () => {
     mount(cfg())
-    const cip = rowFor('CIP').textContent ?? ''
-    const dap = rowFor('DAP').textContent ?? ''
-    const ddp = rowFor('DDP').textContent ?? ''
+    const cip = blockFor('CIP').textContent ?? ''
+    const dap = blockFor('DAP').textContent ?? ''
+    const ddp = blockFor('DDP').textContent ?? ''
     expect(cip).toContain('$0.50')
     expect(cip).toContain('$0.08')
     expect(dap).toContain('$0.50')
@@ -89,20 +142,18 @@ describe('worked examples with the defaults (acceptance 8)', () => {
     expect(ddp).toContain('$0.21')
   })
 
-  it('shows Not worth it on average in all six verdict cells', () => {
+  it('shows Not worth it on average in all six verdict cells (two per block)', () => {
     mount(cfg())
     for (const t of ['CIP', 'DAP', 'DDP'] as const) {
-      expect(within(rowFor(t)).getAllByText(NOT_WORTH)).toHaveLength(2)
-      expect(within(rowFor(t)).queryByText(WORTH)).toBeNull()
-      expect(within(rowFor(t)).queryByText(BREAK)).toBeNull()
+      expect(verdicts(t)).toEqual([NOT_WORTH, NOT_WORTH])
     }
   })
 
   it('shows refund values (base price for CIP and DAP, retail for DDP) and the worst single failure', () => {
     mount(cfg())
     // not shared: floor(20 x 0.3) = 6 units; shared with 4: floor(20 x 0.075) = 1 unit
-    const cip = rowFor('CIP').textContent ?? ''
-    const ddp = rowFor('DDP').textContent ?? ''
+    const cip = blockFor('CIP').textContent ?? ''
+    const ddp = blockFor('DDP').textContent ?? ''
     expect(cip).toContain('$12.00')
     expect(cip).toContain('$72.00')
     expect(ddp).toContain('$30.00')
@@ -123,11 +174,10 @@ describe('worked examples with the defaults (acceptance 8)', () => {
 
   it('uses max_players as the sharing reference: with 12 seats the shared loss rounds to 0 units', () => {
     mount(cfg((c) => (c.max_players = 12)))
-    expect(screen.getAllByText('Shared with 12').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Shared with 12')).toHaveLength(3)
     // floor(20 x 0.3 / 12) = floor(0.5) = 0: shared break-even is $0.00 -> No risk configured
     for (const t of ['CIP', 'DAP', 'DDP'] as const) {
-      expect(within(rowFor(t)).getAllByText(NO_RISK)).toHaveLength(1)
-      expect(within(rowFor(t)).getAllByText(NOT_WORTH)).toHaveLength(1)
+      expect(verdicts(t)).toEqual([NOT_WORTH, NO_RISK])
     }
   })
 })
@@ -142,15 +192,7 @@ describe('verdict thresholds (failure mode 1)', () => {
   for (const [fee, badge] of cases) {
     it(`CIP fee ${fee} gives ${badge}`, () => {
       mount(cfg((c) => (c.insurance.tiers.cip.fee = fee)))
-      const row = rowFor('CIP')
-      if (badge === NOT_WORTH) {
-        expect(within(row).getAllByText(NOT_WORTH)).toHaveLength(2)
-        expect(within(row).queryByText(WORTH)).toBeNull()
-        expect(within(row).queryByText(BREAK)).toBeNull()
-      } else {
-        expect(within(row).getAllByText(badge)).toHaveLength(1)
-        expect(within(row).getAllByText(NOT_WORTH)).toHaveLength(1)
-      }
+      expect(verdicts('CIP')).toEqual([badge, NOT_WORTH])
     })
   }
 })
@@ -159,7 +201,7 @@ describe('no risk configured (failure mode 2)', () => {
   it('p = 0 shows No risk configured everywhere and never Infinity or NaN', () => {
     const { container } = mount(cfg((c) => (c.transport.failure_probability = 0)))
     for (const t of ['CIP', 'DAP', 'DDP'] as const) {
-      expect(within(rowFor(t)).getAllByText(NO_RISK)).toHaveLength(2)
+      expect(verdicts(t)).toEqual([NO_RISK, NO_RISK])
     }
     expect(container.textContent).not.toMatch(/Infinity|NaN/)
     expect(tileText('Chance of at least one failure', 'Expected failures')).toContain('0%')
@@ -216,9 +258,9 @@ describe('out-of-sync note (acceptance 8)', () => {
 describe('disabled tiers', () => {
   it('are marked Not offered and the others are not', () => {
     mount(cfg((c) => (c.insurance.tiers.dap.enabled = false)))
-    expect(within(rowFor('DAP')).getByText('Not offered')).toBeInTheDocument()
-    expect(within(rowFor('CIP')).queryByText('Not offered')).toBeNull()
-    expect(within(rowFor('DDP')).queryByText('Not offered')).toBeNull()
+    expect(within(blockFor('DAP')).getByText('Not offered')).toBeInTheDocument()
+    expect(within(blockFor('CIP')).queryByText('Not offered')).toBeNull()
+    expect(within(blockFor('DDP')).queryByText('Not offered')).toBeNull()
   })
 })
 
