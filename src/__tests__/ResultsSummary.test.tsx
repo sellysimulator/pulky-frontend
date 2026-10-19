@@ -3,18 +3,28 @@
  * Acceptance criteria 1, 3, 4, 6, 8 (claim conditions), 10, 11, 12, 13; failure modes 3, 4, 7, 10, 11.
  * The ratio table and the Decisions block have their own files (RatioTable, DecisionsCharts).
  */
-import { createElement, type ReactNode } from 'react'
+import { createElement, useEffect, type ReactNode } from 'react'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+/** The plot area a laid-out chart reports to its plugins: 240px tall, 6px above the plot, 50px of axis below it. */
+const LAID_OUT = { chartArea: { top: 6, bottom: 190 }, height: 240 }
+
 vi.mock('react-chartjs-2', () => {
-  const make = (type: string) => (props: { data?: unknown; options?: unknown }) =>
-    createElement('div', {
-      'data-testid': `chart-${type}`,
-      'data-chart': JSON.stringify({ type, data: props.data, options: props.options }),
-    })
+  type Props = { data?: unknown; options?: unknown; plugins?: Array<{ afterLayout?(chart: unknown): void }> }
+  const make = (type: string) =>
+    function MockChart(props: Props) {
+      // jsdom has no canvas, so the mock plays the one hook a layout-reading plugin needs.
+      useEffect(() => {
+        for (const plugin of props.plugins ?? []) plugin.afterLayout?.(LAID_OUT)
+      })
+      return createElement('div', {
+        'data-testid': `chart-${type}`,
+        'data-chart': JSON.stringify({ type, data: props.data, options: props.options }),
+      })
+    }
   return { Bar: make('bar'), Line: make('line'), Pie: make('pie'), Doughnut: make('doughnut') }
 })
 
@@ -294,6 +304,31 @@ describe('block 3: where the pulque went (criterion 12, failure mode 10)', () =>
     expect(numbersAfter('Bought from pulquerías')).toEqual(['2', '0', '16'])
     expect(numbersAfter('Peak backlog')).toEqual(['3', '11', '7'])
     expect(numbersAfter('Days with backlog')).toEqual(['5', '9', '2'])
+  })
+
+  it('gives each pulquería a row tall enough for its notes: 64px for three lines, 48px for two, plus 48px of axis', () => {
+    const plot = () => screen.getByRole('img', { name: /Stacked horizontal bars of units sold/ })
+    const { unmount } = renderSummary()
+    // three pulquerías with the peer market's Bought from line: (3 x 64 + 48) / 16
+    expect(plot()).toHaveStyle({ height: '15rem' })
+    unmount()
+    renderSummary({ view: makeView(withoutPeer) })
+    // two lines each: (3 x 48 + 48) / 16
+    expect(plot()).toHaveStyle({ height: '12rem' })
+  })
+
+  it('layout bug: the note rows share the plot area evenly instead of a fixed 40px each, so three lines never spill', () => {
+    renderSummary()
+    const notes = screen.getByText(/^Peak backlog 3$/).closest('ul')!
+    const rows = Array.from(notes.children) as HTMLElement[]
+    expect(rows).toHaveLength(3)
+    for (const row of rows) {
+      expect(row.className).toContain('flex-1')
+      expect(row.className).not.toMatch(/\bh-10\b/)
+      expect(row.children).toHaveLength(3)
+    }
+    // the column starts where the plot starts and stops where the axis begins (LAID_OUT)
+    expect(notes).toHaveStyle({ paddingTop: '6px', paddingBottom: '50px' })
   })
 
   it('criterion 13 / failure mode 11: without peer fields there is no peer segment and no Bought from line', () => {
