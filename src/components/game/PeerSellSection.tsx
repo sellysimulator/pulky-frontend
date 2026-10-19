@@ -24,6 +24,7 @@ interface PeerSellSectionProps {
   priceError?: string
   qualityError?: string
   unitsError?: string
+  onFieldBlur(field: 'sellPrice' | 'sellQuality' | 'sellUnits'): void
   locked: boolean
 }
 
@@ -42,6 +43,7 @@ export default function PeerSellSection({
   priceError,
   qualityError,
   unitsError,
+  onFieldBlur,
   locked,
 }: PeerSellSectionProps): ReactElement {
   const fieldsOff = !ticked
@@ -75,20 +77,22 @@ export default function PeerSellSection({
           <span aria-hidden="true" className="pt-2.5 text-base">
             at
           </span>
-          <NumberField
-            label="at"
-            hideLabel
-            kind="decimal"
-            prefix="$"
-            suffix="/unit"
-            min={0.01}
-            max={LIMITS.MAX_PEER_PRICE}
-            value={price}
-            onChange={onPrice}
-            disabled={fieldsOff}
-            readOnly={locked}
-            error={ticked ? priceError : undefined}
-          />
+          <div onBlur={() => onFieldBlur('sellPrice')}>
+            <NumberField
+              label="at"
+              hideLabel
+              kind="decimal"
+              prefix="$"
+              suffix="/unit"
+              min={0.01}
+              max={LIMITS.MAX_PEER_PRICE}
+              value={price}
+              onChange={onPrice}
+              disabled={fieldsOff}
+              readOnly={locked}
+              error={ticked ? priceError : undefined}
+            />
+          </div>
         </span>
         <span className="flex items-start gap-2">
           <span aria-hidden="true" className="pt-2.5 text-base">
@@ -101,25 +105,28 @@ export default function PeerSellSection({
             disabled={fieldsOff}
             readOnly={locked}
             error={ticked ? qualityError : undefined}
+            onFieldBlur={() => onFieldBlur('sellQuality')}
           />
         </span>
         <span className="flex items-start gap-2">
           <span aria-hidden="true" className="pt-2.5 text-base">
             max
           </span>
-          <NumberField
-            label="max"
-            hideLabel
-            kind="quantity"
-            suffix="units"
-            min={1}
-            max={LIMITS.MAX_ORDER}
-            value={maxUnits}
-            onChange={onMaxUnits}
-            disabled={fieldsOff}
-            readOnly={locked}
-            error={ticked ? unitsError : undefined}
-          />
+          <div onBlur={() => onFieldBlur('sellUnits')}>
+            <NumberField
+              label="max"
+              hideLabel
+              kind="quantity"
+              suffix="units"
+              min={1}
+              max={LIMITS.MAX_ORDER}
+              value={maxUnits}
+              onChange={onMaxUnits}
+              disabled={fieldsOff}
+              readOnly={locked}
+              error={ticked ? unitsError : undefined}
+            />
+          </div>
         </span>
       </div>
       {context ? <p className="px-3 pt-2 text-sm text-ink-muted tabular-nums">{context}</p> : null}

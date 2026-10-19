@@ -160,6 +160,7 @@ const cardHas = (text: string) => squash(card().textContent).includes(squash(tex
 const input = (name: string | RegExp) => screen.getByLabelText(name) as HTMLInputElement
 const submitBtn = () => screen.getByRole('button', { name: 'Submit day' })
 const setField = (el: HTMLElement, v: string | number) => fireEvent.change(el, { target: { value: String(v) } })
+const blur = (el: HTMLElement) => fireEvent.blur(el)
 
 const SHORT_TICK = /Buy the shortfall from other pulquerías/
 const SELL_TICK = /Offer units to other pulquerías/
@@ -206,21 +207,74 @@ async function tickSell(user: ReturnType<typeof userEvent.setup>, price = 15, qu
 }
 
 describe('ticking and unticking (failure mode 10)', () => {
-  it('a freshly ticked row starts with empty fields, which are invalid until filled', async () => {
+  it('a freshly ticked row starts with empty fields, which are invalid until filled and show nothing meanwhile', async () => {
     const user = userEvent.setup()
-    renderForm()
+    const { onSubmit } = renderForm()
     await user.click(buyBox())
     expect(buyPrice().value).toBe('')
     expect(buyQuality().value).toBe('')
-    expect(submitBtn()).toBeDisabled()
+    expect(buyPrice()).not.toHaveAttribute('aria-invalid')
+    expect(screen.queryByText(MSG_PRICE)).toBeNull()
+    expect(screen.queryByText(MSG_QUALITY)).toBeNull()
+    await user.click(submitBtn())
+    expect(onSubmit).not.toHaveBeenCalled()
     setField(buyPrice(), 16)
     setField(buyQuality(), 90)
-    expect(submitBtn()).toBeEnabled()
+    await user.click(submitBtn())
+    expect(onSubmit).toHaveBeenCalledTimes(1)
     await user.click(sellBox())
     expect(sellPrice().value).toBe('')
     expect(sellQuality().value).toBe('')
     expect(sellUnits().value).toBe('')
-    expect(submitBtn()).toBeDisabled()
+    expect(submitBtn()).toBeEnabled()
+  })
+
+  it('failure mode 16: ticking Sell to Players on an empty prefill shows no message until the field is left', async () => {
+    const user = userEvent.setup()
+    renderForm()
+    await user.click(sellBox())
+    expect(screen.queryByText(MSG_PRICE)).toBeNull()
+    expect(screen.queryByText(MSG_QUALITY)).toBeNull()
+    expect(screen.queryByText(MSG_UNITS)).toBeNull()
+    expect(sellPrice()).not.toHaveAttribute('aria-invalid')
+    act(() => sellPrice().focus())
+    act(() => sellPrice().blur())
+    expect(described(sellPrice())).toContain(MSG_PRICE)
+    expect(screen.queryByText(MSG_QUALITY)).toBeNull()
+    expect(screen.queryByText(MSG_UNITS)).toBeNull()
+  })
+
+  it('failure mode 16: ticking Buy from Players on an empty prefill shows no message either', async () => {
+    const user = userEvent.setup()
+    renderForm()
+    await user.click(buyBox())
+    expect(screen.queryByText(MSG_PRICE)).toBeNull()
+    expect(screen.queryByText(MSG_QUALITY)).toBeNull()
+    blur(buyQuality())
+    expect(described(buyQuality())).toContain(MSG_QUALITY)
+    expect(screen.queryByText(MSG_PRICE)).toBeNull()
+  })
+
+  it('acceptance criterion 16: Submit day with Sell to Players ticked and empty sends nothing, shows all three messages and focuses the at field', async () => {
+    const user = userEvent.setup()
+    const { onSubmit } = renderForm()
+    await user.click(sellBox())
+    await user.click(submitBtn())
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(described(sellPrice())).toContain(MSG_PRICE)
+    expect(described(sellQuality())).toContain(MSG_QUALITY)
+    expect(described(sellUnits())).toContain(MSG_UNITS)
+    expect(sellPrice()).toHaveFocus()
+  })
+
+  it('focus goes to the first invalid field in DOM order across the form', async () => {
+    const user = userEvent.setup()
+    renderForm()
+    await user.click(buyBox())
+    await user.click(sellBox())
+    setField(buyPrice(), 16)
+    await user.click(submitBtn())
+    expect(buyQuality()).toHaveFocus()
   })
 
   it('failure mode 10: after unticking Sell the submitted decision has peer_sell null, not the greyed values', async () => {
@@ -485,14 +539,15 @@ describe('peer-field validation (acceptance criterion 15)', () => {
     ['below one cent', '0.001'],
     ['a fraction of a cent', '15.005'],
     ['above the maximum', '10000.01'],
-  ])('a buy price that is %s shows the peer-price message under its field and disables Submit day', async (_n, value) => {
+  ])('a buy price that is %s shows the peer-price message under its field once left, and Submit day stays enabled', async (_n, value) => {
     await ticked()
     setField(buyPrice(), value)
+    blur(buyPrice())
     expect(described(buyPrice())).toContain(MSG_PRICE)
     expect(buyPrice()).toHaveAttribute('aria-invalid', 'true')
     expect(described(buyQuality())).not.toContain(MSG_PRICE)
     expect(described(sellPrice())).not.toContain(MSG_PRICE)
-    expect(submitBtn()).toBeDisabled()
+    expect(submitBtn()).toBeEnabled()
   })
 
   it.each([
@@ -500,12 +555,13 @@ describe('peer-field validation (acceptance criterion 15)', () => {
     ['zero', '0'],
     ['a fraction of a cent', '15.005'],
     ['above the maximum', '10000.01'],
-  ])('a sell price that is %s shows the peer-price message under its field and disables Submit day', async (_n, value) => {
+  ])('a sell price that is %s shows the peer-price message under its field once left, and Submit day stays enabled', async (_n, value) => {
     await ticked()
     setField(sellPrice(), value)
+    blur(sellPrice())
     expect(described(sellPrice())).toContain(MSG_PRICE)
     expect(described(buyPrice())).not.toContain(MSG_PRICE)
-    expect(submitBtn()).toBeDisabled()
+    expect(submitBtn()).toBeEnabled()
   })
 
   it.each(['0.01', '15', '15.1', '15.99', '10000'])('a price of %s is accepted', async (value) => {
@@ -519,15 +575,16 @@ describe('peer-field validation (acceptance criterion 15)', () => {
   it('failure mode 15: a peer price of 15.005 is refused with the message, never rounded to 15.01 and sent', async () => {
     const { user, onSubmit } = await ticked()
     setField(buyPrice(), '15.005')
+    blur(buyPrice())
     expect(screen.getByText(MSG_PRICE)).toBeInTheDocument()
-    expect(submitBtn()).toBeDisabled()
+    expect(submitBtn()).toBeEnabled()
     await user.click(submitBtn())
     expect(onSubmit).not.toHaveBeenCalled()
     // the same for the sell price
     setField(buyPrice(), '16')
     setField(sellPrice(), '15.005')
+    blur(sellPrice())
     expect(screen.getByText(MSG_PRICE)).toBeInTheDocument()
-    expect(submitBtn()).toBeDisabled()
     await user.click(submitBtn())
     expect(onSubmit).not.toHaveBeenCalled()
   })
@@ -537,24 +594,26 @@ describe('peer-field validation (acceptance criterion 15)', () => {
     ['above 100', '101', MSG_QUALITY],
     ['not a multiple of 5', '92', MSG_STEP],
     ['not a multiple of 5 (1)', '1', MSG_STEP],
-  ])('a minimum quality that is %s shows its message under its field and disables Submit day', async (_n, value, message) => {
+  ])('a minimum quality that is %s shows its message under its field once left, and Submit day stays enabled', async (_n, value, message) => {
     await ticked()
     setField(buyQuality(), value)
+    blur(buyQuality())
     expect(described(buyQuality())).toContain(message)
     expect(described(buyPrice())).not.toContain(message)
-    expect(submitBtn()).toBeDisabled()
+    expect(submitBtn()).toBeEnabled()
   })
 
   it.each([
     ['empty', '', MSG_QUALITY],
     ['above 100', '150', MSG_QUALITY],
     ['not a multiple of 5', '63', MSG_STEP],
-  ])('a maximum quality that is %s shows its message under its field and disables Submit day', async (_n, value, message) => {
+  ])('a maximum quality that is %s shows its message under its field once left, and Submit day stays enabled', async (_n, value, message) => {
     await ticked()
     setField(sellQuality(), value)
+    blur(sellQuality())
     expect(described(sellQuality())).toContain(message)
     expect(described(sellPrice())).not.toContain(message)
-    expect(submitBtn()).toBeDisabled()
+    expect(submitBtn()).toBeEnabled()
   })
 
   it.each(['0', '5', '95', '100'])('a quality of %s is accepted', async (value) => {
@@ -570,11 +629,12 @@ describe('peer-field validation (acceptance criterion 15)', () => {
     ['empty', ''],
     ['zero', '0'],
     ['above 9,999', '10000'],
-  ])('max units that is %s shows the offer-units message under its field and disables Submit day', async (_n, value) => {
+  ])('max units that is %s shows the offer-units message under its field once left, and Submit day stays enabled', async (_n, value) => {
     await ticked()
     setField(sellUnits(), value)
+    blur(sellUnits())
     expect(described(sellUnits())).toContain(MSG_UNITS)
-    expect(submitBtn()).toBeDisabled()
+    expect(submitBtn()).toBeEnabled()
   })
 
   it.each(['1', '9999'])('max units of %s is accepted', async (value) => {
@@ -590,7 +650,10 @@ describe('peer-field validation (acceptance criterion 15)', () => {
     setField(buyQuality(), '92')
     setField(sellPrice(), '')
     setField(sellUnits(), '0')
-    expect(submitBtn()).toBeDisabled()
+    blur(buyPrice())
+    expect(described(buyPrice())).toContain(MSG_PRICE)
+    await user.click(submitBtn())
+    expect(onSubmit).not.toHaveBeenCalled()
     await user.click(buyBox())
     await user.click(sellBox())
     expect(screen.queryByText(MSG_PRICE)).toBeNull()
@@ -602,12 +665,12 @@ describe('peer-field validation (acceptance criterion 15)', () => {
   })
 
   it('ticking an invalid row again blocks the day again', async () => {
-    const { user } = await ticked()
+    const { user, onSubmit } = await ticked()
     setField(sellPrice(), '15.005')
     await user.click(sellBox())
-    expect(submitBtn()).toBeEnabled()
     await user.click(sellBox())
-    expect(submitBtn()).toBeDisabled()
+    await user.click(submitBtn())
+    expect(onSubmit).not.toHaveBeenCalled()
     expect(described(sellPrice())).toContain(MSG_PRICE)
   })
 })

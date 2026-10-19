@@ -6,11 +6,7 @@ import Badge from '../shared/Badge'
 import InfoTip from '../shared/InfoTip'
 import NumberField from '../shared/NumberField'
 
-const ORDER_ERROR = `Orders must be whole numbers from 0 to ${formatQty(LIMITS.MAX_ORDER)}.`
-
-function isValidQuantity(value: number | null): boolean {
-  return value !== null && Number.isInteger(value) && value >= 0 && value <= LIMITS.MAX_ORDER
-}
+export const ORDER_ERROR = `Orders must be whole numbers from 0 to ${formatQty(LIMITS.MAX_ORDER)}.`
 
 function weekdayOn(view: PlayerView, day: number): Weekday {
   const start = WEEKDAYS.indexOf(view.weekday)
@@ -44,6 +40,8 @@ interface OrderSectionProps {
   view: PlayerView
   value: number | null
   onChange(value: number | null): void
+  error?: string
+  onFieldBlur(): void
   locked: boolean
 }
 
@@ -81,7 +79,7 @@ function FuturesInfo({ view }: { view: PlayerView }): ReactElement {
   )
 }
 
-export default function OrderSection({ kind, view, value, onChange, locked }: OrderSectionProps): ReactElement {
+export default function OrderSection({ kind, view, value, onChange, error, onFieldBlur, locked }: OrderSectionProps): ReactElement {
   const spot = kind === 'spot'
   const open = spot ? view.order_windows.spot_open : view.order_windows.futures_open
   const brief = view.brief
@@ -102,18 +100,21 @@ export default function OrderSection({ kind, view, value, onChange, locked }: Or
       info={spot ? <SpotInfo view={view} /> : <FuturesInfo view={view} />}
     >
       <div className="flex flex-wrap items-start gap-x-4 gap-y-1">
-        <NumberField
-          label={spot ? 'Buy from Supplier' : 'Futures'}
-          hideLabel
-          kind="quantity"
-          min={0}
-          max={LIMITS.MAX_ORDER}
-          value={shown}
-          onChange={onChange}
-          disabled={!open}
-          readOnly={locked}
-          error={open && !isValidQuantity(value) ? ORDER_ERROR : undefined}
-        />
+        {/* The wrapper only catches the input's blur, which bubbles, so the form knows the field was left. */}
+        <div onBlur={onFieldBlur}>
+          <NumberField
+            label={spot ? 'Buy from Supplier' : 'Futures'}
+            hideLabel
+            kind="quantity"
+            min={0}
+            max={LIMITS.MAX_ORDER}
+            value={shown}
+            onChange={onChange}
+            disabled={!open}
+            readOnly={locked}
+            error={open ? error : undefined}
+          />
+        </div>
         {context ? <p className="min-w-0 flex-1 pt-2.5 text-sm text-ink-muted tabular-nums">{context}</p> : null}
         {!spot && open && daysLeft > 0 ? (
           <span className="pt-2">

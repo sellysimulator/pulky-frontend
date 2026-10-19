@@ -1,5 +1,5 @@
 import { ClipboardList, Lock } from 'lucide-react'
-import { useState, type ReactElement, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import { canAfford, isWholeCents, outlayEstimate, type DecisionDraft } from '../../game/estimates'
 import { LIMITS, type Decision, type IncotermTier, type PlayerView, type PublicConfig } from '../../types/game'
 import { formatMoney, formatQty } from '../../utils/format'
@@ -7,7 +7,7 @@ import Badge from '../shared/Badge'
 import SectionCard from '../shared/SectionCard'
 import ConserveSection from './ConserveSection'
 import CooperateToggle from './CooperateToggle'
-import OrderSection from './OrderSection'
+import OrderSection, { ORDER_ERROR } from './OrderSection'
 import OutlayBar from './OutlayBar'
 import PeerBuySection from './PeerBuySection'
 import PeerSellSection from './PeerSellSection'
@@ -36,6 +36,9 @@ interface FormState {
   sellQuality: number | null
   sellUnits: number | null
 }
+
+/** The fields whose messages wait for the player: a field is touched once its input has lost focus. */
+type FieldKey = 'spot' | 'futures' | 'buyPrice' | 'buyQuality' | 'sellPrice' | 'sellQuality' | 'sellUnits'
 
 const PRICE_ERROR = `Peer prices must be from $0.01 to ${formatMoney(LIMITS.MAX_PEER_PRICE)}, in whole cents.`
 const QUALITY_ERROR = 'Quality limits must be whole numbers from 0 to 100.'
@@ -85,6 +88,18 @@ function initialState(initial: Decision, view: PlayerView, config: PublicConfig)
 function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, lockedFooter }: DecisionFormProps): ReactElement {
   const [state, setState] = useState<FormState>(() => initialState(initialDecision, view, config))
   const patch = (changes: Partial<FormState>): void => setState((s) => ({ ...s, ...changes }))
+  const [touched, setTouched] = useState<ReadonlySet<FieldKey>>(() => new Set())
+  const [pressed, setPressed] = useState(false)
+  const [focusRequest, setFocusRequest] = useState(0)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const touch = (key: FieldKey): void => setTouched((t) => (t.has(key) ? t : new Set(t).add(key)))
+  // A message shows only for an invalid field that was left, or once Submit day was pressed.
+  const shown = (key: FieldKey, error: string | undefined): string | undefined => (pressed || touched.has(key) ? error : undefined)
+
+  // After a press with an invalid field, the messages are on screen: move focus to the first one in DOM order.
+  useEffect(() => {
+    if (focusRequest > 0) bodyRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+  }, [focusRequest])
 
   const peers = config.peer_market.enabled
   const spotOpen = view.order_windows.spot_open
@@ -101,9 +116,9 @@ function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, loc
   const sellQualityError = sellActive ? qualityError(state.sellQuality) : undefined
   const sellUnitsError = sellActive ? unitsError(state.sellUnits) : undefined
 
-  const spotValid = !spotOpen || isValidQuantity(state.spot)
-  const futuresValid = !futuresOpen || isValidQuantity(state.futures)
-  const peerValid = !buyPriceError && !buyQualityError && !sellPriceError && !sellQualityError && !sellUnitsError
+  const spotError = spotOpen && !isValidQuantity(state.spot) ? ORDER_ERROR : undefined
+  const futuresError = futuresOpen && !isValidQuantity(state.futures) ? ORDER_ERROR : undefined
+  const formValid = !spotError && !futuresError && !buyPriceError && !buyQualityError && !sellPriceError && !sellQualityError && !sellUnitsError
 
   const draft: DecisionDraft = {
     order_spot: spotOpen ? (state.spot ?? 0) : 0,
@@ -122,10 +137,15 @@ function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, loc
   }
   const outlay = outlayEstimate(draft, view, config)
   const over = !canAfford(outlay.total, view.cash)
-  const canSubmit = !locked && spotValid && futuresValid && peerValid && !over
+  const canSubmit = !locked && !over
 
   const handleSubmit = (): void => {
     if (!canSubmit) return
+    if (!formValid) {
+      setPressed(true)
+      setFocusRequest((n) => n + 1)
+      return
+    }
     onSubmit({ day: view.day, ...draft })
   }
 
@@ -145,8 +165,16 @@ function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, loc
         ) : undefined
       }
     >
-      <div>
-        <OrderSection kind="spot" view={view} value={state.spot} onChange={(spot) => patch({ spot })} locked={locked} />
+      <div ref={bodyRef}>
+        <OrderSection
+          kind="spot"
+          view={view}
+          value={state.spot}
+          onChange={(spot) => patch({ spot })}
+          error={shown('spot', spotError)}
+          onFieldBlur={() => touch('spot')}
+          locked={locked}
+        />
         {peers ? (
           <PeerBuySection
             view={view}
@@ -156,13 +184,22 @@ function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, loc
             onMaxPrice={(buyPrice) => patch({ buyPrice })}
             minQuality={state.buyQuality}
             onMinQuality={(buyQuality) => patch({ buyQuality })}
-            priceError={buyPriceError}
-            qualityError={buyQualityError}
+            priceError={shown('buyPrice', buyPriceError)}
+            qualityError={shown('buyQuality', buyQualityError)}
+            onFieldBlur={touch}
             closed={!spotOpen}
             locked={locked}
           />
         ) : null}
-        <OrderSection kind="futures" view={view} value={state.futures} onChange={(futures) => patch({ futures })} locked={locked} />
+        <OrderSection
+          kind="futures"
+          view={view}
+          value={state.futures}
+          onChange={(futures) => patch({ futures })}
+          error={shown('futures', futuresError)}
+          onFieldBlur={() => touch('futures')}
+          locked={locked}
+        />
         <ShipSection view={view} incoterm_tier={incoterm_tier} onChange={(next) => patch({ incoterm_tier: next })} shipmentMax={outlay.shipmentMax} locked={locked} />
         <ConserveSection view={view} config={config} selected={conserveLots} onToggle={toggleLot} locked={locked} />
         {peers ? (
@@ -178,9 +215,10 @@ function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, loc
             onMaxQuality={(sellQuality) => patch({ sellQuality })}
             maxUnits={state.sellUnits}
             onMaxUnits={(sellUnits) => patch({ sellUnits })}
-            priceError={sellPriceError}
-            qualityError={sellQualityError}
-            unitsError={sellUnitsError}
+            priceError={shown('sellPrice', sellPriceError)}
+            qualityError={shown('sellQuality', sellQualityError)}
+            unitsError={shown('sellUnits', sellUnitsError)}
+            onFieldBlur={touch}
             locked={locked}
           />
         ) : null}

@@ -15,10 +15,11 @@ interface QualityFieldProps {
   disabled: boolean
   readOnly: boolean
   error?: string
+  onFieldBlur(): void
 }
 
 /** A quality limit: whole percent, arrow keys move between multiples of 5. */
-export function QualityField({ label, value, onChange, disabled, readOnly, error }: QualityFieldProps): ReactElement {
+export function QualityField({ label, value, onChange, disabled, readOnly, error, onFieldBlur }: QualityFieldProps): ReactElement {
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
     if (disabled || readOnly) return
     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
@@ -29,8 +30,8 @@ export function QualityField({ label, value, onChange, disabled, readOnly, error
     onChange(Math.min(100, Math.max(0, next)))
   }
   return (
-    // The wrapper only intercepts arrow keys before the field's own one-step handler.
-    <div onKeyDownCapture={handleKeyDown}>
+    // The wrapper intercepts arrow keys before the field's own one-step handler, and catches the input's blur.
+    <div onKeyDownCapture={handleKeyDown} onBlur={onFieldBlur}>
       <NumberField
         label={label}
         hideLabel
@@ -58,6 +59,7 @@ interface PeerBuySectionProps {
   onMinQuality(value: number | null): void
   priceError?: string
   qualityError?: string
+  onFieldBlur(field: 'buyPrice' | 'buyQuality'): void
   closed: boolean
   locked: boolean
 }
@@ -72,6 +74,7 @@ export default function PeerBuySection({
   onMinQuality,
   priceError,
   qualityError,
+  onFieldBlur,
   closed,
   locked,
 }: PeerBuySectionProps): ReactElement {
@@ -101,20 +104,22 @@ export default function PeerBuySection({
           <span aria-hidden="true" className="pt-2.5 text-base">
             up to
           </span>
-          <NumberField
-            label="up to"
-            hideLabel
-            kind="decimal"
-            prefix="$"
-            suffix="/unit"
-            min={0.01}
-            max={LIMITS.MAX_PEER_PRICE}
-            value={maxPrice}
-            onChange={onMaxPrice}
-            disabled={fieldsOff}
-            readOnly={locked}
-            error={ticked && !closed ? priceError : undefined}
-          />
+          <div onBlur={() => onFieldBlur('buyPrice')}>
+            <NumberField
+              label="up to"
+              hideLabel
+              kind="decimal"
+              prefix="$"
+              suffix="/unit"
+              min={0.01}
+              max={LIMITS.MAX_PEER_PRICE}
+              value={maxPrice}
+              onChange={onMaxPrice}
+              disabled={fieldsOff}
+              readOnly={locked}
+              error={ticked && !closed ? priceError : undefined}
+            />
+          </div>
         </span>
         <span className="flex items-start gap-2">
           <span aria-hidden="true" className="pt-2.5 text-base">
@@ -127,6 +132,7 @@ export default function PeerBuySection({
             disabled={fieldsOff}
             readOnly={locked}
             error={ticked && !closed ? qualityError : undefined}
+            onFieldBlur={() => onFieldBlur('buyQuality')}
           />
         </span>
       </div>
