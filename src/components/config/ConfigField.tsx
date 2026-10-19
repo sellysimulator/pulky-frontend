@@ -1,7 +1,8 @@
 import { CircleAlert, TriangleAlert } from 'lucide-react'
-import { useId, type ReactElement, type ReactNode } from 'react'
+import { useId, useState, type ReactElement, type ReactNode } from 'react'
 import { WEEKDAYS, type ConfigFieldMeta, type GameConfig } from '../../types/game'
 import { weekdayShort } from '../../utils/format'
+import Collapsible from '../shared/Collapsible'
 import NumberField from '../shared/NumberField'
 import Switch from '../shared/Switch'
 import { DOCS } from './docs/entries'
@@ -183,15 +184,17 @@ export function Knobs({ paths, ...props }: { paths: string[] } & SectionProps): 
   )
 }
 
-/** Knobs on the left and the preview on the right from `xl`; the preview follows the knobs below it. */
+/** The knobs, then under the last one a closed-at-first Preview collapsible; it stays open once opened. */
 export function SectionLayout({ knobs, preview }: { knobs: ReactNode; preview?: ReactNode }): ReactElement {
+  const [open, setOpen] = useState(false)
   if (!preview) return <div>{knobs}</div>
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
-      <div className="min-w-0">{knobs}</div>
-      <div className="flex min-w-0 flex-col gap-4 self-start rounded-md border border-border bg-inset p-4">
-        <p className="text-xs font-semibold text-ink-muted">Preview</p>
-        {preview}
+    <div>
+      {knobs}
+      <div className="border-t border-border pt-3">
+        <Collapsible variant="inline" summary="Preview" open={open} onOpenChange={setOpen}>
+          <div className="flex flex-col gap-4">{preview}</div>
+        </Collapsible>
       </div>
     </div>
   )

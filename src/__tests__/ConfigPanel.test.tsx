@@ -166,6 +166,21 @@ function sectionOf(title: Section): HTMLElement {
   return el
 }
 
+/** The `details` of a section whose summary reads Preview. */
+function previewsOf(title: Section): HTMLDetailsElement[] {
+  return Array.from(sectionOf(title).querySelectorAll('details')).filter(
+    (d) => d.querySelector(':scope > summary')?.textContent?.trim() === 'Preview',
+  )
+}
+
+/** Opens the Preview of the given sections (all four with a preview by default); jsdom still exposes closed content, so tests open it. */
+function openPreviews(titles: Section[] = ['Demand', 'Reputation', 'Supplier & futures', 'Stock']): void {
+  for (const t of titles) {
+    const [d] = previewsOf(t)
+    if (!d.open) fireEvent.click(d.querySelector('summary')!)
+  }
+}
+
 /** Which field keys carry a badge: the badge belongs to the nearest field label before it. */
 function badgedKeys(keys: string[]): string[] {
   const labelEls = keys.map((k) => ({
@@ -807,12 +822,14 @@ describe('previews follow the draft (acceptance 11)', () => {
 
   it('shows the spoil risk table for the defaults inside Stock', async () => {
     await mount()
+    openPreviews()
     expect(within(sectionOf('Stock')).getAllByRole('table').length).toBeGreaterThan(0)
     expect(risk().rows[0]).toEqual(['1', '53%', '33%', '20%', '0%'])
   })
 
   it('changing fresh_days changes the risk table', async () => {
     await mount()
+    openPreviews()
     const before = risk().rows
     edit('stock.max_days', 4)
     edit('stock.fresh_days', 2)
@@ -824,6 +841,7 @@ describe('previews follow the draft (acceptance 11)', () => {
 
   it('changing quality_min changes the headings and values', async () => {
     await mount()
+    openPreviews()
     edit('supplier.quality_min', 70)
     await advance(0)
     const { headers, rows } = risk()
@@ -834,6 +852,7 @@ describe('previews follow the draft (acceptance 11)', () => {
 
   it('changing lambda changes the demand values', async () => {
     const { container } = await mount()
+    openPreviews()
     const openTables = (): void => {
       for (const b of screen.queryAllByRole('button', { name: /table/i })) {
         if (b.getAttribute('aria-pressed') !== 'true' && /table/i.test(b.textContent ?? '')) fireEvent.click(b)
@@ -852,9 +871,72 @@ describe('previews follow the draft (acceptance 11)', () => {
 
   it('shows the spot range preview in Supplier & futures', async () => {
     await mount()
+    openPreviews()
     expect(sectionOf('Supplier & futures').textContent).toMatch(/Spot price ranges from \$?9(\.00)? to \$?15(\.00)?/)
     edit('supplier.base_price', 20)
     await advance(0)
     expect(sectionOf('Supplier & futures').textContent).toMatch(/Spot price ranges from \$?15(\.00)? to \$?25(\.00)?/)
+  })
+})
+
+describe('Preview collapsibles (acceptance 13, failure mode 11)', () => {
+  const WITH_PREVIEW: Section[] = ['Demand', 'Reputation', 'Supplier & futures', 'Stock']
+  const WITHOUT_PREVIEW: Section[] = ['Game', 'Peer market', 'Transport & insurance']
+  /** A text that only the section's preview shows. */
+  const CONTENT: Record<string, RegExp> = {
+    Demand: /Weekday multiplier/,
+    Reputation: /Expected units/,
+    'Supplier & futures': /Spot price ranges from/,
+    Stock: /Plain lot at 80%/,
+  }
+
+  /** Form controls of a section outside any details, in DOM order. */
+  const controlsOf = (title: Section): Element[] =>
+    Array.from(sectionOf(title).querySelectorAll('input, select, [role="switch"]')).filter((c) => !c.closest('details'))
+
+  it.each(WITH_PREVIEW)('%s has exactly one Preview details, closed on mount', async (title) => {
+    await mount()
+    const found = previewsOf(title)
+    expect(found).toHaveLength(1)
+    expect(found[0]).not.toHaveAttribute('open')
+  })
+
+  it.each(WITH_PREVIEW)('%s: the Preview summary follows its last form control', async (title) => {
+    await mount()
+    const last = controlsOf(title).at(-1)!
+    const summary = previewsOf(title)[0].querySelector('summary')!
+    expect(last.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it.each(WITH_PREVIEW)('%s: clicking Preview opens it and shows the preview', async (title) => {
+    await mount()
+    const [d] = previewsOf(title)
+    fireEvent.click(d.querySelector('summary')!)
+    expect(d).toHaveAttribute('open')
+    expect(within(d).getAllByText(CONTENT[title])[0]).toBeVisible()
+  })
+
+  it.each([
+    ['Demand', 'demand.per_player_peak'],
+    ['Reputation', 'reputation.smoothing'],
+    ['Supplier & futures', 'supplier.base_price'],
+    ['Stock', 'stock.holding_cost'],
+  ] as const)('%s: an edit leaves an opened Preview open', async (title, key) => {
+    await mount()
+    openPreviews([title])
+    edit(key, 0.4)
+    await advance(0)
+    expect(previewsOf(title)[0]).toHaveAttribute('open')
+  })
+
+  it.each(WITHOUT_PREVIEW)('%s has no Preview', async (title) => {
+    await mount()
+    expect(within(sectionOf(title)).queryByText('Preview')).toBeNull()
+    expect(previewsOf(title)).toHaveLength(0)
+  })
+
+  it('has no xl:grid-cols- class in the panel', async () => {
+    const { container } = await mount()
+    expect(container.querySelector('[class*="xl:grid-cols-"]')).toBeNull()
   })
 })
