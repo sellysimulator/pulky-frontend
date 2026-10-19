@@ -9,12 +9,12 @@ import { BackendStatusProvider } from './contexts/BackendStatusContext'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider>
-      <BackendStatusProvider>
+    <BackendStatusProvider>
+      <AuthProvider>
         <BrowserRouter>
           <App />
         </BrowserRouter>
-      </BackendStatusProvider>
-    </AuthProvider>
+      </AuthProvider>
+    </BackendStatusProvider>
   </StrictMode>,
 )

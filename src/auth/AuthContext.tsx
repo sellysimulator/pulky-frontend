@@ -19,6 +19,7 @@ import { auth, googleProvider } from '../../firebase'
 import { errorMessage } from '../api/http'
 import { socket } from '../api/socket'
 import { upsertUser } from '../api/users'
+import { useBackendStatus } from '../contexts/BackendStatusContext'
 import { useGameStore } from '../store/gameStore'
 import { getGuestMode, setGuestMode } from '../utils/storage'
 
@@ -47,12 +48,20 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactElemen
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<AuthUser | null>(null)
   const [guest, setGuest] = useState<boolean>(() => getGuestMode())
+  const awake = useBackendStatus().status === 'awake'
+  // Bumped by each identity change; the effect below connects once the backend is awake.
+  const [connectRequests, setConnectRequests] = useState(0)
+
+  // A handshake sent to a sleeping server fails, so an earlier request waits for the first `awake`.
+  useEffect(() => {
+    if (awake && connectRequests > 0) socket.disconnect().connect()
+  }, [awake, connectRequests])
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser ? toAuthUser(firebaseUser) : null)
       setLoading(false)
-      socket.disconnect().connect()
+      setConnectRequests((n) => n + 1)
     })
     return unsubscribe
   }, [])
@@ -72,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactElemen
   const continueAsGuest = useCallback(() => {
     setGuestMode(true)
     setGuest(true)
-    socket.disconnect().connect()
+    setConnectRequests((n) => n + 1)
   }, [])
 
   const signOut = useCallback(async () => {
