@@ -187,3 +187,18 @@ export function getUiFlag(flag: UiFlag): boolean {
 export function setUiFlag(flag: UiFlag, value: boolean): void {
   writeLocal(`pulky.ui.${flag}`, value ? '1' : '0')
 }
+
+// ---------------------------------------------------------------- board view
+
+export type BoardView = '2D' | '3D'
+
+const BOARD_VIEW_KEY = 'pulky.board_view'
+
+/** The raw stored choice; `resolveBoardView` validates it. */
+export function getBoardView(): string | null {
+  return readLocal(BOARD_VIEW_KEY)
+}
+
+export function setBoardView(view: BoardView): void {
+  writeLocal(BOARD_VIEW_KEY, view)
+}
