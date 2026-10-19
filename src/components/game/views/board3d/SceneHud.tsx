@@ -95,9 +95,9 @@ export default function SceneHud({
         ) : null}
       </div>
 
-      <div className="pointer-events-none col-start-2 row-span-3 row-start-1 grid place-items-center">
+      <div className="pointer-events-none col-span-3 col-start-1 row-span-3 row-start-1 grid place-items-center">
         <div className="relative">
-          {openPanel === null ? <span aria-hidden="true" className="block size-2 rounded-full bg-ink ring-2 ring-card" /> : null}
+          {openPanel === null ? <span aria-hidden="true" className="block size-2 rounded-full bg-black/50" /> : null}
           <div
             role="status"
             aria-live="polite"

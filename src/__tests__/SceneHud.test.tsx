@@ -155,3 +155,33 @@ describe('prompt', () => {
     expect(text()).not.toContain('Press E')
   })
 })
+
+describe('crosshair', () => {
+  const dot = () => document.querySelector('span[aria-hidden="true"].rounded-full') as HTMLElement | null
+  const layer = () => dot()?.parentElement?.parentElement as HTMLElement
+
+  it('is a semi-transparent black dot with no ring', () => {
+    setup()
+    expect(dot()).not.toBeNull()
+    expect(dot()?.classList.contains('bg-black/50')).toBe(true)
+    expect(Array.from(dot()?.classList ?? []).some((c) => c.startsWith('ring-'))).toBe(false)
+  })
+
+  it('sits in a layer spanning the whole grid so it is centred on the board area', () => {
+    setup()
+    for (const c of ['col-span-3', 'col-start-1', 'row-span-3', 'row-start-1', 'place-items-center']) {
+      expect(layer().classList.contains(c)).toBe(true)
+    }
+    expect(layer().classList.contains('col-start-2')).toBe(false)
+  })
+
+  it('keeps the status region inside that layer', () => {
+    setup()
+    expect(layer().contains(document.querySelector('[role="status"][aria-live="polite"]'))).toBe(true)
+  })
+
+  it('is absent while a panel is open', () => {
+    setup({ openPanel: 'cellar' })
+    expect(dot()).toBeNull()
+  })
+})
