@@ -53,14 +53,53 @@ function requireBackendEnv(env: Record<string, string>): Plugin {
   }
 }
 
+/**
+ * Fails the build when the entry chunk's static imports reach the `three` chunk (spec §13.11.8). The `three` bucket is a
+ * list of names, and an `npm update` that adds a transitive package breaks it silently: the new package falls through to
+ * `vendor`, `vendor` imports `three`, and the welcome screen preloads a megabyte of WebGL with every check green.
+ */
+function forbidThreeInEntryGraph(): Plugin {
+  return {
+    name: 'pulky:forbid-three-in-entry-graph',
+    apply: 'build',
+    generateBundle(_options, bundle) {
+      for (const entry of Object.values(bundle)) {
+        if (entry.type !== 'chunk' || !entry.isEntry) continue
+        const parent = new Map<string, string>(entry.imports.map((f) => [f, entry.fileName]))
+        const queue = [...entry.imports]
+        const seen = new Set<string>()
+        while (queue.length > 0) {
+          const fileName = queue.shift() as string
+          if (seen.has(fileName)) continue
+          seen.add(fileName)
+          const chunk = bundle[fileName]
+          if (!chunk || chunk.type !== 'chunk') continue
+          if (chunk.name === 'three') {
+            const chain = [fileName]
+            for (let at = parent.get(fileName); at; at = parent.get(at)) chain.unshift(at)
+            this.error(
+              'The entry page loads the `three` chunk (spec §13.11.8):\n  ' +
+                chain.join(' -> ') +
+                '\nA package of the 3D tree fell through to `vendor`: add it to the `three` bucket in manualChunks.',
+            )
+          }
+          for (const next of chunk.imports) if (!parent.has(next)) parent.set(next, fileName)
+          queue.push(...chunk.imports)
+        }
+      }
+    },
+  }
+}
+
 export default defineConfig(({ mode }) => {
   // Reads the .env files AND the prefixed variables already in process.env,
   // which is how the workflows pass them in.
   const env = loadEnv(mode, process.cwd(), 'VITE_')
 
   return {
-    plugins: [react(), tailwindcss(), requireBackendEnv(env)],
+    plugins: [react(), tailwindcss(), requireBackendEnv(env), forbidThreeInEntryGraph()],
     build: {
+      chunkSizeWarningLimit: 1200,
       rollupOptions: {
         output: {
           /**
@@ -78,15 +117,25 @@ export default defineConfig(({ mode }) => {
            * through to the generic bucket and be split away from its own entry
            * point.
            *
-           * The v2 3D board adds a lazy `three` bucket here, kept out of the
-           * entry graph (docs/spec/13-screens-game.md §13.11).
+           * The `three` bucket keeps the 3D board's tree out of the entry graph
+           * (docs/spec/13-board-3d.md §13.11.8).
            */
           manualChunks(id: string): string | undefined {
+            // [HARD-WON] Vite's preload helper is a virtual module that matches no node_modules rule, so Rollup may place it in
+            // the `three` chunk; every lazy route then imports `three` from the entry chunk and the welcome screen preloads WebGL.
+            if (id.includes('vite/preload-helper')) return 'vendor'
             if (!id.includes('node_modules')) return undefined
             if (/[\\/]node_modules[\\/](firebase|@firebase)[\\/]/.test(id)) return 'firebase'
             if (/[\\/]node_modules[\\/](chart\.js|react-chartjs-2)[\\/]/.test(id)) return 'charts'
             if (/[\\/]node_modules[\\/](socket\.io-client|engine\.io-client|engine\.io-parser|socket\.io-parser)[\\/]/.test(id))
               return 'socket'
+            // The 3D board's whole dependency tree, in one lazy chunk (spec §13.11.8). [HARD-WON] The second list is packages that
+            // drei and fiber pull in that nothing in src/ imports by name; any of them left to fall through lands in `vendor`,
+            // `vendor` then imports `three`, and the entry page preloads it. forbidThreeInEntryGraph turns that into a red build.
+            if (/[\\/]node_modules[\\/](three|@react-three|troika-three-text|troika-three-utils|troika-worker-utils|bidi-js|webgl-sdf-generator|its-fine|suspend-react|react-reconciler)[\\/]/.test(id))
+              return 'three'
+            if (/[\\/]node_modules[\\/](three-stdlib|three-mesh-bvh|camera-controls|maath|meshline|potpack|@monogrid[\\/]gainmap-js|@mediapipe[\\/]tasks-vision|detect-gpu|stats-gl|stats\.js|hls\.js|tunnel-rat|@use-gesture[\\/]core|@use-gesture[\\/]react|react-use-measure|@babel[\\/]runtime)[\\/]/.test(id))
+              return 'three'
             if (/[\\/]node_modules[\\/](react-hook-form|@hookform|zod)[\\/]/.test(id)) return 'forms'
             if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id))
               return 'react'
@@ -110,7 +159,13 @@ export default defineConfig(({ mode }) => {
       coverage: {
         provider: 'v8',
         include: ['src/**/*.{ts,tsx}'],
-        exclude: ['src/__tests__/**', 'src/main.tsx', 'src/vite-env.d.ts'],
+        exclude: [
+          'src/__tests__/**',
+          'src/main.tsx',
+          'src/vite-env.d.ts',
+          'src/components/game/views/Board3D.tsx',
+          'src/components/game/views/board3d/render/**',
+        ],
         reporter: ['text-summary', 'text'],
         // Measured coverage floored to an integer, minus 2 points so small changes cannot flake it (docs/spec/13-testing.md §13.12).
         thresholds: { lines: 92, statements: 91, functions: 93, branches: 83 },

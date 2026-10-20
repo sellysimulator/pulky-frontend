@@ -68,12 +68,32 @@ describe('src/ (criterion 3)', () => {
 })
 
 describe('raw colours (conventions §4)', () => {
-  it('no hex literal outside index.css and chartSetup.ts', () => {
-    const root = resolve(process.cwd(), 'src')
-    const offenders = listSources(root, root)
-      .filter((f) => f.path !== 'index.css' && f.path !== join('components', 'charts', 'chartSetup.ts'))
+  const allowed = [
+    'index.css',
+    join('components', 'charts', 'chartSetup.ts'),
+    join('components', 'game', 'views', 'board3d', 'scenePalette.ts'),
+  ]
+
+  /** The files outside the allowlist whose text contains a `#RRGGBB` literal. */
+  function findRawHex(files: SourceFile[]): string[] {
+    return files
+      .filter((f) => !allowed.includes(f.path))
       .filter((f) => /#[0-9a-fA-F]{6}\b/.test(f.text))
       .map((f) => f.path)
-    expect(offenders).toEqual([])
+  }
+
+  it('flags a hex literal in any file other than the three allowed paths', () => {
+    const hex = 'const c = "#1A2B3C"'
+    const files: SourceFile[] = [
+      { path: 'bad.tsx', text: hex },
+      { path: join('components', 'charts', 'other.ts'), text: hex },
+      ...allowed.map((path) => ({ path, text: hex })),
+    ]
+    expect(findRawHex(files)).toEqual(['bad.tsx', join('components', 'charts', 'other.ts')])
+  })
+
+  it('no hex literal outside index.css, chartSetup.ts and scenePalette.ts', () => {
+    const root = resolve(process.cwd(), 'src')
+    expect(findRawHex(listSources(root, root))).toEqual([])
   })
 })

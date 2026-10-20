@@ -48,6 +48,13 @@ interface TierRow {
   worstShared: number
 }
 
+interface CaseRow {
+  key: string
+  transport: string
+  breakEven: number
+  worst: number
+}
+
 /** A draft value that is mid-edit (empty) counts as 0 so nothing here ever shows NaN or Infinity. */
 function finite(value: number): number {
   return Number.isFinite(value) ? value : 0
@@ -180,23 +187,15 @@ export default function InsuranceCalculator({ config, onChange, readOnly, issues
         <StatTile label="Chance of at least one failure" value={formatPercent(chanceOfAtLeastOneFailure(p, days))} />
         <StatTile label="Expected failures" value={expectedFailures(p, days).toFixed(1)} />
       </div>
-      <DataTable
-        caption="Insurance tiers"
-        density="compact"
-        groups={[
-          { label: ' ', span: 2 },
-          { label: 'Not shared', span: 2 },
-          { label: sharedLabel, span: 2 },
-          { label: '​', span: 1 },
-          { label: 'Worst single failure', span: 2 },
-        ]}
-        columns={[
-          {
-            key: 'tier',
-            header: 'Tier',
-            render: (row: TierRow) => (
-              <span className="flex flex-col gap-1">
-              <span className="flex flex-wrap items-center gap-2">
+      {rows.map((row) => {
+        const cases: CaseRow[] = [
+          { key: 'solo', transport: 'Not shared', breakEven: row.solo, worst: row.worstSolo },
+          { key: 'shared', transport: sharedLabel, breakEven: row.shared, worst: row.worstShared },
+        ]
+        return (
+          <div key={row.tier} role="group" aria-label={row.name} className="flex flex-col gap-3 rounded-md border border-border p-4">
+            <div className="flex flex-col gap-1">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="font-semibold">{row.name}</span>
                 <Switch
                   checked={row.enabled}
@@ -206,17 +205,14 @@ export default function InsuranceCalculator({ config, onChange, readOnly, issues
                 />
                 <InfoButton entryKey={`insurance.tiers.${row.tier}.enabled`} config={config} />
                 {row.enabled ? null : <Badge tone="neutral">Not offered</Badge>}
-              </span>
+              </div>
               {messageFor(`insurance.tiers.${row.tier}.enabled`)}
-              </span>
-            ),
-          },
-          {
-            key: 'fee',
-            header: 'Fee per unit',
-            align: 'right',
-            render: (row: TierRow) => (
-              <span className="flex items-start justify-end gap-1">
+            </div>
+            <div className="flex flex-wrap items-end gap-x-8 gap-y-2">
+              <div className="flex items-start gap-2">
+                <span aria-hidden="true" className="pt-3 text-sm text-ink-muted">
+                  Fee per unit
+                </span>
                 <NumberField
                   label={docLabel(`insurance.tiers.${row.tier}.fee`)}
                   error={errorAt(`insurance.tiers.${row.tier}.fee`)}
@@ -230,61 +226,45 @@ export default function InsuranceCalculator({ config, onChange, readOnly, issues
                   onChange={(v) => onChange({ insurance: { tiers: { [row.tier]: { fee: v } } } })}
                 />
                 <InfoButton entryKey={`insurance.tiers.${row.tier}.fee`} config={config} />
-              </span>
-            ),
-          },
-          {
-            key: 'be-solo',
-            header: 'Break-even',
-            align: 'right',
-            render: (row) => <span className={dim(row)}>{formatMoney(row.solo)}</span>,
-          },
-          {
-            key: 'verdict-solo',
-            header: 'Verdict',
-            render: (row) => (
-              <span className={dim(row)}>
-                <Verdict fee={row.fee} breakEven={row.solo} />
-              </span>
-            ),
-          },
-          {
-            key: 'be-shared',
-            header: 'Break-even',
-            align: 'right',
-            render: (row) => <span className={dim(row)}>{formatMoney(row.shared)}</span>,
-          },
-          {
-            key: 'verdict-shared',
-            header: 'Verdict',
-            render: (row) => (
-              <span className={dim(row)}>
-                <Verdict fee={row.fee} breakEven={row.shared} />
-              </span>
-            ),
-          },
-          {
-            key: 'refund',
-            header: 'Refund per lost unit',
-            align: 'right',
-            render: (row) => <span className={dim(row)}>{formatMoney(row.refund)}</span>,
-          },
-          {
-            key: 'worst-solo',
-            header: 'Not shared',
-            align: 'right',
-            render: (row) => <span className={dim(row)}>{formatMoney(row.worstSolo)}</span>,
-          },
-          {
-            key: 'worst-shared',
-            header: sharedLabel,
-            align: 'right',
-            render: (row) => <span className={dim(row)}>{formatMoney(row.worstShared)}</span>,
-          },
-        ]}
-        rows={rows}
-        rowKey={(row) => row.tier}
-      />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-sm text-ink-muted">Refund per lost unit</span>
+                <span className={['font-semibold tabular-nums', dim(row)].join(' ')}>{formatMoney(row.refund)}</span>
+              </div>
+            </div>
+            <DataTable
+              caption={`${row.name} break-even`}
+              density="compact"
+              columns={[
+                { key: 'transport', header: 'Transport', render: (c: CaseRow) => <span className={dim(row)}>{c.transport}</span> },
+                {
+                  key: 'break-even',
+                  header: 'Break-even',
+                  align: 'right',
+                  render: (c) => <span className={dim(row)}>{formatMoney(c.breakEven)}</span>,
+                },
+                {
+                  key: 'verdict',
+                  header: 'Verdict',
+                  render: (c) => (
+                    <span className={dim(row)}>
+                      <Verdict fee={row.fee} breakEven={c.breakEven} />
+                    </span>
+                  ),
+                },
+                {
+                  key: 'worst',
+                  header: 'Worst single failure',
+                  align: 'right',
+                  render: (c) => <span className={dim(row)}>{formatMoney(c.worst)}</span>,
+                },
+              ]}
+              rows={cases}
+              rowKey={(c) => c.key}
+            />
+          </div>
+        )
+      })}
       <div className="flex flex-col gap-3">
         {outOfSync.map((text) => (
           <InlineAlert key={text} tone="warning">

@@ -1,5 +1,6 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import type { InternalAxiosRequestConfig } from 'axios'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type Listener = (...args: unknown[]) => void
@@ -73,6 +74,8 @@ vi.mock('firebase/auth', async (importOriginal) => ({
 
 import http from '../api/http'
 import { AuthProvider, useAuth } from '../auth/AuthContext'
+import { BackendStatusProvider } from '../contexts/BackendStatusContext'
+import mainSource from '../main.tsx?raw'
 import { useGameStore, INITIAL_STATE } from '../store/gameStore'
 import { getGuestMode } from '../utils/storage'
 
@@ -111,6 +114,7 @@ beforeEach(() => {
 
 afterEach(() => {
   http.defaults.adapter = originalAdapter
+  vi.unstubAllGlobals()
 })
 
 const user = (extra: object = {}) => ({
@@ -122,8 +126,35 @@ const user = (extra: object = {}) => ({
   ...extra,
 })
 
+function healthResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
+}
+
+function Providers({ children }: { children: ReactNode }) {
+  return (
+    <BackendStatusProvider pollMs={20}>
+      <AuthProvider>{children}</AuthProvider>
+    </BackendStatusProvider>
+  )
+}
+
+/** Lets the health probe's promise chain settle. */
+async function settle() {
+  await act(async () => {
+    for (let i = 0; i < 10; i += 1) await Promise.resolve()
+  })
+}
+
 function mount() {
-  return renderHook(() => useAuth(), { wrapper: AuthProvider })
+  return renderHook(() => useAuth(), { wrapper: Providers })
+}
+
+/** Mounts against an awake backend: the probe has answered ok before the test acts. */
+async function mountAwake() {
+  vi.stubGlobal('fetch', vi.fn(async () => healthResponse({ status: 'ok' })))
+  const mounted = mount()
+  await settle()
+  return mounted
 }
 
 describe('AuthProvider state', () => {
@@ -139,8 +170,8 @@ describe('AuthProvider state', () => {
     expect(h.lifecycle).not.toContain('connect')
   })
 
-  it('resolves signed out: not loading, mode null, and reconnects the socket', () => {
-    const { result } = mount()
+  it('resolves signed out: not loading, mode null, and reconnects the socket', async () => {
+    const { result } = await mountAwake()
     act(() => h.state.authCb?.(null))
     expect(result.current.loading).toBe(false)
     expect(result.current.mode).toBeNull()
@@ -148,8 +179,8 @@ describe('AuthProvider state', () => {
     expect(h.lifecycle).toEqual(['disconnect', 'connect'])
   })
 
-  it('resolves signed in: authenticated, with the three profile fields and nothing else', () => {
-    const { result } = mount()
+  it('resolves signed in: authenticated, with the three profile fields and nothing else', async () => {
+    const { result } = await mountAwake()
     act(() => h.state.authCb?.(user()))
     expect(result.current.loading).toBe(false)
     expect(result.current.mode).toBe('authenticated')
@@ -161,8 +192,8 @@ describe('AuthProvider state', () => {
     expect(h.lifecycle).toEqual(['disconnect', 'connect'])
   })
 
-  it('calls socket.disconnect().connect() on every later resolution too (identity changed)', () => {
-    const { result } = mount()
+  it('calls socket.disconnect().connect() on every later resolution too (identity changed)', async () => {
+    const { result } = await mountAwake()
     act(() => h.state.authCb?.(null))
     act(() => h.state.authCb?.(user()))
     expect(h.lifecycle).toEqual(['disconnect', 'connect', 'disconnect', 'connect'])
@@ -185,8 +216,8 @@ describe('AuthProvider state', () => {
 })
 
 describe('continueAsGuest', () => {
-  it('switches to guest mode, remembers it and reconnects the socket, without a Firebase event', () => {
-    const { result } = mount()
+  it('switches to guest mode, remembers it and reconnects the socket, without a Firebase event', async () => {
+    const { result } = await mountAwake()
     act(() => h.state.authCb?.(null))
     h.lifecycle.length = 0
     act(() => result.current.continueAsGuest())
@@ -194,6 +225,60 @@ describe('continueAsGuest', () => {
     expect(result.current.user).toBeNull()
     expect(getGuestMode()).toBe(true)
     expect(h.lifecycle).toEqual(['disconnect', 'connect'])
+  })
+})
+
+describe('socket connect waits for the awake backend (failure mode 16)', () => {
+  const alerts = () => useGameStore.getState().alerts
+
+  it('while the backend is waking, an auth resolution makes no connect and raises no alert; the first awake connects once', async () => {
+    let answer: unknown = null
+    vi.stubGlobal('fetch', vi.fn(async () => (answer ? healthResponse(answer) : Promise.reject(new TypeError('network')))))
+    mount()
+    await settle()
+    act(() => h.state.authCb?.(user()))
+    await settle()
+    expect(h.lifecycle).toEqual([])
+    expect(alerts()).toHaveLength(0)
+
+    answer = { status: 'ok' }
+    await waitFor(() => expect(h.lifecycle).toEqual(['disconnect', 'connect']))
+    await settle()
+    expect(h.lifecycle).toEqual(['disconnect', 'connect'])
+  })
+
+  it('continueAsGuest() while waking waits too, and several early triggers still connect once on awake', async () => {
+    let answer: unknown = null
+    vi.stubGlobal('fetch', vi.fn(async () => (answer ? healthResponse(answer) : Promise.reject(new TypeError('network')))))
+    const { result } = mount()
+    await settle()
+    act(() => h.state.authCb?.(null))
+    act(() => result.current.continueAsGuest())
+    await settle()
+    expect(h.lifecycle).toEqual([])
+
+    answer = { status: 'ok' }
+    await waitFor(() => expect(h.lifecycle).toContain('connect'))
+    await settle()
+    expect(h.lifecycle).toEqual(['disconnect', 'connect'])
+  })
+
+  it('once awake, a later continueAsGuest() reconnects once more, and a plain re-render adds nothing', async () => {
+    const { result, rerender } = await mountAwake()
+    expect(h.lifecycle).toEqual([])
+    act(() => h.state.authCb?.(null))
+    expect(h.lifecycle).toEqual(['disconnect', 'connect'])
+    act(() => result.current.continueAsGuest())
+    expect(h.lifecycle).toEqual(['disconnect', 'connect', 'disconnect', 'connect'])
+    rerender()
+    expect(h.lifecycle).toHaveLength(4)
+  })
+
+  it('main.tsx renders BackendStatusProvider outside AuthProvider, after the socketHandlers import', () => {
+    expect(mainSource.indexOf("import './api/socketHandlers'")).toBe(0)
+    expect(mainSource.indexOf('<BackendStatusProvider>')).toBeGreaterThan(-1)
+    expect(mainSource.indexOf('<BackendStatusProvider>')).toBeLessThan(mainSource.indexOf('<AuthProvider>'))
+    expect(mainSource.indexOf('</AuthProvider>')).toBeLessThan(mainSource.indexOf('</BackendStatusProvider>'))
   })
 })
 

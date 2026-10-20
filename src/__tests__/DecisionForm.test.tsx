@@ -165,6 +165,7 @@ const spot = () => input('Buy from Supplier')
 const futures = () => input('Futures')
 const submitBtn = () => screen.getByRole('button', { name: 'Submit day' })
 const setField = (el: HTMLElement, v: string | number) => fireEvent.change(el, { target: { value: String(v) } })
+const blur = (el: HTMLElement) => fireEvent.blur(el)
 
 const SHORT_TICK = /Buy the shortfall from other pulquerías/
 const SELL_TICK = /Offer units to other pulquerías/
@@ -462,6 +463,20 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
+  it('acceptance criterion 5: an invalid field never disables Submit day, but the cash still does, and the over-cash line stays live', async () => {
+    const user = userEvent.setup()
+    const { onSubmit } = renderForm({ view: makeView({ cash: 100 }) })
+    setField(futures(), '')
+    expect(submitBtn()).toBeDisabled()
+    expect(cardHas("Today's purchases cost")).toBe(true)
+    setField(spot(), '1')
+    setField(futures(), '')
+    expect(submitBtn()).toBeEnabled()
+    await user.click(submitBtn())
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByText(MSG_QTY)).toBeInTheDocument()
+  })
+
   it('the over-cash line is absent while the outlay fits', () => {
     renderForm()
     expect(cardHas("Today's purchases cost")).toBe(false)
@@ -569,35 +584,82 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
   })
 })
 
-describe('quantity validity (acceptance criterion 5)', () => {
+const RICH = makeView({ cash: 1e9 }) // an order of 10,000 units must not also be over the cash
+
+describe('quantity validity (acceptance criteria 5 and 16)', () => {
   it.each([
     ['an empty spot field', () => spot(), ''],
     ['a spot order above 9,999', () => spot(), '10000'],
     ['an empty futures field', () => futures(), ''],
     ['a futures order above 9,999', () => futures(), '10000'],
-  ])('%s shows the spec message and disables Submit day', (_name, field, value) => {
-    renderForm()
+  ])('%s shows the spec message once left, and Submit day stays enabled', (_name, field, value) => {
+    renderForm({ view: RICH })
     setField(field(), value)
+    blur(field())
     expect(screen.getAllByText(MSG_QTY).length).toBeGreaterThan(0)
     expect(described(field())).toContain(MSG_QTY)
-    expect(submitBtn()).toBeDisabled()
+    expect(field()).toHaveAttribute('aria-invalid', 'true')
+    expect(submitBtn()).toBeEnabled()
   })
 
-  it('clears the message and re-enables Submit day once the quantity is valid again', () => {
-    renderForm()
+  it('failure mode 16: emptying a quantity field that still has focus shows no message; leaving it shows the message', () => {
+    renderForm({ view: RICH })
+    act(() => spot().focus())
+    setField(spot(), '')
+    expect(screen.queryByText(MSG_QTY)).toBeNull()
+    expect(spot()).not.toHaveAttribute('aria-invalid')
+    act(() => spot().blur())
+    expect(screen.getByText(MSG_QTY)).toBeInTheDocument()
+    expect(spot()).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('leaving one field does not show the message of another untouched invalid field', () => {
+    renderForm({ view: RICH })
+    setField(spot(), '')
+    setField(futures(), '')
+    blur(spot())
+    expect(screen.getAllByText(MSG_QTY)).toHaveLength(1)
+    expect(futures()).not.toHaveAttribute('aria-invalid')
+  })
+
+  it('clears the message once the quantity is valid again', () => {
+    renderForm({ view: RICH })
     setField(spot(), '10000')
-    expect(submitBtn()).toBeDisabled()
+    blur(spot())
+    expect(screen.getByText(MSG_QTY)).toBeInTheDocument()
     setField(spot(), '50')
     expect(screen.queryByText(MSG_QTY)).toBeNull()
     expect(submitBtn()).toBeEnabled()
   })
 
-  it('does not call onSubmit while a quantity is invalid', async () => {
+  it('does not call onSubmit while a quantity is invalid; the press shows every message and focuses the first invalid field', async () => {
     const user = userEvent.setup()
-    const { onSubmit } = renderForm()
+    const { onSubmit } = renderForm({ view: RICH })
     setField(spot(), '')
+    setField(futures(), '10000')
+    expect(screen.queryByText(MSG_QTY)).toBeNull()
     await user.click(submitBtn())
     expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getAllByText(MSG_QTY)).toHaveLength(2)
+    expect(spot()).toHaveFocus()
+  })
+
+  it('a valid decision is still submitted by the press', async () => {
+    const user = userEvent.setup()
+    const { onSubmit } = renderForm({ view: RICH })
+    await user.click(submitBtn())
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  it('the touched fields and the press reset with a new day', async () => {
+    const user = userEvent.setup()
+    const { rerenderForm } = renderForm({ view: RICH })
+    setField(spot(), '')
+    await user.click(submitBtn())
+    expect(screen.getByText(MSG_QTY)).toBeInTheDocument()
+    rerenderForm({ initialDecision: makePrefill({ day: 6, order_spot: null as unknown as number }) })
+    expect(screen.queryByText(MSG_QTY)).toBeNull()
+    expect(spot()).not.toHaveAttribute('aria-invalid')
   })
 })
 

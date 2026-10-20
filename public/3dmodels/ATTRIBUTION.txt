@@ -1,0 +1,30 @@
+3D model credits — Pulky_Frontend
+
+The three models below are licensed CC-BY-4.0 (https://creativecommons.org/licenses/by/4.0/).
+Each .glb carries the same record in its own glTF `asset.extras`; never run a file through a
+tool that strips it. Every other object in the 3D pulquería is drawn from code and is Pulky's own.
+
+truck.glb
+  title: Low Poly Truck
+  author: Arifido._ (https://sketchfab.com/Arifido._)
+  license: CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+  source: https://sketchfab.com/3d-models/low-poly-truck-98826ebd44e2492298ac925461509216
+  changes: resized; materials merged into vertex colours when drawn
+
+money.glb
+  title: Low Poly Stack of Money
+  author: Courvois (https://sketchfab.com/CourvoisZ)
+  license: CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+  source: https://sketchfab.com/3d-models/low-poly-stack-of-money-632cf7dbc59a496283d1a6092dc6f9b0
+  changes: resized
+
+tree.glb
+  title: Arvore - Lowpoly Tree Cartoon
+  author: DioMartins (https://sketchfab.com/diodesign)
+  license: CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+  source: https://sketchfab.com/3d-models/arvore-lowpoly-tree-cartoon-87b3e575b98743d295fb8800cc81030a
+  changes: resized; materials merged into vertex colours when drawn
+
+Font used for the in-scene signs:
+  Figtree, by Erik Kennedy, licensed under the SIL Open Font License 1.1 (https://openfontlicense.org).
+  Shipped through the npm package @fontsource/figtree, whose LICENSE file carries the full text.
