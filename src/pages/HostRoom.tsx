@@ -6,6 +6,7 @@ import HostConsole from '../components/host/HostConsole'
 import PresentationMode from '../components/host/PresentationMode'
 import { selectHostHistories, selectPresentationData } from '../components/host/presentationData'
 import LobbyHost from '../components/lobby/LobbyHost'
+import ManualLink, { HOST_MANUAL_PATH } from '../components/manual/ManualLink'
 import AppHeader from '../components/shared/AppHeader'
 import { InlineAlert } from '../components/shared/AlertContainer'
 import LoadingSpinner from '../components/shared/LoadingSpinner'
@@ -97,7 +98,12 @@ export default function HostRoom(): ReactElement {
     body = <LoadingSpinner label="Opening the room" />
   }
 
-  const context = presenting ? null : <span className="font-mono text-sm tracking-widest text-ink-muted">{code}</span>
+  const context = presenting ? null : (
+    <>
+      <span className="font-mono text-sm tracking-widest text-ink-muted">{code}</span>
+      <ManualLink to={HOST_MANUAL_PATH} label="Host manual" />
+    </>
+  )
   const wide = (state === 'running' || state === 'finished') && hostView !== null ? 'max-w-console' : 'max-w-config'
 
   return (

@@ -8,6 +8,7 @@ import BoardViewToggle from '../components/game/views/BoardViewToggle'
 import { resolveBoardView, useBoardViewSupport, type BoardView } from '../components/game/views/boardView'
 import SceneLoading from '../components/game/views/SceneLoading'
 import LobbyPlayer from '../components/lobby/LobbyPlayer'
+import ManualLink, { PLAYER_MANUAL_PATH } from '../components/manual/ManualLink'
 import { InlineAlert } from '../components/shared/AlertContainer'
 import AppHeader from '../components/shared/AppHeader'
 import { PulqueriaChip } from '../components/shared/Badge'
@@ -118,6 +119,7 @@ export default function GameRoom(): ReactElement {
       <span className="font-mono text-sm tracking-widest text-ink-muted">{code}</span>
       {seated && myAlias !== null && name !== null ? <PulqueriaChip alias={myAlias} displayName={name} /> : null}
       {state === 'running' && seated ? <BoardViewToggle value={choice} support={support} onChange={choose} /> : null}
+      <ManualLink to={PLAYER_MANUAL_PATH} label="Player manual" />
     </>
   )
 

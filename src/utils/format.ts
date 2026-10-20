@@ -90,6 +90,14 @@ export const INCOTERM_TIER_NAMES = {
   ddp: 'DDP',
 } as const satisfies Record<IncotermTier, string>
 
+/** Spec §6.3: what each Incoterm means for the trip from the supplier to the cellar. */
+export const INCOTERM_TIER_MEANINGS: Record<IncotermTier, string> = {
+  exw: "EXW (Ex Works): you collect the pulque at the supplier's door and carry the risk of the whole trip.",
+  cip: 'CIP (Carriage and Insurance Paid): the supplier pays for the trip and insures it to your cellar.',
+  dap: 'DAP (Delivered at Place): the supplier carries the risk until the pulque reaches your cellar.',
+  ddp: 'DDP (Delivered Duty Paid): the supplier carries every cost and risk to your door.',
+}
+
 export const RISK_LABELS: Record<'safe' | 'at_risk' | 'likely', string> = {
   safe: 'Safe',
   at_risk: 'At risk',
