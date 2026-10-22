@@ -155,6 +155,21 @@ export function applyChartScale(rootPx: number): void {
   Chart.defaults.color = rootPx > 16 ? CHART_COLORS['ink-muted'] : CHART_COLORS['ink-subtle']
 }
 
+/**
+ * Chart.js 4's own `defaults.animation` (applyAnimationsDefaults). Animations.configure copies only the keys of
+ * this object into each animated property, so every one must stay: without `type`, colours get no interpolator.
+ */
+const CHARTJS_ANIMATION = {
+  delay: undefined,
+  duration: 1000,
+  easing: 'easeOutQuart',
+  fn: undefined,
+  from: undefined,
+  loop: undefined,
+  to: undefined,
+  type: undefined,
+} as const
+
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
     ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -184,7 +199,9 @@ export function registerCharts(): void {
   d.font.weight = 400
   d.borderColor = CHART_COLORS['border']
   d.maintainAspectRatio = false
-  d.animation = prefersReducedMotion() ? false : { duration: 250, easing: 'easeOutCubic' }
+  // Rebuilt whole, neither merged nor trimmed: one without `type` leaves colour animations with no interpolator
+  // (`this._fn is not a function`), and a merge after an earlier call's `false` starts from an empty object.
+  d.animation = prefersReducedMotion() ? false : { ...CHARTJS_ANIMATION, duration: 250, easing: 'easeOutCubic' }
 
   // The legend is DOM (design.md §7.18), so Chart.js never draws one.
   d.set('plugins.legend', { display: false })

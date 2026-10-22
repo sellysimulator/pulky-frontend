@@ -6,12 +6,19 @@
  */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { defaults as chartjsDefaults } from 'chart.js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 type ChartSetup = typeof import('../components/charts/chartSetup')
 type ChartJs = typeof import('chart.js')
 
-/** Fresh copies of both modules, so registry and defaults start untouched. */
+/** The keys of Chart.js's own `defaults.animation`, read before any test runs registerCharts. */
+const CHARTJS_ANIMATION_KEYS = Object.keys(chartjsDefaults.animation)
+
+/**
+ * A fresh chartSetup, whose load runs registerCharts again. Chart.js itself is not reloaded (resetModules skips
+ * node_modules), so its registry and defaults carry over from the tests before: registerCharts must reset them.
+ */
 async function fresh(): Promise<{ setup: ChartSetup; chartjs: ChartJs }> {
   vi.resetModules()
   const chartjs = await import('chart.js')
@@ -146,6 +153,54 @@ describe('MEASURE_STYLES (design.md §3.3)', () => {
   })
 })
 
+/** Runs `fn` with matchMedia answering prefers-reduced-motion: reduce, then puts setup.ts's polyfill back. */
+async function withReducedMotion(fn: () => unknown): Promise<void> {
+  const original = window.matchMedia
+  window.matchMedia = ((query: string) => ({
+    matches: query.includes('prefers-reduced-motion'),
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia
+  try {
+    await fn()
+  } finally {
+    window.matchMedia = original
+  }
+}
+
+/**
+ * Gives the bar of a real chart a new colour, which starts a colour animation, then destroys the chart mid-way, as
+ * an unmount does. jsdom has no canvas: a context that ignores every call, and BasicPlatform minus its animation: false.
+ */
+function destroyDuringColourAnimation({ BasicPlatform, Chart, animator }: ChartJs): void {
+  class AnimatedPlatform extends BasicPlatform {
+    updateConfig(): void {}
+  }
+  const canvas = { width: 300, height: 150, style: {} } as Record<string, unknown>
+  const ctx = new Proxy({ canvas } as Record<string | symbol, unknown>, {
+    get: (target, prop) => (prop in target ? target[prop] : () => ({ width: 0 })),
+    set: () => true,
+  })
+  canvas.getContext = () => ctx
+  const chart = new Chart(canvas as unknown as HTMLCanvasElement, {
+    type: 'bar',
+    platform: AnimatedPlatform,
+    data: { labels: ['1'], datasets: [{ data: [1], backgroundColor: '#000000' }] },
+  })
+  try {
+    chart.data.datasets[0].backgroundColor = '#ffffff'
+    chart.update()
+    chart.destroy()
+  } finally {
+    animator.remove(chart as never)
+  }
+}
+
 describe('registerCharts (criterion 6, design.md §9.1)', () => {
   it('is called once at module load: importing the module registers Chart.js with no explicit call', async () => {
     const { chartjs } = await fresh()
@@ -199,6 +254,38 @@ describe('registerCharts (criterion 6, design.md §9.1)', () => {
     expect(d.animation).toMatchObject({ duration: 250, easing: 'easeOutCubic' })
   })
 
+  it('keeps every animation key Chart.js reads, so colour animations have an interpolator', async () => {
+    const { setup, chartjs } = await fresh()
+    setup.registerCharts()
+    const { Animation, Chart } = chartjs
+    expect(CHARTJS_ANIMATION_KEYS).toEqual(expect.arrayContaining(['type', 'fn', 'from', 'to']))
+    for (const key of CHARTJS_ANIMATION_KEYS) expect(Object.keys(Chart.defaults.animation)).toContain(key)
+
+    // What Animations.configure keeps for a colour property: only the keys of Chart.defaults.animation.
+    const colors: Record<string, unknown> = { ...(Chart.defaults.animations.colors as object), duration: 250 }
+    const kept = Object.fromEntries(Object.keys(Chart.defaults.animation).map((k) => [k, colors[k]]))
+    const animation = new Animation(kept, { backgroundColor: '#000000' }, 'backgroundColor', '#ffffff')
+    // cancel() ticks once, the same path as Animator.stop in the crash.
+    expect(() => animation.cancel()).not.toThrow()
+  })
+
+  it('lets a real chart be destroyed while a colour animation runs (the unmount that sent 3D back to 2D)', async () => {
+    const { setup, chartjs } = await fresh()
+    setup.registerCharts()
+    expect(() => destroyDuringColourAnimation(chartjs)).not.toThrow()
+  })
+
+  it('rebuilds every animation key when reduced motion is turned off between two calls', async () => {
+    const { setup, chartjs } = await fresh()
+    await withReducedMotion(() => setup.registerCharts())
+    expect(chartjs.Chart.defaults.animation).toBe(false)
+    // Charts call registerCharts on every render, so a later call finds the `false` an earlier one left.
+    setup.registerCharts()
+    expect(() => destroyDuringColourAnimation(chartjs)).not.toThrow()
+    for (const key of CHARTJS_ANIMATION_KEYS) expect(Object.keys(chartjs.Chart.defaults.animation)).toContain(key)
+    expect(chartjs.Chart.defaults.animation).toMatchObject({ duration: 250, easing: 'easeOutCubic' })
+  })
+
   it('sets the axis, line, bar and pie defaults of design.md §9.1', async () => {
     const { setup, chartjs } = await fresh()
     setup.registerCharts()
@@ -219,24 +306,11 @@ describe('registerCharts (criterion 6, design.md §9.1)', () => {
   })
 
   it('turns animation off under prefers-reduced-motion', async () => {
-    const original = window.matchMedia
-    window.matchMedia = ((query: string) => ({
-      matches: query.includes('prefers-reduced-motion'),
-      media: query,
-      onchange: null,
-      addListener: () => {},
-      removeListener: () => {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      dispatchEvent: () => false,
-    })) as unknown as typeof window.matchMedia
-    try {
+    await withReducedMotion(async () => {
       const { setup, chartjs } = await fresh()
       setup.registerCharts()
       expect(chartjs.Chart.defaults.animation).toBe(false)
-    } finally {
-      window.matchMedia = original
-    }
+    })
   })
 })
 
