@@ -3,6 +3,7 @@ import { useState, type FormEvent, type ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { errorMessage } from '../api/http'
 import { createRoom, getRoomStatus } from '../api/rooms'
+import { ManualLinks } from '../components/manual/ManualLink'
 import AppHeader from '../components/shared/AppHeader'
 import { InlineAlert } from '../components/shared/AlertContainer'
 import Button from '../components/shared/Button'
@@ -136,6 +137,7 @@ export default function HomePage(): ReactElement {
       <main id="main" className="mx-auto flex w-full max-w-form flex-col gap-4 px-4 py-8 md:px-6">
         <JoinCard />
         <CreateCard />
+        <ManualLinks />
       </main>
     </>
   )

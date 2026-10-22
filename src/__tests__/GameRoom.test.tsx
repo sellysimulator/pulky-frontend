@@ -529,6 +529,14 @@ describe('GameRoom states (spec 13.7, 3.8)', () => {
     expect(screen.getByText('Don Agave')).toBeInTheDocument()
   })
 
+  it('the header links the player manual in a new tab, so the board and its draft stay put', () => {
+    seedRunning()
+    mount()
+    const link = screen.getByRole('link', { name: 'Player manual' })
+    expect(link).toHaveAttribute('href', '/player-manual')
+    expect(link).toHaveAttribute('target', '_blank')
+  })
+
   it('submitting sends submit_day for the room with the decision', () => {
     seedRunning()
     mount()

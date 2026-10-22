@@ -101,6 +101,13 @@ describe('layout', () => {
     expect(screen.getByRole('region', { name: 'Create a room' })).toBeInTheDocument()
   })
 
+  it('links both manuals', () => {
+    renderHome()
+    const nav = screen.getByRole('navigation', { name: 'Manuals' })
+    expect(within(nav).getByRole('link', { name: 'Player manual' })).toHaveAttribute('href', '/player-manual')
+    expect(within(nav).getByRole('link', { name: 'Host manual' })).toHaveAttribute('href', '/host-manual')
+  })
+
   it('Join is the primary action and Create room the secondary one', () => {
     renderHome()
     expect(within(screen.getByRole('region', { name: 'Join a room' })).getByRole('button', { name: 'Join' })).toHaveClass('bg-accent')

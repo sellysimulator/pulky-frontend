@@ -2,7 +2,7 @@
  * Section 22 — WelcomeScreen (design.md §8.1, spec §13.6 "Skip the welcome
  * screen when identity is known"). Acceptance criterion 7; failure modes 5, 6.
  */
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
@@ -75,6 +75,13 @@ describe('copy (section 3.4)', () => {
     renderAt()
     expect(screen.getByRole('button', { name: 'Continue with Google' })).toHaveClass('bg-accent')
     expect(screen.getByRole('button', { name: 'Play as guest' })).not.toHaveClass('bg-accent')
+  })
+
+  it('links both manuals, which need no sign-in', () => {
+    renderAt()
+    const nav = screen.getByRole('navigation', { name: 'Manuals' })
+    expect(within(nav).getByRole('link', { name: 'Player manual' })).toHaveAttribute('href', '/player-manual')
+    expect(within(nav).getByRole('link', { name: 'Host manual' })).toHaveAttribute('href', '/host-manual')
   })
 })
 

@@ -254,6 +254,13 @@ describe('HostRoom mount (acceptance 1, failure mode 7)', () => {
     mount()
     expect(screen.getAllByText(CODE).length).toBeGreaterThan(0)
   })
+
+  it('the header links the host manual in a new tab, so unsent settings stay put', () => {
+    mount()
+    const link = screen.getByRole('link', { name: 'Host manual' })
+    expect(link).toHaveAttribute('href', '/host-manual')
+    expect(link).toHaveAttribute('target', '_blank')
+  })
 })
 
 describe('HostRoom states (acceptance 1, 2)', () => {

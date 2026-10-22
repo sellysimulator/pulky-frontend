@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate, type Path } from 'react-router-dom'
 import { errorMessage } from '../api/http'
 import { useAuth } from '../auth/AuthContext'
 import { InlineAlert } from '../components/shared/AlertContainer'
+import { ManualLinks } from '../components/manual/ManualLink'
 import BrandMark from '../components/shared/BrandMark'
 import Button from '../components/shared/Button'
 import type { PageRoute } from '../routes/registry'
@@ -64,6 +65,7 @@ export default function WelcomeScreen(): ReactElement {
           </Button>
           {failure ? <InlineAlert tone="danger">{failure}</InlineAlert> : null}
         </div>
+        <ManualLinks />
       </div>
     </main>
   )
