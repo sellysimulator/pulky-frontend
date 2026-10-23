@@ -12,7 +12,7 @@ function columns(plans: IncotermTierPlan[]): Column<Shipment>[] {
     { key: 'lost', header: 'Lost', align: 'right', render: (s) => formatQty(s.lost) },
     {
       key: 'tier',
-      header: 'Tier',
+      header: 'Insurance',
       render: (s) => {
         const plan = plans.find((p) => p.tier === s.incoterm_tier)
         return (

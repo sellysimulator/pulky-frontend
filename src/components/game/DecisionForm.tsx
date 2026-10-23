@@ -1,7 +1,7 @@
 import { ClipboardList, Lock } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import { canAfford, isWholeCents, outlayEstimate, type DecisionDraft } from '../../game/estimates'
-import { LIMITS, type Decision, type IncotermTier, type PlayerView, type PublicConfig } from '../../types/game'
+import { LIMITS, type Decision, type DecidingView, type IncotermTier, type PlayerView, type PublicConfig } from '../../types/game'
 import { formatMoney, formatQty } from '../../utils/format'
 import Badge from '../shared/Badge'
 import SectionCard from '../shared/SectionCard'
@@ -16,7 +16,8 @@ import ShipSection from './ShipSection'
 interface DecisionFormProps {
   view: PlayerView
   config: PublicConfig
-  initialDecision: Decision
+  /** The server's prefill; null once the game is over. */
+  initialDecision: Decision | null
   locked: boolean
   onSubmit(decision: Decision): void
   lockedFooter?: ReactNode
@@ -85,7 +86,9 @@ function initialState(initial: Decision, view: PlayerView, config: PublicConfig)
   }
 }
 
-function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, lockedFooter }: DecisionFormProps): ReactElement {
+type DecisionFormBodyProps = Omit<DecisionFormProps, 'view' | 'initialDecision'> & { view: DecidingView; initialDecision: Decision }
+
+function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, lockedFooter }: DecisionFormBodyProps): ReactElement {
   const [state, setState] = useState<FormState>(() => initialState(initialDecision, view, config))
   const patch = (changes: Partial<FormState>): void => setState((s) => ({ ...s, ...changes }))
   const [touched, setTouched] = useState<ReadonlySet<FieldKey>>(() => new Set())
@@ -233,7 +236,13 @@ function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, loc
   )
 }
 
-/** Today's decision. The draft starts from the server's prefill and restarts when the prefill's day changes. */
-export default function DecisionForm(props: DecisionFormProps): ReactElement {
-  return <DecisionFormBody key={props.initialDecision.day} {...props} />
+const isDeciding = (view: PlayerView): view is DecidingView => view.order_windows !== null
+
+/**
+ * Today's decision. The draft starts from the server's prefill and restarts when the prefill's day changes. A finished
+ * game's view has no prefill and no order windows, and the form renders nothing.
+ */
+export default function DecisionForm({ view, initialDecision, ...rest }: DecisionFormProps): ReactElement | null {
+  if (initialDecision === null || !isDeciding(view)) return null
+  return <DecisionFormBody key={initialDecision.day} view={view} initialDecision={initialDecision} {...rest} />
 }

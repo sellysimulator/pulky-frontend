@@ -105,7 +105,7 @@ const BODY: ManualPageSpec[] = [
             'The lots you chose to conserve are conserved.',
             "Today's new futures are paid at the base price.",
             'The supplier ships the futures due today first, then splits what is left between the spot orders.',
-            "You pay for the spot units you were given, plus transport and your tier's fee.",
+            "You pay for the spot units you were given, plus transport and your insurance fee.",
             'The refrigeration may fail and destroy part of every shipment.',
             'Shipments arriving today become new lots in your cellar; insurance refunds are paid.',
             "Peer market: pulquerías the supplier left short buy from the others' sell offers.",
@@ -223,7 +223,7 @@ const BODY: ManualPageSpec[] = [
             ['Spoilage', 'Your cellar', 'Smaller orders, Conserve, selling'],
             ['Supplier disruption', 'The morning brief', 'Futures, stock on hand'],
             ['Short supply', 'Your recap', 'Futures, Equal Supply, Buy from Players'],
-            ['Refrigeration failure', 'Yesterday and your recap', 'An insured tier, shared transport'],
+            ['Refrigeration failure', 'Yesterday and your recap', 'Shipping insurance, shared transport'],
             ['Price swings', "Today's spot price", 'Futures'],
           ]}
         />
@@ -300,7 +300,7 @@ const BODY: ManualPageSpec[] = [
               lost shipping alone.
             </>,
             <>
-              <strong>You still pay transport</strong> on the lost units. Only an insured incoterm tier gives anything back.
+              <strong>You still pay transport</strong> on the lost units. Only shipping insurance gives anything back.
             </>,
             <>
               <strong>Where you see it.</strong> <strong>Refrigeration</strong> in Yesterday says whether it failed, and your
@@ -332,72 +332,73 @@ const BODY: ManualPageSpec[] = [
     ),
   },
   {
-    id: 'incoterms',
-    heading: 'Incoterm tiers',
+    id: 'insurance',
+    heading: 'Shipping insurance',
     content: (
       <>
         <p>
-          <strong>Incoterms</strong> are standard trade terms that say who pays for transport and who carries the risk of goods
-          on the way. Pulky borrows four of their names for the protection you can buy for a shipment.
+          A refrigeration failure can destroy part of a shipment. <strong>Shipping insurance</strong> is the protection you can
+          buy against it: the supplier refunds the units lost on the way.
         </p>
         <p>
-          Under <strong>Shipping Details (Incoterm)</strong> you choose one tier for <strong>today's shipment</strong>: the spot
+          Under <strong>Shipping insurance</strong> you choose one insurance for <strong>today's shipment</strong>: the spot
           units the supplier gives you today and any futures due to ship today.
         </p>
         <Table
-          caption="What each tier refunds for a unit lost in transit"
-          head={['Tier', 'A lost unit is refunded at']}
+          caption="What each insurance refunds for a unit lost in transit"
+          head={['Insurance', 'A lost unit is refunded at']}
           rows={[
-            ['EXW — you carry the risk', 'Nothing'],
-            ['CIP + blockchain — refund what you paid', 'What you paid'],
-            ['DAP + blockchain — refund at market price', 'The spot price on the arrival day'],
-            ['DDP + blockchain — refund at retail price', 'The retail price'],
+            ['No insurance — you carry the risk', 'Nothing'],
+            ['Paid-price insurance — refund what you paid', 'What you paid'],
+            ['Market-price insurance — refund at the arrival-day spot price', 'The spot price on the arrival day'],
+            ['Retail-price insurance — refund at the retail price', 'The retail price'],
           ]}
         />
       </>
     ),
   },
   {
-    id: 'incoterms-2',
-    heading: `Incoterm tiers${CONTINUED}`,
+    id: 'insurance-2',
+    heading: `Shipping insurance${CONTINUED}`,
     content: (
       <>
-        <p className="font-semibold">What the names mean</p>
+        <p className="font-semibold">What each one means</p>
         <Bullets items={INCOTERM_TIERS.map((tier) => INCOTERM_TIER_MEANINGS[tier])} />
         <p>
-          <strong>Blockchain tracking</strong> is why the supplier pays: the shipment's condition is on a shared record, so it
-          cannot dispute a loss. Under EXW there is no proof, and you absorb the loss.
+          <strong>Blockchain tracking</strong> is why the supplier pays: an insured shipment's condition is on a shared record,
+          so it cannot dispute a loss. With No insurance there is no proof, and you absorb the loss.
         </p>
       </>
     ),
   },
   {
-    id: 'incoterms-3',
-    heading: `Incoterm tiers${CONTINUED}`,
+    id: 'insurance-3',
+    heading: `Shipping insurance${CONTINUED}`,
     content: (
       <Bullets
         items={[
           <>
-            <strong>The fee</strong> is per unit shipped and shown on each tier card. You pay it on the shipping day whether or
-            not anything fails. EXW is free.
+            <strong>The fee</strong> is per unit shipped and shown on each insurance card. You pay it on the shipping day
+            whether or not anything fails. No insurance is free.
           </>,
           <>
-            <strong>The refund</strong> covers every lost unit at the tier's value, and is paid on the day the shipment arrives.
+            <strong>The refund</strong> covers every lost unit at the insurance's value, and is paid on the day the shipment
+            arrives.
           </>,
           <>
-            <strong>CIP</strong> refunds what you paid: today's spot price for spot units, the base price for futures units.{' '}
-            <strong>DAP</strong> refunds the spot price on the arrival day, so it swings with the market. <strong>DDP</strong>{' '}
-            refunds the retail price, which also covers the sale you lost.
+            <strong>Paid-price insurance</strong> refunds what you paid: today's spot price for spot units, the base price for
+            futures units. <strong>Market-price insurance</strong> refunds the spot price on the arrival day, so it swings with
+            the market. <strong>Retail-price insurance</strong> refunds the retail price, which also covers the sale you lost.
           </>,
-          'The host can switch CIP, DAP or DDP off. EXW is always there.',
-          "The info button on each card shows today's refund value and the fee for today's shipment. A shipment in transit keeps its tier's details.",
+          'The host can switch off Paid-price, Market-price or Retail-price insurance. No insurance is always there.',
+          "The info button on each card shows today's refund value and the fee for today's shipment. A shipment in transit keeps its insurance's details.",
         ]}
       />
     ),
   },
   {
-    id: 'incoterms-example',
-    heading: `Incoterm tiers${CONTINUED}`,
+    id: 'insurance-example',
+    heading: `Shipping insurance${CONTINUED}`,
     content: (
       <>
         <p>
@@ -405,18 +406,18 @@ const BODY: ManualPageSpec[] = [
           arrival day the spot price is $14.00, and the retail price is $30.00.
         </p>
         <Table
-          caption="Fee and refund for each tier in the example"
-          head={['Tier (fee per unit)', 'Fee paid', 'Refund']}
+          caption="Fee and refund for each insurance in the example"
+          head={['Insurance (fee per unit)', 'Fee paid', 'Refund']}
           rows={[
-            ['EXW (free)', '$0.00', '$0.00'],
-            ['CIP ($0.50)', '$20.00', '$104.00'],
-            ['DAP ($0.50)', '$20.00', '$112.00'],
-            ['DDP ($1.40)', '$56.00', '$240.00'],
+            ['No insurance (free)', '$0.00', '$0.00'],
+            ['Paid-price ($0.50)', '$20.00', '$104.00'],
+            ['Market-price ($0.50)', '$20.00', '$112.00'],
+            ['Retail-price ($1.40)', '$56.00', '$240.00'],
           ]}
         />
         <p>
           Had nothing failed, you would have paid the same fee and got nothing back: that is the price of the protection. With
-          shared transport your losses are smaller, so a tier pays back less for the same fee.
+          shared transport your losses are smaller, so insurance pays back less for the same fee.
         </p>
       </>
     ),
@@ -462,7 +463,7 @@ const BODY: ManualPageSpec[] = [
           </>,
           <>
             <strong>They travel like any order.</strong> Futures leave the supplier one lead time before their delivery day,
-            under the incoterm tier you choose that day, and pay transport and that tier's fee then.
+            under the shipping insurance you choose that day, and pay transport and that insurance's fee then.
           </>,
           <>
             <strong>The window closes.</strong> The countdown runs down to <em>"Last day to buy futures"</em>, then reads{' '}
@@ -553,7 +554,7 @@ const BODY: ManualPageSpec[] = [
             <strong>Futures</strong>: units at the base price, delivered on the day shown.
           </>,
           <>
-            <strong>Shipping Details (Incoterm)</strong>: one tier for today's shipment, each card with its fee per unit.
+            <strong>Shipping insurance</strong>: one insurance for today's shipment, each card with its fee per unit.
           </>,
         ]}
       />
@@ -601,11 +602,12 @@ const BODY: ManualPageSpec[] = [
             day.
           </>,
           <>
-            <strong>Units by age</strong>: your stock by age, with conserved units stacked apart.
+            <strong>The cellar chart</strong>: your stock with conserved units stacked apart, grouped by age, quality, risk tonight
+            or days left to sell; the buttons above it switch between them.
           </>,
           <>
             <strong>In transit</strong>: each shipment on its way, with the days it shipped and arrives, its units, the units lost
-            and its tier.
+            and its insurance.
           </>,
           <>
             <strong>Futures book</strong>: your open contracts.

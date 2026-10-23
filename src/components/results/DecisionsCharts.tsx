@@ -100,8 +100,8 @@ function TiersUsed({ view }: { view: ResultsView }): ReactElement {
   ]
   return (
     <ChartBox
-      title="Incoterm tiers used"
-      ariaLabel="Stacked horizontal bars of the days each pulquería shipped under each incoterm tier"
+      title="Insurance used"
+      ariaLabel="Stacked horizontal bars of the days each pulquería shipped under each shipping insurance"
       height={ROW_PX * players.length + EXTRA_PX}
       legend={
         <Legend
@@ -112,7 +112,7 @@ function TiersUsed({ view }: { view: ResultsView }): ReactElement {
           }))}
         />
       }
-      table={<DataTable caption="Incoterm tiers used" columns={columns} rows={players} rowKey={(p) => p.alias} density="compact" />}
+      table={<DataTable caption="Insurance used" columns={columns} rows={players} rowKey={(p) => p.alias} density="compact" />}
     >
       <Bar data={data} options={horizontal('Days')} />
     </ChartBox>

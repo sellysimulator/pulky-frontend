@@ -82,20 +82,20 @@ export function riskState(risk: number): 'safe' | 'at_risk' | 'likely' {
   return 'likely'
 }
 
-/** A tier's short name; its full label comes from the server's tier plan (spec §6.3). */
+/** A shipping insurance's name, for tables, legends and signs; its card label comes from the server's tier plan (spec §6.3). */
 export const INCOTERM_TIER_NAMES = {
-  exw: 'EXW',
-  cip: 'CIP',
-  dap: 'DAP',
-  ddp: 'DDP',
+  exw: 'No insurance',
+  cip: 'Paid-price insurance',
+  dap: 'Market-price insurance',
+  ddp: 'Retail-price insurance',
 } as const satisfies Record<IncotermTier, string>
 
-/** Spec §6.3: what each Incoterm means for the trip from the supplier to the cellar. */
+/** Spec §6.3: what each shipping insurance means for the trip from the supplier to the cellar. */
 export const INCOTERM_TIER_MEANINGS: Record<IncotermTier, string> = {
-  exw: "EXW (Ex Works): you collect the pulque at the supplier's door and carry the risk of the whole trip.",
-  cip: 'CIP (Carriage and Insurance Paid): the supplier pays for the trip and insures it to your cellar.',
-  dap: 'DAP (Delivered at Place): the supplier carries the risk until the pulque reaches your cellar.',
-  ddp: 'DDP (Delivered Duty Paid): the supplier carries every cost and risk to your door.',
+  exw: 'No insurance: you carry the risk of the whole trip, and a lost unit is gone.',
+  cip: 'Paid-price insurance: the supplier carries the risk of the trip and refunds a lost unit at what you paid for it.',
+  dap: 'Market-price insurance: the supplier carries the risk of the trip and refunds a lost unit at the spot price on the day the shipment arrives.',
+  ddp: 'Retail-price insurance: the supplier carries the risk of the trip and refunds a lost unit at the retail price, so it also covers the sale you lost.',
 }
 
 export const RISK_LABELS: Record<'safe' | 'at_risk' | 'likely', string> = {

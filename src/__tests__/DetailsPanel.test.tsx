@@ -476,11 +476,26 @@ describe('DetailsPanel contents', () => {
     expect(data).toContainEqual([-3, 0, -8])
   })
 
-  it('Equal supply votes: cooperators per day from the public history, plus the own vote', () => {
+  it('Equal supply votes: votes for and against stacked per day, and the own vote marked on its side', () => {
     details()
-    const data = sets('Equal supply votes')
-    expect(data).toContainEqual([2, 1, 3])
-    expect(data.length).toBeGreaterThanOrEqual(2)
+    expect(chartOf('Equal supply votes').data.datasets.map((d) => d.label)).toEqual([
+      'Voted for equal supply',
+      'Voted against',
+      'Your vote',
+    ])
+    expect(byLabel('Equal supply votes', 'Voted for equal supply')?.data).toEqual([2, 1, 3])
+    expect(byLabel('Equal supply votes', 'Voted against')?.data).toEqual([1, 2, 0])
+    // For on day 1 (middle of 2 for), against on day 2 (middle of 2 against above 1 for), for on day 3.
+    expect(byLabel('Equal supply votes', 'Your vote')?.data).toEqual([1, 2, 1.5])
+  })
+
+  it('Equal supply votes: a day nobody voted for still shows the against bar and the own vote', () => {
+    details({ ownHistory: [makeRecord(1, { cooperate: false })], publicHistory: [pubDay(1, 0, [0.5, 0.5, 0.5])] })
+    expect(byLabel('Equal supply votes', 'Voted for equal supply')?.data).toEqual([0])
+    expect(byLabel('Equal supply votes', 'Voted against')?.data).toEqual([3])
+    expect(byLabel('Equal supply votes', 'Your vote')?.data).toEqual([1.5])
+    const vote = within(tableOf('Equal supply votes')).getAllByRole('row')[1]
+    expect(vote.textContent).toContain('Against')
   })
 
   it('Costs per day carries the eight cost segments and the two revenue lines, in order', () => {

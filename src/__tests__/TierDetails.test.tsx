@@ -48,12 +48,20 @@ interface ViewOverrides {
   order_windows?: Record<string, unknown>
 }
 
+/** The server's card labels (spec §6.3), as `tier_plans` carries them. */
+const LABEL = {
+  exw: 'No insurance — you carry the risk',
+  cip: 'Paid-price insurance — refund what you paid',
+  dap: 'Market-price insurance — refund at the arrival-day spot price',
+  ddp: 'Retail-price insurance — refund at the retail price',
+}
+
 function makePlans(disabled: string[] = []) {
   const all = [
-    { tier: 'exw', label: 'EXW', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
-    { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
-    { tier: 'dap', label: 'DAP', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.55 },
-    { tier: 'ddp', label: 'DDP', enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 1.39 },
+    { tier: 'exw', label: LABEL.exw, enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
+    { tier: 'cip', label: LABEL.cip, enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
+    { tier: 'dap', label: LABEL.dap, enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.55 },
+    { tier: 'ddp', label: LABEL.ddp, enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 1.39 },
   ]
   return all.map((p) => (disabled.includes(p.tier) ? { ...p, enabled: false } : p))
 }
@@ -176,47 +184,49 @@ describe('tier options (acceptance criterion 7)', () => {
   it('offers one radio per enabled plan, labelled with the plan label', () => {
     renderForm()
     expect(screen.getAllByRole('radio')).toHaveLength(4)
-    for (const label of ['EXW', 'CIP', 'DAP', 'DDP']) expect(radio(label)).toBeInTheDocument()
+    for (const label of ['No insurance', 'Paid-price insurance', 'Market-price insurance', 'Retail-price insurance']) {
+      expect(radio(label)).toBeInTheDocument()
+    }
   })
 
   it('failure mode 7: a plan with enabled false is not offered as a radio', () => {
     renderForm({ view: makeView({ plans: makePlans(['ddp']) }) })
     expect(screen.getAllByRole('radio')).toHaveLength(3)
-    expect(screen.queryByRole('radio', { name: /^DDP/ })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'About DDP details' })).toBeNull()
-    expect(radio('EXW')).toBeInTheDocument()
-    expect(radio('CIP')).toBeInTheDocument()
-    expect(radio('DAP')).toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: /^Retail-price insurance/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: `About ${LABEL.ddp} details` })).toBeNull()
+    expect(radio('No insurance')).toBeInTheDocument()
+    expect(radio('Paid-price insurance')).toBeInTheDocument()
+    expect(radio('Market-price insurance')).toBeInTheDocument()
   })
 
-  it('failure mode 7: several disabled plans are all left out, and EXW alone is offered when only it is enabled', () => {
+  it('failure mode 7: several disabled plans are all left out, and No insurance alone is offered when only it is enabled', () => {
     renderForm({ view: makeView({ plans: makePlans(['cip', 'dap', 'ddp']) }) })
     expect(screen.getAllByRole('radio')).toHaveLength(1)
-    expect(radio('EXW')).toBeChecked()
+    expect(radio('No insurance')).toBeChecked()
   })
 
   it('each card shows its fee only; the refund is in its tooltip', () => {
     renderForm()
-    expect(optionText('EXW')).toBe(squash('EXWFee $0.00/unit'))
-    expect(optionText('CIP')).toBe(squash('CIPFee $0.55/unit'))
-    expect(optionText('DAP')).toBe(squash('DAPFee $0.55/unit'))
-    expect(optionText('DDP')).toBe(squash('DDPFee $1.39/unit'))
+    expect(optionText('No insurance')).toBe(squash(`${LABEL.exw}Fee $0.00/unit`))
+    expect(optionText('Paid-price insurance')).toBe(squash(`${LABEL.cip}Fee $0.55/unit`))
+    expect(optionText('Market-price insurance')).toBe(squash(`${LABEL.dap}Fee $0.55/unit`))
+    expect(optionText('Retail-price insurance')).toBe(squash(`${LABEL.ddp}Fee $1.39/unit`))
     expect(cardHas('Refund')).toBe(false)
   })
 
   it("takes the fee and the refund value from the view's plans, not from constants", () => {
     const plans = makePlans().map((p) => (p.tier === 'cip' ? { ...p, fee_per_unit: 0.6, refund_value_today: 14.25 } : p))
     renderForm({ view: makeView({ plans }) })
-    expect(optionText('CIP')).toContain(squash('Fee $0.60/unit'))
-    expect(tipText('CIP details')).toContain(squash('Refund per lost unit: $14.25'))
+    expect(optionText('Paid-price insurance')).toContain(squash('Fee $0.60/unit'))
+    expect(tipText(`${LABEL.cip} details`)).toContain(squash('Refund per lost unit: $14.25'))
   })
 
   it('selecting a card changes the tier that is submitted', async () => {
     const user = userEvent.setup()
     const { onSubmit } = renderForm()
-    await user.click(radio('DDP'))
-    expect(radio('DDP')).toBeChecked()
-    expect(radio('CIP')).not.toBeChecked()
+    await user.click(radio('Retail-price insurance'))
+    expect(radio('Retail-price insurance')).toBeChecked()
+    expect(radio('Paid-price insurance')).not.toBeChecked()
     await user.click(submitBtn())
     expect(onSubmit.mock.calls[0][0].incoterm_tier).toBe('ddp')
   })
@@ -224,10 +234,10 @@ describe('tier options (acceptance criterion 7)', () => {
   it('opening a tier tooltip does not select that tier', async () => {
     const user = userEvent.setup()
     renderForm()
-    await user.click(screen.getByRole('button', { name: 'About DDP details' }))
+    await user.click(screen.getByRole('button', { name: `About ${LABEL.ddp} details` }))
     expect(screen.getByRole('tooltip')).toBeInTheDocument()
-    expect(radio('CIP')).toBeChecked()
-    expect(radio('DDP')).not.toBeChecked()
+    expect(radio('Paid-price insurance')).toBeChecked()
+    expect(radio('Retail-price insurance')).not.toBeChecked()
   })
 
   it('no Plan details panel is left under the cards', () => {
@@ -243,19 +253,27 @@ describe('tier details tooltip (acceptance criterion 8)', () => {
     expect(screen.queryByRole('tooltip')).toBeNull()
   })
 
-  it('opens with what each Incoterm means', () => {
+  it('opens with what each insurance means', () => {
     renderForm()
-    expect(tipText('EXW details')).toContain(
-      squash("EXW (Ex Works): you collect the pulque at the supplier's door and carry the risk of the whole trip."),
+    expect(tipText(`${LABEL.exw} details`)).toContain(squash('No insurance: you carry the risk of the whole trip, and a lost unit is gone.'))
+    expect(tipText(`${LABEL.cip} details`)).toContain(
+      squash('Paid-price insurance: the supplier carries the risk of the trip and refunds a lost unit at what you paid for it.'),
     )
-    expect(tipText('CIP details')).toContain(squash('CIP (Carriage and Insurance Paid): the supplier pays for the trip and insures it to your cellar.'))
-    expect(tipText('DAP details')).toContain(squash('DAP (Delivered at Place): the supplier carries the risk until the pulque reaches your cellar.'))
-    expect(tipText('DDP details')).toContain(squash('DDP (Delivered Duty Paid): the supplier carries every cost and risk to your door.'))
+    expect(tipText(`${LABEL.dap} details`)).toContain(
+      squash(
+        'Market-price insurance: the supplier carries the risk of the trip and refunds a lost unit at the spot price on the day the shipment arrives.',
+      ),
+    )
+    expect(tipText(`${LABEL.ddp} details`)).toContain(
+      squash(
+        'Retail-price insurance: the supplier carries the risk of the trip and refunds a lost unit at the retail price, so it also covers the sale you lost.',
+      ),
+    )
   })
 
-  it("the Shipping Details row's tooltip explains blockchain tracking", () => {
+  it("the Shipping insurance row's tooltip explains blockchain tracking", () => {
     renderForm()
-    expect(tipText('Shipping Details (Incoterm)')).toContain(squash('so the supplier cannot dispute a loss'))
+    expect(tipText('Shipping insurance')).toContain(squash('so the supplier cannot dispute a loss'))
   })
 
   it('stacks the tier cards one per row, each the full width of the row', () => {
@@ -269,18 +287,18 @@ describe('tier details tooltip (acceptance criterion 8)', () => {
 
   it('names what each tier refunds, the refund per lost unit, the fee and the shipment estimate', () => {
     renderForm()
-    const exw = tipText('EXW details')
+    const exw = tipText(`${LABEL.exw} details`)
     expect(exw).toContain(squash('Refunds: Nothing: you carry the risk'))
     expect(exw).toContain(squash('Refund per lost unit: $0.00'))
     expect(exw).toContain(squash("Fee: $0.00/unit · ~$0.00 for today's shipment"))
-    const cip = tipText('CIP details')
+    const cip = tipText(`${LABEL.cip} details`)
     expect(cip).toContain(squash("Refunds: What you paid: today's spot price for spot units, the base price for futures units"))
     expect(cip).toContain(squash('Refund per lost unit: $13.40'))
     expect(cip).toContain(squash("Fee: $0.55/unit · ~$22.00 for today's shipment"))
-    const dap = tipText('DAP details')
+    const dap = tipText(`${LABEL.dap} details`)
     expect(dap).toContain(squash('Refunds: The spot price on the arrival day'))
     expect(dap).toContain(squash('Refund per lost unit: Set on the arrival day'))
-    const ddp = tipText('DDP details')
+    const ddp = tipText(`${LABEL.ddp} details`)
     expect(ddp).toContain(squash('Refunds: The retail price'))
     expect(ddp).toContain(squash('Refund per lost unit: $30.00'))
     expect(ddp).toContain(squash("Fee: $1.39/unit · ~$55.60 for today's shipment"))
@@ -292,21 +310,23 @@ describe('tier details tooltip (acceptance criterion 8)', () => {
       initialDecision: makePrefill({ order_futures: 500 }),
     })
     // 0.55 x (40 + 10); 500 new futures do not ship today
-    expect(tipText('CIP details')).toContain(squash("~$27.50 for today's shipment"))
-    expect(tipText('DDP details')).toContain(squash("~$69.50 for today's shipment"))
+    expect(tipText(`${LABEL.cip} details`)).toContain(squash("~$27.50 for today's shipment"))
+    expect(tipText(`${LABEL.ddp} details`)).toContain(squash("~$69.50 for today's shipment"))
     setField(spot(), 0)
     // shipmentMax = 10
-    expect(tipText('CIP details')).toContain(squash("~$5.50 for today's shipment"))
+    expect(tipText(`${LABEL.cip} details`)).toContain(squash("~$5.50 for today's shipment"))
   })
 
-  it("the Ship row's tooltip says DAP's refund swings with the market and CIP's is fixed", () => {
+  it("the Ship row's tooltip says Market-price insurance's refund swings with the market and Paid-price insurance's is fixed", () => {
     renderForm()
-    expect(tipText('Shipping Details (Incoterm)')).toContain(squash("DAP's refund swings with the market; CIP's is fixed at what you paid."))
+    expect(tipText('Shipping insurance')).toContain(
+      squash("Market-price insurance's refund swings with the market; Paid-price insurance's is fixed at what you paid."),
+    )
   })
 
   it('failure mode 6: shows no failure chance and no expected loss (no "%", "chance" or "probability")', () => {
     renderForm()
-    for (const name of ['Shipping Details (Incoterm)', 'EXW details', 'CIP details', 'DAP details', 'DDP details']) {
+    for (const name of ['Shipping insurance', ...Object.values(LABEL).map((label) => `${label} details`)]) {
       const text = tipText(name)
       // the tip is really rendered, so the assertions below cannot pass on an empty tip
       expect(text.length).toBeGreaterThan(10)
@@ -319,8 +339,8 @@ describe('tier details tooltip (acceptance criterion 8)', () => {
 
   it('stays available when the form is locked', () => {
     renderForm({ locked: true })
-    expect(screen.getByRole('button', { name: 'About CIP details' })).toBeEnabled()
-    expect(tipText('CIP details')).toContain(squash('Refund per lost unit: $13.40'))
+    expect(screen.getByRole('button', { name: `About ${LABEL.cip} details` })).toBeEnabled()
+    expect(tipText(`${LABEL.cip} details`)).toContain(squash('Refund per lost unit: $13.40'))
   })
 
   it('each in-transit shipment carries its tier tooltip, with the refund basis and no estimate for today', () => {
@@ -330,8 +350,8 @@ describe('tier details tooltip (acceptance criterion 8)', () => {
         plans={makePlans() as IncotermTierPlan[]}
       />,
     )
-    const text = tipText('DDP details')
-    expect(text).toContain(squash('DDP (Delivered Duty Paid)'))
+    const text = tipText(`${LABEL.ddp} details`)
+    expect(text).toContain(squash('Retail-price insurance: the supplier carries the risk of the trip'))
     expect(text).toContain(squash('Refunds: The retail price'))
     expect(text).not.toContain(squash("today's shipment"))
   })

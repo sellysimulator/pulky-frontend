@@ -452,7 +452,8 @@ export function buildSceneModel(props: BoardViewProps): SceneModel {
       `truck-${s.shipped_day}`,
       [
         s.arrives_day === view.day ? 'Arrives today' : `Arrives day ${s.arrives_day}`,
-        `${formatUnits(s.qty)} · ${INCOTERM_TIER_NAMES[s.incoterm_tier]}`,
+        formatUnits(s.qty),
+        INCOTERM_TIER_NAMES[s.incoterm_tier],
       ],
       SIGN_SIZE.row,
       'ink',

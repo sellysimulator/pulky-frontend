@@ -170,13 +170,13 @@ describe('the player manual', () => {
     expect(text()).toMatch(/hits every shipment sent that day/)
   })
 
-  it('explains every incoterm tier: its name, its meaning and its refund', () => {
+  it('explains every shipping insurance: its name, its meaning and its refund', () => {
     const body = text()
     for (const meaning of Object.values(INCOTERM_TIER_MEANINGS)) expect(body).toContain(meaning)
-    expect(body).toContain('EXW — you carry the risk')
-    expect(body).toContain('CIP + blockchain — refund what you paid')
-    expect(body).toContain('DAP + blockchain — refund at market price')
-    expect(body).toContain('DDP + blockchain — refund at retail price')
+    expect(body).toContain('No insurance — you carry the risk')
+    expect(body).toContain('Paid-price insurance — refund what you paid')
+    expect(body).toContain('Market-price insurance — refund at the arrival-day spot price')
+    expect(body).toContain('Retail-price insurance — refund at the retail price')
     expect(body).toMatch(/whether or not anything fails/)
   })
 
@@ -200,7 +200,7 @@ describe('the player manual', () => {
   it("names every section of the game screen and every row of today's decision", () => {
     const body = text()
     for (const name of ['Day stats', 'Yesterday', "Today's decision", 'Your cellar', 'Market', 'Details']) expect(body).toContain(name)
-    for (const row of ['Buy from Supplier', 'Buy from Players', 'Futures', 'Shipping Details (Incoterm)', 'Conserve', 'Sell to Players', 'Equal Supply', 'Submit day']) {
+    for (const row of ['Buy from Supplier', 'Buy from Players', 'Futures', 'Shipping insurance', 'Conserve', 'Sell to Players', 'Equal Supply', 'Submit day']) {
       expect(body).toContain(row)
     }
   })

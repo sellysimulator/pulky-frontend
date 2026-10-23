@@ -74,7 +74,8 @@ export default function GameRoom(): ReactElement {
   if (unseatedLobby || state === 'lobby' || state === 'configuring') {
     body = <LobbyPlayer roomCode={code} />
   } else if ((state === 'running' || state === 'finished') && current && playerView !== null && config !== null) {
-    const gameOver = state === 'finished'
+    // The finished view can land before `game_finished` does; it has no prefill and no order windows (spec §12.4).
+    const gameOver = state === 'finished' || playerView.phase === 'finished'
     const shown: BoardView = choice === '3D' && support.ok && !gameOver ? '3D' : '2D'
     const View = BOARD_VIEWS[shown]
     const boardProps: BoardViewProps = {

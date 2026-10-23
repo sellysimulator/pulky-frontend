@@ -23,7 +23,7 @@ const LEAF_ON = [
   'Cash',
   'Waste rate',
   'Fill rate',
-  'Last tier',
+  'Last insurance',
 ]
 const LEAF_OFF = LEAF_ON.filter((h) => h !== 'Bought' && h !== 'Sold')
 
@@ -167,9 +167,9 @@ describe('PlayersTable cells', () => {
     render(<PlayersTable hostView={view(true, DEFAULT_PLAYERS)} histories={histories()} />)
     expect(cell('Don Agave', 'Waste rate')).toHaveTextContent(/5(\.0)?%/)
     expect(cell('Don Agave', 'Fill rate')).toHaveTextContent(/90(\.0)?%/)
-    expect(cell('Don Agave', 'Last tier')).toHaveTextContent('CIP')
+    expect(cell('Don Agave', 'Last insurance')).toHaveTextContent('Paid-price insurance')
     expect(cell('La Chula', 'Fill rate').textContent?.trim()).toBe('—')
-    expect(cell('La Chula', 'Last tier').textContent?.trim()).toBe('—')
+    expect(cell('La Chula', 'Last insurance').textContent?.trim()).toBe('—')
   })
 
   it('marks a backlog above zero with the ClockAlert icon and only then', () => {

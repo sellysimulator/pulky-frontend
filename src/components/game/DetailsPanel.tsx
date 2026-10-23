@@ -145,22 +145,38 @@ function InventoryChart({ own }: { own: DayRecord[] }): ReactElement {
 }
 
 function CollaborationChart({ own, pub }: { own: DayRecord[]; pub: PublicDayResults[] }): ReactElement {
-  const cooperators = pub.map((p) => p.cooperators)
+  const yes = pub.map((p) => p.cooperators)
+  const no = pub.map((p) => Object.keys(p.players).length - p.cooperators)
   const players = pub.reduce((max, p) => Math.max(max, Object.keys(p.players).length), 0)
   const myVote = pub.map((p) => own.find((r) => r.day === p.day)?.cooperate ?? null)
+  // The marker sits in the middle of the segment the player voted for, whichever way they voted.
+  const marker = myVote.map((v, i) => (v === null ? null : v ? yes[i] / 2 : yes[i] + no[i] / 2))
   const data = {
     labels: dayLabels(pub),
     datasets: [
       {
         type: 'bar',
-        label: 'Pulquerías that voted for equal supply',
-        data: cooperators,
-        backgroundColor: pub.map((p) => (p.cooperation ? CHART_COLORS['series-sold'] : CHART_COLORS['border-strong'])),
+        label: 'Voted for equal supply',
+        data: yes,
+        backgroundColor: CHART_COLORS['series-sold'],
+        borderColor: CHART_COLORS['card'],
+        borderWidth: 1,
+        stack: 'votes',
+      },
+      {
+        type: 'bar',
+        label: 'Voted against',
+        data: no,
+        backgroundColor: CHART_COLORS['border-strong'],
+        borderColor: CHART_COLORS['card'],
+        borderWidth: 1,
+        stack: 'votes',
       },
       {
         type: 'line',
         label: 'Your vote',
-        data: pub.map((p, i) => (myVote[i] === true ? p.cooperators : null)),
+        data: marker,
+        stack: 'mine',
         showLine: false,
         borderColor: CHART_COLORS['ink'],
         backgroundColor: CHART_COLORS['ink'],
@@ -171,18 +187,29 @@ function CollaborationChart({ own, pub }: { own: DayRecord[]; pub: PublicDayResu
   } as unknown as ChartData<'bar'>
   const options: ChartOptions<'bar'> = {
     scales: {
-      x: { title: { display: true, text: 'Day' } },
-      y: { title: { display: true, text: `Pulquerías (of ${players})` }, suggestedMax: players },
+      x: { stacked: true, title: { display: true, text: 'Day' } },
+      y: { stacked: true, title: { display: true, text: `Pulquerías (of ${players})` }, suggestedMax: players },
+    },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          // The marker's height is only its place on the bar; the tooltip says the vote in words.
+          label: (item) =>
+            item.datasetIndex === 2
+              ? `Your vote: ${myVote[item.dataIndex] ? 'for' : 'against'}`
+              : `${item.dataset.label}: ${item.formattedValue}`,
+        },
+      },
     },
   }
   const yesNo = (v: number): string => (v > 0 ? 'Yes' : 'No')
   return (
     <Box
       title="Equal supply votes"
-      ariaLabel="Bars of how many pulquerías voted for equal supply each day, with your own vote marked"
+      ariaLabel="Stacked bars of how many pulquerías voted for and against equal supply each day, with your own vote marked on its side"
       legend={[
-        { key: 'agreed', label: 'Everyone agreed', swatch: { kind: 'fill', color: CHART_COLORS['series-sold'] } },
-        { key: 'not', label: 'Not everyone agreed', swatch: { kind: 'fill', color: CHART_COLORS['border-strong'] } },
+        { key: 'for', label: 'Voted for equal supply', swatch: { kind: 'fill', color: CHART_COLORS['series-sold'] } },
+        { key: 'against', label: 'Voted against', swatch: { kind: 'fill', color: CHART_COLORS['border-strong'] } },
         { key: 'vote', label: 'Your vote', swatch: { kind: 'line', color: CHART_COLORS['ink'], pointStyle: 'rectRot' } },
       ]}
       table={
@@ -190,9 +217,10 @@ function CollaborationChart({ own, pub }: { own: DayRecord[]; pub: PublicDayResu
           caption="Equal supply votes"
           days={days(pub)}
           series={[
-            { key: 'cooperators', label: 'Voted for equal supply', values: cooperators, format: (v) => `${v} of ${players}` },
+            { key: 'for', label: 'Voted for equal supply', values: yes, format: (v) => `${v} of ${players}` },
+            { key: 'against', label: 'Voted against', values: no, format: (v) => `${v} of ${players}` },
             { key: 'agreed', label: 'Everyone agreed', values: pub.map((p) => (p.cooperation ? 1 : 0)), format: yesNo },
-            { key: 'vote', label: 'Your vote', values: myVote.map((v) => (v === null ? null : v ? 1 : 0)), format: yesNo },
+            { key: 'vote', label: 'Your vote', values: myVote.map((v) => (v === null ? null : v ? 1 : 0)), format: (v) => (v > 0 ? 'For' : 'Against') },
           ]}
         />
       }

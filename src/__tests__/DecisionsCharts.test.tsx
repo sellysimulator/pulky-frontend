@@ -98,13 +98,13 @@ describe('Cooperation votes', () => {
   })
 })
 
-describe('Incoterm tiers used', () => {
-  it('plots the days under each tier, stacked', () => {
+describe('Insurance used', () => {
+  it('plots the days under each insurance, stacked', () => {
     renderDecisions()
-    const chart = chartInFigure('Incoterm tiers used')
+    const chart = chartInFigure('Insurance used')
     expect(chart.type).toBe('bar')
     expect(Object.values(chart.options.scales ?? {}).some((s) => (s as Dict).stacked === true)).toBe(true)
-    const series = dataOf('Incoterm tiers used').map(sorted)
+    const series = dataOf('Insurance used').map(sorted)
     expect(series).toContainEqual([1, 4, 5]) // exw
     expect(series).toContainEqual([0, 2, 5]) // cip
     expect(series).toContainEqual([2, 3, 6]) // dap

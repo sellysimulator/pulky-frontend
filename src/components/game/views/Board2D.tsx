@@ -16,7 +16,8 @@ export interface BoardViewProps {
   lastRecord: DayRecord | null
   locked: boolean
   gameOver: boolean
-  initialDecision: Decision
+  /** `view.prefill_decision`: null once the game is over. */
+  initialDecision: Decision | null
   config: PublicConfig
   participants: Participant[]
   awaiting: string[]

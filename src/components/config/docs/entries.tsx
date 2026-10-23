@@ -266,7 +266,7 @@ function tierRows(cfg: GameConfig, tier: InsuredTier): ReactNode {
 function tierFormula(): ReactNode {
   return (
     <Formula>
-      {'break-even fee = p × floor(u_ref × L_eff) ÷ u_ref × value(tier)\nL_eff = L (solo) or L ÷ N (shared); value = base price (CIP, DAP) or retail price (DDP)\nratio = fee ÷ break-even fee'}
+      {'break-even fee = p × floor(u_ref × L_eff) ÷ u_ref × value(tier)\nL_eff = L (solo) or L ÷ N (shared); value = base price (Paid-price, Market-price insurance) or retail price (Retail-price insurance)\nratio = fee ÷ break-even fee'}
     </Formula>
   )
 }
@@ -284,7 +284,7 @@ const INSURED_TIER_EFFECTS: Record<InsuredTier, string> = {
 function tierEntries(): Record<string, HelpEntry> {
   const out: Record<string, HelpEntry> = {}
   for (const tier of INSURED_TIERS) {
-    const name = `${INCOTERM_TIER_NAMES[tier]} + blockchain`
+    const name = INCOTERM_TIER_NAMES[tier]
     out[`insurance.tiers.${tier}.enabled`] = {
       label: `${name}: offered`,
       formula: tierFormula,
@@ -851,7 +851,7 @@ function build(): Record<string, HelpEntry> {
           <Example title="Fees from margin">
             <Table
               caption="Fees from margin"
-              head={['Tier', 'Break-even fee', 'Fee from margin']}
+              head={['Insurance', 'Break-even fee', 'Fee from margin']}
               rows={INSURED_TIERS.map((tier) => {
                 const be = breakEvenFee(tier, input)
                 return [INCOTERM_TIER_NAMES[tier], formatMoney(be), formatMoney(feeFromMargin(be, cfg.insurance.target_margin))]

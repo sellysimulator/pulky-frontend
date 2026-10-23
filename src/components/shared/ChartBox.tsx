@@ -7,13 +7,15 @@ interface ChartBoxProps {
   caption?: string
   ariaLabel: string
   height: number
+  /** A row under the title for choosing what the chart shows, such as a view toggle. */
+  controls?: ReactNode
   legend?: ReactNode
   table: ReactNode
   children: ReactNode
 }
 
 /** Every chart lives in a ChartBox with a table view of the same values (design.md §7.18, §9.4). */
-export default function ChartBox({ title, caption, ariaLabel, height, legend, table, children }: ChartBoxProps): ReactElement {
+export default function ChartBox({ title, caption, ariaLabel, height, controls, legend, table, children }: ChartBoxProps): ReactElement {
   const [showTable, setShowTable] = useState(false)
   const plotHeight = `${height / 16}rem`
   return (
@@ -34,6 +36,7 @@ export default function ChartBox({ title, caption, ariaLabel, height, legend, ta
           {showTable ? 'Show chart' : 'Show table'}
         </Button>
       </figcaption>
+      {controls ? <div className="print:hidden">{controls}</div> : null}
       {legend ? <div>{legend}</div> : null}
       {showTable ? (
         <div className="overflow-auto" style={{ maxHeight: plotHeight }}>

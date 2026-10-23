@@ -20,23 +20,23 @@ export default function ShipSection({ view, incoterm_tier, onChange, shipmentMax
   return (
     <FormRow
       icon={ShieldCheck}
-      label="Shipping Details (Incoterm)"
+      label="Shipping insurance"
       info={
-        <InfoTip label="Shipping Details (Incoterm)">
+        <InfoTip label="Shipping insurance">
           <span>
-            The tier insures today&apos;s shipment against a refrigeration failure. Its fee is paid on every unit shipped; units
-            lost are refunded on the arrival day.
+            The insurance covers today&apos;s shipment against a refrigeration failure. Its fee is paid on every unit shipped;
+            units lost are refunded on the arrival day.
           </span>
           <span>
-            With blockchain tracking (CIP, DAP, DDP) the shipment&apos;s condition is on a shared record, so the supplier cannot
-            dispute a loss.
+            An insured shipment has blockchain tracking: its condition is on a shared record, so the supplier cannot dispute a
+            loss.
           </span>
-          <span>DAP&apos;s refund swings with the market; CIP&apos;s is fixed at what you paid.</span>
+          <span>Market-price insurance&apos;s refund swings with the market; Paid-price insurance&apos;s is fixed at what you paid.</span>
         </InfoTip>
       }
     >
       <RadioCards
-        legend="Shipping Details (Incoterm)"
+        legend="Shipping insurance"
         hideLegend
         name="incoterm_tier"
         value={incoterm_tier}

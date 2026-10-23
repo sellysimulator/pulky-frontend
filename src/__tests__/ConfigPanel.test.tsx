@@ -594,7 +594,7 @@ describe('errors and warnings at their field (acceptance 4)', () => {
 describe('insurance issues and validate-request failure', () => {
   const FEE = 'insurance.tiers.cip.fee'
 
-  it('renders a validate warning at the CIP fee control and still sends', async () => {
+  it('renders a validate warning at the Paid-price insurance fee control and still sends', async () => {
     const warning = 'Far from break-even (ratio 6.00).'
     vi.mocked(validateConfig).mockResolvedValue({ ok: true, errors: [], warnings: [{ field: FEE, message: warning }] })
     await mount()
@@ -610,7 +610,7 @@ describe('insurance issues and validate-request failure', () => {
     })
   })
 
-  it('renders a validate error at the CIP fee control with aria-invalid and blocks sending', async () => {
+  it('renders a validate error at the Paid-price insurance fee control with aria-invalid and blocks sending', async () => {
     const message = 'Must be between 0 and 10,000.'
     vi.mocked(validateConfig).mockResolvedValue({ ok: false, errors: [{ field: FEE, message }], warnings: [] })
     await mount()

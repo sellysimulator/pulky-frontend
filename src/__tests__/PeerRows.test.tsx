@@ -50,10 +50,10 @@ interface ViewOverrides {
 
 function makePlans(disabled: string[] = []) {
   const all = [
-    { tier: 'exw', label: 'EXW', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
-    { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
-    { tier: 'dap', label: 'DAP', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.55 },
-    { tier: 'ddp', label: 'DDP', enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 1.39 },
+    { tier: 'exw', label: 'No insurance — you carry the risk', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
+    { tier: 'cip', label: 'Paid-price insurance — refund what you paid', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
+    { tier: 'dap', label: 'Market-price insurance — refund at the arrival-day spot price', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.55 },
+    { tier: 'ddp', label: 'Retail-price insurance — refund at the retail price', enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 1.39 },
   ]
   return all.map((p) => (disabled.includes(p.tier) ? { ...p, enabled: false } : p))
 }

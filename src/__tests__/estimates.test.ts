@@ -83,10 +83,10 @@ function makeView(o: Overrides = {}): PlayerView {
     cash: 6120,
     cumulative_profit: 0,
     tier_plans: [
-      { tier: 'exw', label: 'EXW', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
-      { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
-      { tier: 'dap', label: 'DAP', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.55 },
-      { tier: 'ddp', label: 'DDP', enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 1.39 },
+      { tier: 'exw', label: 'No insurance — you carry the risk', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
+      { tier: 'cip', label: 'Paid-price insurance — refund what you paid', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
+      { tier: 'dap', label: 'Market-price insurance — refund at the arrival-day spot price', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.55 },
+      { tier: 'ddp', label: 'Retail-price insurance — refund at the retail price', enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 1.39 },
     ],
     order_windows: {
       spot_open: true,
@@ -177,7 +177,7 @@ describe('outlayEstimate (acceptance criterion 3; spec 8.3)', () => {
     expect(e.shipmentMax).toBe(40)
   })
 
-  it('failure mode 1: 10 futures due today under CIP charge the fee but not the transport -> shipping 67.5', () => {
+  it('failure mode 1: 10 futures due today under Paid-price insurance charge the fee but not the transport -> shipping 67.5', () => {
     const e = outlayEstimate(MOCK, makeView({ futures_book: DUE_10 }), makeConfig())
     expect(e.shipmentMax).toBe(50)
     // 62 would mean the due units were ignored; 77.5 would mean transport was charged on them.
@@ -187,7 +187,7 @@ describe('outlayEstimate (acceptance criterion 3; spec 8.3)', () => {
     expect(e.total).toBeCloseTo(915.5, 9)
   })
 
-  it('failure mode 1: under EXW the futures due today add nothing to shipping (no fee, no transport)', () => {
+  it('failure mode 1: under No insurance the futures due today add nothing to shipping (no fee, no transport)', () => {
     const e = outlayEstimate(draft({ order_spot: 40, incoterm_tier: 'exw' }), makeView({ futures_book: DUE_10 }), makeConfig())
     expect(e.shipping).toBeCloseTo(40, 9)
   })

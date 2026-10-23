@@ -44,7 +44,6 @@ import {
 } from '../components/game/views/board3d/sceneModel'
 import type { SceneModel, SceneSign } from '../components/game/views/board3d/sceneModel'
 import {
-  INCOTERM_TIER_NAMES,
   RISK_LABELS,
   formatMoney,
   formatPercent,
@@ -247,9 +246,9 @@ describe('buildSceneModel: worked example F (§4)', () => {
     expectVec(m.trucks[0].position, [0, 0, -9.5])
     expect(m.trucks[0].rotationY).toBeCloseTo(0, 9)
     const main = sign(m, 'truck-4')
-    expect(main.rows).toEqual(['Arrives today', '40 units · CIP'])
-    expect(main.height).toBeCloseTo(0.78, 6)
-    expectVec(main.position, [0, 3.21, -9.5])
+    expect(main.rows).toEqual(['Arrives today', '40 units', 'Paid-price insurance'])
+    expect(main.height).toBeCloseTo(1.17, 6)
+    expectVec(main.position, [0, 3.405, -9.5])
     expect(main.position[1] - main.height / 2).toBeCloseTo(2.82, 6)
     const lost = sign(m, 'truck-4-lost')
     expect(lost.rows).toEqual(['15 lost in transit'])
@@ -681,15 +680,15 @@ describe('copy and zones (§3.3)', () => {
     ])
   })
 
-  it('truck signs: tier names, day text, lost count uses the quantity format', () => {
+  it('truck signs: insurance names, day text, lost count uses the quantity format', () => {
     const m = buildSceneModel(
       variant((p) => {
         p.view.in_transit = [shipment(6, 8, 1234, 1000, 'ddp'), shipment(4, 5, 7, 0, 'exw')]
       }),
     )
     expect(m.trucks.map((t) => t.shippedDay)).toEqual([4, 6])
-    expect(rowsOf(m, 'truck-4')).toEqual(['Arrives today', `7 units ${DOT} ${INCOTERM_TIER_NAMES.exw}`])
-    expect(rowsOf(m, 'truck-6')).toEqual(['Arrives day 8', `${formatUnits(1234)} ${DOT} DDP`])
+    expect(rowsOf(m, 'truck-4')).toEqual(['Arrives today', '7 units', 'No insurance'])
+    expect(rowsOf(m, 'truck-6')).toEqual(['Arrives day 8', formatUnits(1234), 'Retail-price insurance'])
     expect(rowsOf(m, 'truck-6-lost')).toEqual([`${formatQty(1000)} lost in transit`])
     expect(has(m, 'truck-4-lost')).toBe(false)
   })
@@ -775,7 +774,7 @@ describe('failure mode 5: a capped figure shown as the real one', () => {
 
   it('a truck sign carries the uncapped units and losses', () => {
     const m = buildSceneModel(variant((p) => void (p.view.in_transit = [shipment(7, 9, 99999, 99999, 'dap')])))
-    expect(rowsOf(m, 'truck-7')[1]).toBe(`99,999 units ${DOT} DAP`)
+    expect(rowsOf(m, 'truck-7').slice(1)).toEqual(['99,999 units', 'Market-price insurance'])
     expect(rowsOf(m, 'truck-7-lost')[0]).toBe('99,999 lost in transit')
   })
 
@@ -807,7 +806,7 @@ describe('failure mode 6: an absent thing is left out, not drawn', () => {
   it('lost 0: no lost sign', () => {
     const m = buildSceneModel(variant((p) => void (p.view.in_transit = [shipment(4, 5, 40, 0, 'cip')])))
     expect(ids(m).some((id) => id.endsWith('-lost'))).toBe(false)
-    expect(sign(m, 'truck-4').rows).toHaveLength(2)
+    expect(sign(m, 'truck-4').rows).toHaveLength(3)
   })
 
   it('backlog 0: no Backlog', () => {

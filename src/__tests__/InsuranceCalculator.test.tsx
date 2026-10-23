@@ -30,9 +30,15 @@ function mount(config: GameConfig, readOnly = false, issues?: Issues) {
 
 type Tier = 'CIP' | 'DAP' | 'DDP'
 
-/** The block of one tier (a group named after it). */
+const TIER_NAME: Record<Tier, string> = {
+  CIP: 'Paid-price insurance',
+  DAP: 'Market-price insurance',
+  DDP: 'Retail-price insurance',
+}
+
+/** The block of one tier (a group named after its insurance). */
 function blockFor(tier: Tier): HTMLElement {
-  return screen.getByRole('group', { name: tier })
+  return screen.getByRole('group', { name: TIER_NAME[tier] })
 }
 
 /** The cell texts of a tier's two table rows, Not shared first: Transport, Break-even, Verdict, Worst single failure. */
@@ -86,13 +92,17 @@ describe('layout and strings (acceptance 8, 12)', () => {
 describe('long rather than wide (acceptance 14, failure mode 12)', () => {
   it('has three blocks in the order CIP, DAP, DDP', () => {
     mount(cfg())
-    expect(screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual(['CIP', 'DAP', 'DDP'])
+    expect(screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual([
+      'Paid-price insurance',
+      'Market-price insurance',
+      'Retail-price insurance',
+    ])
   })
 
   it('gives each block a table with exactly four headers and no group header row', () => {
     mount(cfg())
     for (const t of ['CIP', 'DAP', 'DDP'] as const) {
-      const table = within(blockFor(t)).getByRole('table', { name: `${t} break-even` })
+      const table = within(blockFor(t)).getByRole('table', { name: `${TIER_NAME[t]} break-even` })
       expect(within(table).getAllByRole('columnheader').map((h) => h.textContent?.trim())).toEqual([
         'Transport',
         'Break-even',
@@ -224,14 +234,14 @@ describe('no risk configured (failure mode 2)', () => {
 describe('out-of-sync note (acceptance 8)', () => {
   it('names the tier, the ratio and the target to two decimals', () => {
     mount(cfg((c) => (c.insurance.tiers.cip.fee = 0.4738)))
-    expect(screen.getByText('CIP ratio 0.94 — target 1.10')).toBeInTheDocument()
-    expect(screen.queryByText(/DAP ratio/)).toBeNull()
-    expect(screen.queryByText(/DDP ratio/)).toBeNull()
+    expect(screen.getByText('Paid-price insurance ratio 0.94 — target 1.10')).toBeInTheDocument()
+    expect(screen.queryByText(/Market-price insurance ratio/)).toBeNull()
+    expect(screen.queryByText(/Retail-price insurance ratio/)).toBeNull()
   })
 
   it('sits above the Set fees from margin button', () => {
     mount(cfg((c) => (c.insurance.tiers.cip.fee = 0.4738)))
-    const note = screen.getByText('CIP ratio 0.94 — target 1.10')
+    const note = screen.getByText('Paid-price insurance ratio 0.94 — target 1.10')
     const button = screen.getByRole('button', { name: 'Set fees from margin' })
     expect(note.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
@@ -239,9 +249,9 @@ describe('out-of-sync note (acceptance 8)', () => {
   it('measures against the break-even of the current sharing mode', () => {
     // shared with 4: break-even CIP $0.084, fee 0.55 -> ratio 6.55; target 1 + 0.10
     mount(cfg((c) => (c.transport.shared = true)))
-    expect(screen.getByText('CIP ratio 6.55 — target 1.10')).toBeInTheDocument()
-    expect(screen.getByText('DAP ratio 6.55 — target 1.10')).toBeInTheDocument()
-    expect(screen.getByText('DDP ratio 6.62 — target 1.10')).toBeInTheDocument()
+    expect(screen.getByText('Paid-price insurance ratio 6.55 — target 1.10')).toBeInTheDocument()
+    expect(screen.getByText('Market-price insurance ratio 6.55 — target 1.10')).toBeInTheDocument()
+    expect(screen.getByText('Retail-price insurance ratio 6.62 — target 1.10')).toBeInTheDocument()
   })
 
   it('has no note for a disabled tier', () => {
@@ -251,7 +261,7 @@ describe('out-of-sync note (acceptance 8)', () => {
         c.insurance.tiers.dap.fee = 0.1
       }),
     )
-    expect(screen.queryByText(/DAP ratio/)).toBeNull()
+    expect(screen.queryByText(/Market-price insurance ratio/)).toBeNull()
   })
 })
 
@@ -338,7 +348,7 @@ describe('tier controls (plan 25 §3.5)', () => {
 
   it('are found by the DOCS labels, a switch and a fee per tier', () => {
     mount(cfg())
-    expect(DOCS['insurance.tiers.cip.fee'].label).toBe('CIP + blockchain: fee per unit')
+    expect(DOCS['insurance.tiers.cip.fee'].label).toBe('Paid-price insurance: fee per unit')
     for (const t of tiers) {
       expect(screen.getByRole('switch', { name: DOCS[`insurance.tiers.${t}.enabled`].label })).toBeInTheDocument()
       expect(screen.getByLabelText(DOCS[`insurance.tiers.${t}.fee`].label)).toBeInTheDocument()

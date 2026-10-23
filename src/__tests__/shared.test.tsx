@@ -645,6 +645,19 @@ describe('Switch', () => {
     expect(onChange).toHaveBeenCalledWith(false)
   })
 
+  it('the thumb sits 2px from the track edges on and off: the off outline is an inset ring, not a border', () => {
+    const { rerender } = render(<Switch checked={false} onChange={() => {}} label="Cooperate" />)
+    const track = () => screen.getByRole('switch').firstElementChild as HTMLElement
+    const thumb = () => track().firstElementChild as HTMLElement
+    expect(track()).toHaveClass('ring-1', 'ring-inset')
+    expect(track()).not.toHaveClass('border')
+    expect(thumb()).toHaveClass('top-0.5', 'left-0.5', 'size-5')
+    expect(thumb().className).not.toMatch(/translate-x/)
+    rerender(<Switch checked onChange={() => {}} label="Cooperate" />)
+    expect(track()).not.toHaveClass('border')
+    expect(thumb()).toHaveClass('top-0.5', 'left-0.5', 'size-5', 'translate-x-5')
+  })
+
   it('disabled does nothing', async () => {
     const onChange = vi.fn()
     render(<Switch checked={false} onChange={onChange} label="Cooperate" disabled />)

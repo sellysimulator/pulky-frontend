@@ -355,7 +355,7 @@ export function before(a: HTMLElement, b: HTMLElement): boolean {
 }
 
 /**
- * Section 27 - CellarPanel: LotTable, StockByAgeChart, InTransit, FuturesBook (spec 13.7, 3.5).
+ * Section 27 - CellarPanel: LotTable, CellarChart, InTransit, FuturesBook (spec 13.7, 3.5).
  * Acceptance criteria 6, 6a; failure modes 6, 13.
  */
 
@@ -460,7 +460,7 @@ function lines(label: unknown): string[] {
   return Array.isArray(label) ? label.map(String) : String(label).split('\n')
 }
 
-describe('StockByAgeChart', () => {
+describe('CellarChart by age', () => {
   it('is a ChartBox titled Units by age with plain and conserved stacked bars', () => {
     renderBoard({ view: makeView({ stock_by_age: AGES as never }) })
     const chart = chartOf('Units by age')
@@ -498,6 +498,83 @@ describe('StockByAgeChart', () => {
   })
 })
 
+// Day 5: L3 and L4 are plain on the ramp, L6 is plain and fresh, L5 is conserved.
+const LOTS = [
+  makeLot('L3', 12, 33, { last_day: 5 }),
+  makeLot('L4', 30, 57, { last_day: 6 }),
+  makeLot('L6', 4, 95, { last_day: 7 }),
+  makeLot('L5', 8, 100, { conserved: true, last_day: 9 }),
+]
+
+function grouped(view: string) {
+  renderBoard({ view: makeView({ cellar: LOTS, stock_by_age: AGES as never }) })
+  fireEvent.click(screen.getByRole('button', { name: view }))
+}
+
+describe('CellarChart views', () => {
+  it('starts on age and toggles one chart between age, quality, risk tonight and days left', () => {
+    renderBoard({ view: makeView({ cellar: LOTS, stock_by_age: AGES as never }) })
+    const group = screen.getByRole('group', { name: 'Group units by' })
+    expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['Age', 'Quality', 'Risk tonight', 'Days left'])
+    expect(within(group).getByRole('button', { name: 'Age' })).toHaveAttribute('aria-pressed', 'true')
+    for (const [button, title] of [
+      ['Quality', 'Units by quality'],
+      ['Risk tonight', 'Units by risk tonight'],
+      ['Days left', 'Units by days left'],
+      ['Age', 'Units by age'],
+    ]) {
+      fireEvent.click(within(group).getByRole('button', { name: button }))
+      expect(within(group).getByRole('button', { name: button })).toHaveAttribute('aria-pressed', 'true')
+      expect(chartOf(title).type).toBe('bar')
+    }
+    expect(screen.queryByText('Units by quality')).toBeNull()
+  })
+
+  it('quality: ten bands of ten points from the lots, plain and conserved stacked', () => {
+    grouped('Quality')
+    const chart = chartOf('Units by quality')
+    expect((chart.data.labels ?? []).map((l) => lines(l)[0])).toEqual([
+      '0–9%', '10–19%', '20–29%', '30–39%', '40–49%', '50–59%', '60–69%', '70–79%', '80–89%', '90–100%',
+    ])
+    expect(chart.data.datasets[0].data).toEqual([0, 0, 0, 12, 0, 30, 0, 0, 0, 4])
+    expect(chart.data.datasets[1].data).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 8])
+    expect(chart.options?.scales?.y?.stacked).toBe(true)
+  })
+
+  it('risk tonight: the same bands of 100 − quality', () => {
+    grouped('Risk tonight')
+    const chart = chartOf('Units by risk tonight')
+    expect(chart.data.datasets[0].data).toEqual([4, 0, 0, 0, 30, 0, 12, 0, 0, 0])
+    expect(chart.data.datasets[1].data).toEqual([8, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+  })
+
+  it('days left: one bar per day from today to the longest-lasting lot, each with its last day', () => {
+    grouped('Days left')
+    const chart = chartOf('Units by days left')
+    expect((chart.data.labels ?? []).map(lines)).toEqual([
+      ['1', 'day 5'],
+      ['2', 'day 6'],
+      ['3', 'day 7'],
+      ['4', 'day 8'],
+      ['5', 'day 9'],
+    ])
+    expect(chart.data.datasets[0].data).toEqual([12, 30, 4, 0, 0])
+    expect(chart.data.datasets[1].data).toEqual([0, 0, 0, 0, 8])
+  })
+
+  it('each grouped view has a table of the plotted bars', () => {
+    grouped('Days left')
+    const table = tableOf('Units by days left')
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((h) => h.textContent),
+    ).toEqual(['Days left', 'Plain', 'Conserved'])
+    const last = Array.from(rowOf(table, 'through day 9').querySelectorAll('td,th')).map((c) => c.textContent)
+    expect(last).toEqual(['5 (through day 9)', '0', '8'])
+  })
+})
+
 describe('InTransit and FuturesBook', () => {
   it('lists shipments with Day cells', () => {
     renderBoard({
@@ -510,10 +587,10 @@ describe('InTransit and FuturesBook', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((h) => h.textContent),
-    ).toEqual(['Shipped', 'Arrives', 'Units', 'Lost', 'Tier'])
+    ).toEqual(['Shipped', 'Arrives', 'Units', 'Lost', 'Insurance'])
     const cells = Array.from(within(table).getAllByRole('row')[1].querySelectorAll('td,th')).map((c) => c.textContent ?? '')
     expect(cells.slice(0, 4)).toEqual(['Day 4', 'Day 6', '40', '15'])
-    expect(cells[4]).toMatch(/cip/i)
+    expect(cells[4]).toMatch(/Paid-price insurance/)
     expect(screen.queryByText('Nothing in transit.')).toBeNull()
   })
 

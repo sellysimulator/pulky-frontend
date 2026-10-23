@@ -4,10 +4,10 @@ import type { PlayerView } from '../../types/game'
 import { formatQty } from '../../utils/format'
 import EmptyState from '../shared/EmptyState'
 import SectionCard from '../shared/SectionCard'
+import CellarChart from './CellarChart'
 import FuturesBook from './FuturesBook'
 import InTransit from './InTransit'
 import LotTable from './LotTable'
-import StockByAgeChart from './StockByAgeChart'
 
 export default function CellarPanel({ view }: { view: PlayerView }): ReactElement {
   const units = view.cellar.reduce((sum, lot) => sum + lot.qty, 0)
@@ -20,7 +20,7 @@ export default function CellarPanel({ view }: { view: PlayerView }): ReactElemen
         ) : (
           <LotTable lots={view.cellar} />
         )}
-        {view.stock_by_age.length > 0 ? <StockByAgeChart rows={view.stock_by_age} /> : null}
+        {view.stock_by_age.length > 0 ? <CellarChart view={view} /> : null}
         <InTransit shipments={view.in_transit} plans={view.tier_plans} />
         <FuturesBook contracts={view.futures_book} />
       </div>

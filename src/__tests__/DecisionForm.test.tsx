@@ -212,7 +212,7 @@ describe('layout (acceptance criterion 1)', () => {
       spot(),
       buyBox(),
       futures(),
-      screen.getByRole('group', { name: 'Shipping Details (Incoterm)' }),
+      screen.getByRole('group', { name: 'Shipping insurance' }),
       lotBox('L3'),
       lotBox('L4'),
       sellBox(),
@@ -227,7 +227,7 @@ describe('layout (acceptance criterion 1)', () => {
   it('every row with an explanation carries it in an info tooltip, closed at rest', () => {
     renderForm()
     expect(screen.queryByRole('tooltip')).toBeNull()
-    for (const name of ['Buy from Supplier', 'Buy from Players', 'Futures', 'Shipping Details (Incoterm)', 'Conserve', 'Sell to Players', 'Equal Supply']) {
+    for (const name of ['Buy from Supplier', 'Buy from Players', 'Futures', 'Shipping insurance', 'Conserve', 'Sell to Players', 'Equal Supply']) {
       expect(tipText(name).length).toBeGreaterThan(20)
     }
   })
@@ -241,7 +241,7 @@ describe('layout (acceptance criterion 1)', () => {
     expectDomOrder([
       spot(),
       futures(),
-      screen.getByRole('group', { name: 'Shipping Details (Incoterm)' }),
+      screen.getByRole('group', { name: 'Shipping insurance' }),
       lotBox('L3'),
       lotBox('L4'),
       screen.getByRole('switch', { name: 'Vote for equal supply' }),
@@ -315,6 +315,14 @@ describe('layout (acceptance criterion 1)', () => {
 })
 
 describe('state and prefill (acceptance criterion 2)', () => {
+  it('renders nothing for a finished view, which has no prefill and no order windows (spec 12.4)', () => {
+    const { container } = renderForm({
+      view: { ...makeView(), phase: 'finished', order_windows: null },
+      initialDecision: null,
+    })
+    expect(container).toBeEmptyDOMElement()
+  })
+
   it('on day 1 the zero decision shows zeros, EXW, no conserve ticks and both peer rows unticked', () => {
     renderForm({
       view: makeView({ day: 1 }),
@@ -850,9 +858,9 @@ describe('no abbreviations on the decision card (spec 13.7)', () => {
     expect(text).toContain('Fee $0.55/unit')
   })
 
-  it('uses the row names Buy from Supplier, Buy from Players, Shipping Details (Incoterm), Sell to Players and Equal Supply', () => {
+  it('uses the row names Buy from Supplier, Buy from Players, Shipping insurance, Sell to Players and Equal Supply', () => {
     renderForm()
-    for (const name of ['Buy from Supplier', 'Buy from Players', 'Shipping Details (Incoterm)', 'Sell to Players', 'Equal Supply']) {
+    for (const name of ['Buy from Supplier', 'Buy from Players', 'Shipping insurance', 'Sell to Players', 'Equal Supply']) {
       expect(within(card()).getAllByText(name).length).toBeGreaterThan(0)
     }
     for (const old of ['Spot', 'If short', 'Ship', 'Sell']) expect(within(card()).queryByText(old)).toBeNull()

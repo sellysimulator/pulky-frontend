@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  INCOTERM_TIER_MEANINGS,
+  INCOTERM_TIER_NAMES,
   QUALITY_GUIDE_NOTE,
   RISK_LABELS,
   formatMoney,
@@ -19,6 +21,23 @@ import {
 import type { Weekday } from '../types/game'
 
 const MINUS = '−'
+
+describe('shipping insurance names (spec 6.3)', () => {
+  it('names each tier by what its refund is worth', () => {
+    expect(INCOTERM_TIER_NAMES).toEqual({
+      exw: 'No insurance',
+      cip: 'Paid-price insurance',
+      dap: 'Market-price insurance',
+      ddp: 'Retail-price insurance',
+    })
+  })
+
+  it('no name or meaning uses an Incoterm abbreviation', () => {
+    for (const text of [...Object.values(INCOTERM_TIER_NAMES), ...Object.values(INCOTERM_TIER_MEANINGS)]) {
+      expect(text).not.toMatch(/\b(EXW|CIP|DAP|DDP)\b|incoterm/i)
+    }
+  })
+})
 
 describe('formatMoney', () => {
   it('always shows two decimals and thousands separators', () => {

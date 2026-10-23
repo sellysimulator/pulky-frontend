@@ -188,8 +188,8 @@ export function makeView(over: ViewOver = {}): PlayerView {
     cash: 6120,
     cumulative_profit: 0,
     tier_plans: [
-      { tier: 'exw', label: 'EXW', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
-      { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
+      { tier: 'exw', label: 'No insurance — you carry the risk', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
+      { tier: 'cip', label: 'Paid-price insurance — refund what you paid', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
     ],
     order_windows: {
       spot_open: true,

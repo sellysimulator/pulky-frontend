@@ -1,6 +1,6 @@
 import { FileClock, ShoppingCart, type LucideIcon } from 'lucide-react'
 import type { ReactElement, ReactNode } from 'react'
-import { LIMITS, WEEKDAYS, type PlayerView, type Weekday } from '../../types/game'
+import { LIMITS, WEEKDAYS, type DecidingView, type PlayerView, type Weekday } from '../../types/game'
 import { formatMoney, formatQty, weekdayLong } from '../../utils/format'
 import Badge from '../shared/Badge'
 import InfoTip from '../shared/InfoTip'
@@ -37,7 +37,7 @@ export function FormRow({ icon: Icon, label, info, children }: FormRowProps): Re
 
 interface OrderSectionProps {
   kind: 'spot' | 'futures'
-  view: PlayerView
+  view: DecidingView
   value: number | null
   onChange(value: number | null): void
   error?: string

@@ -94,7 +94,7 @@ export default function PlayersTable({ hostView, histories }: PlayersTableProps)
     { key: 'cash', header: 'Cash', align: 'right', render: (r) => formatMoney(r.player.cash) },
     { key: 'waste', header: 'Waste rate', align: 'right', render: (r) => formatPercent(r.player.waste_rate) },
     { key: 'fill', header: 'Fill rate', align: 'right', render: (r) => formatPercent(r.player.fill_rate) },
-    { key: 'tier', header: 'Last tier', render: (r) => (r.player.last_incoterm_tier === null ? DASH : INCOTERM_TIER_NAMES[r.player.last_incoterm_tier]) },
+    { key: 'tier', header: 'Last insurance', render: (r) => (r.player.last_incoterm_tier === null ? DASH : INCOTERM_TIER_NAMES[r.player.last_incoterm_tier]) },
   )
 
   const groups = [

@@ -582,6 +582,19 @@ describe('GameRoom at the end of the game (acceptance 1, 8, 9)', () => {
     expect(screen.queryByRole('button', { name: 'Submit day' })).toBeNull()
   })
 
+  it('ended early: the finished view lands before game_finished, so the form goes without a crash and the link follows', () => {
+    seedRunning()
+    mount()
+    expect(screen.getByRole('region', { name: "Today's decision" })).toBeInTheDocument()
+    const finishedView = makeView({ full: false, phase: 'finished', order_windows: null, prefill_decision: null })
+    act(() => useGameStore.getState().applyYourState({ ...finishedView, brief: null, seq: 49 }))
+    expect(screen.getByText('The game is over')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: "Today's decision" })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'See the results' })).toBeNull()
+    finish()
+    expect(screen.getByRole('link', { name: 'See the results' })).toHaveAttribute('href', '/results/g-77')
+  })
+
   it('links to the game by the id game_finished carries, before game_persisted and after it', () => {
     seedRunning()
     finish()

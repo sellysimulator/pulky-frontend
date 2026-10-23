@@ -251,8 +251,8 @@ const BODY: ManualPageSpec[] = [
         <p>What shipping costs, how often it fails, and the protection players can buy.</p>
         <Settings paths={SECTION_PATHS.transport} />
         <p>
-          Each insured tier (CIP, DAP and DDP) can be offered or not, and has a fee per unit shipped. EXW is always offered
-          and free. Fees reach players on their tier cards.
+          Paid-price, Market-price and Retail-price insurance can each be offered or not, and each has a fee per unit
+          shipped. No insurance is always offered and free. Fees reach players on their insurance cards.
         </p>
       </>
     ),
@@ -264,7 +264,7 @@ const BODY: ManualPageSpec[] = [
       <Bullets
         items={[
           <>
-            For each tier: your fee, its <strong>break-even fee</strong> (the fee at which the expected refund equals it), the
+            For each insurance: your fee, its <strong>break-even fee</strong> (the fee at which the expected refund equals it), the
             refund value and the worst single-failure loss on a typical shipment, not shared and shared side by side.
           </>,
           <>
@@ -284,7 +284,7 @@ const BODY: ManualPageSpec[] = [
       <>
         <Settings paths={['insurance.reference_shipment', 'insurance.target_margin']} />
         <p>
-          <strong>Set fees from margin</strong> sets every offered tier to its break-even fee plus your margin. Fees are
+          <strong>Set fees from margin</strong> sets every offered insurance to its break-even fee plus your margin. Fees are
           stored: they do not follow later changes, and an amber note shows when they have drifted. Press the button again to
           bring them back.
         </p>
@@ -307,8 +307,8 @@ const BODY: ManualPageSpec[] = [
           <>
             <strong>Felt, not shown</strong>: the rest reaches players through play. The morning brief carries the day count,
             demand, the week's multipliers, the base price, the lead time, the futures terms and shared transport; the cellar
-            each lot's quality, risk and last day; the ledger the holding cost, backlog penalty and salvage; the tier cards the
-            fees.
+            each lot's quality, risk and last day; the ledger the holding cost, backlog penalty and salvage; the insurance cards
+            the fees.
           </>,
           <>
             <strong>Never shown</strong>: the supplier's capacity (until the game ends), the spot price range, and the secret
@@ -361,7 +361,7 @@ const BODY: ManualPageSpec[] = [
             <>
               <strong>A row per pulquería</strong>: connection, submitted, stock, expected spoilage tonight, units in transit,
               open futures, backlog, reputation, market share, peer trades, profit, cash, waste and fill rates, and the last
-              tier used.
+              insurance used.
             </>,
             <>
               <strong>Market charts</strong>: market share, reputation, demand vs units sold, the spot price with its range,
@@ -430,7 +430,7 @@ const BODY: ManualPageSpec[] = [
               <strong>Ratios</strong>: fill and waste rates, reputation, market share, futures, insurance and peer trading.
             </>,
             <>
-              <strong>Decisions</strong>: votes, tiers, conserved lots, peer trades, and the spot price with failure and
+              <strong>Decisions</strong>: votes, insurance used, conserved lots, peer trades, and the spot price with failure and
               disruption days marked.
             </>,
           ]}

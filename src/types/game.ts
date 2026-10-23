@@ -7,8 +7,8 @@ export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
 /** Monday first: the order of the weekday index (spec §7.1) and of every weekday row. */
 export const WEEKDAYS: readonly Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 
-/** An Incoterm tier by its id: the per-shipment contract that decides whether, and at
- * what value, lost units are refunded (spec §6.3). The names only borrow Incoterms'. */
+/** A shipping insurance by its id: the per-shipment contract that decides whether, and at
+ * what value, lost units are refunded (spec §6.3). */
 export type IncotermTier = 'exw' | 'cip' | 'dap' | 'ddp'
 /** The tiers that refund lost units: the host can disable them and set their fees. */
 export type InsuredTier = Exclude<IncotermTier, 'exw'>
@@ -350,7 +350,7 @@ export interface Yesterday {
   revenue_peer: number
 }
 
-/** Spec §12.4 tier plan row, one per Incoterm tier (no refund range). */
+/** Spec §12.4 tier plan row, one per shipping insurance (no refund range). */
 export interface IncotermTierPlan {
   tier: IncotermTier
   label: string
@@ -438,12 +438,16 @@ export interface PlayerView {
   cash: number
   cumulative_profit: number
   tier_plans: IncotermTierPlan[]
-  order_windows: OrderWindows
-  prefill_decision: Decision
+  /** Null once the game is over, with `prefill_decision`: there is no day left to decide. */
+  order_windows: OrderWindows | null
+  prefill_decision: Decision | null
   own_history?: DayRecord[]
   public_history?: PublicDayResults[]
   final_settlement: FinalSettlement | null
 }
+
+/** A view with a day open for decisions: what the decision form reads. */
+export type DecidingView = PlayerView & { order_windows: OrderWindows }
 
 export interface LeaderboardRow {
   rank: number
