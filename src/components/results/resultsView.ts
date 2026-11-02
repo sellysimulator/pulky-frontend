@@ -1,4 +1,4 @@
-import type { GameFinishedPayload, GameStats, IncotermTier, ResultsResponse, Weekday } from '../../types/game'
+import type { GameFinishedPayload, GameStats, IncotermTier, PulqueFlow, ResultsResponse, Weekday } from '../../types/game'
 
 /** Spec §13.8, field for field. The peer fields are optional: a stored payload without them renders no peer segment, column or chart. */
 export interface PulqueriaResultView {
@@ -39,6 +39,7 @@ export interface PulqueriaResultView {
   revenue_peer?: number
   peer_net?: number
   incoterm_tier_days: Record<IncotermTier, number>
+  flow?: PulqueFlow
   series: {
     delivered: number[]
     peer_bought?: number[]
@@ -161,17 +162,44 @@ function pick(source: object, keys: readonly string[]): Record<string, unknown> 
   return out
 }
 
+const FLOW_KEYS = [
+  'initial_stock',
+  'initial_pipeline',
+  'shipped_spot',
+  'shipped_futures',
+  'lost_transport',
+  'in_transit_end',
+  'delivered',
+  'peer_bought',
+  'sold',
+  'peer_sold',
+  'spoiled',
+  'closing_stock',
+] as const
+
+/** The whole `flow` when it is an object with all twelve numeric keys; never faked, never partly copied. */
+function flowOf(source: unknown): PulqueFlow | undefined {
+  if (typeof source !== 'object' || source === null) return undefined
+  const record = source as Record<string, unknown>
+  if (!FLOW_KEYS.every((key) => typeof record[key] === 'number')) return undefined
+  return Object.fromEntries(FLOW_KEYS.map((key) => [key, record[key]])) as unknown as PulqueFlow
+}
+
 function normalise(
   stats: GameStats,
   head: Pick<ResultsView, 'game_id' | 'room_code' | 'days_played' | 'duration_days' | 'ended_early'>,
 ): ResultsView {
   const players = Object.values(stats.players)
     .sort((a, b) => a.rank - b.rank)
-    .map((p) => ({
-      ...pick(p, PLAYER_KEYS),
-      incoterm_tier_days: { ...p.incoterm_tier_days },
-      series: pick(p.series, SERIES_KEYS),
-    })) as unknown as PulqueriaResultView[]
+    .map((p) => {
+      const flow = flowOf((p as { flow?: unknown }).flow)
+      return {
+        ...pick(p, PLAYER_KEYS),
+        incoterm_tier_days: { ...p.incoterm_tier_days },
+        ...(flow ? { flow } : {}),
+        series: pick(p.series, SERIES_KEYS),
+      }
+    }) as unknown as PulqueriaResultView[]
   return {
     ...head,
     market: pick(stats.market.series, MARKET_KEYS) as unknown as ResultsView['market'],

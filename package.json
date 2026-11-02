@@ -21,6 +21,7 @@
     "@react-three/fiber": "^9.7.0",
     "axios": "^1.13.5",
     "chart.js": "^4.5.1",
+    "chartjs-chart-sankey": "0.19.1",
     "firebase": "^12.9.0",
     "lucide-react": "^1.47.0",
     "react": "~19.2.0",

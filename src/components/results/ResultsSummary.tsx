@@ -29,7 +29,7 @@ export default function ResultsSummary({ view, viewer, showActions, hostSecret }
         <DemandSupplyChart view={view} />
       </div>
       <div className="print:hidden">
-        <WherePulqueWent view={view} />
+        <WherePulqueWent view={view} myAlias={viewer.myAlias} />
       </div>
       <div className="print:break-inside-avoid">
         <RatioTable view={view} myAlias={viewer.myAlias} />

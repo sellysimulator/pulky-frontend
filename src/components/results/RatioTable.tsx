@@ -4,6 +4,7 @@ import DataTable, { type Column } from '../shared/DataTable'
 import { PulqueriaChip } from '../shared/Badge'
 import SectionCard from '../shared/SectionCard'
 import Tooltip from '../shared/Tooltip'
+import TradeoffChart from './TradeoffChart'
 import type { PulqueriaResultView, ResultsView } from './resultsView'
 
 const NULL_REASONS = {
@@ -53,6 +54,9 @@ export default function RatioTable({ view, myAlias = null }: { view: ResultsView
   ]
   return (
     <SectionCard title="4. Ratios">
+      <div className="print:hidden">
+        <TradeoffChart view={view} myAlias={myAlias} />
+      </div>
       <div className="print:text-sm">
         <DataTable
           caption="Ratios"

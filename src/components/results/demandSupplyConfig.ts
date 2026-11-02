@@ -69,7 +69,10 @@ export function buildDemandSupplyConfig(
 }
 
 /** Block 3: one stacked horizontal bar per pulquería, in rank order; a missing peer field adds no segment. */
-export function buildWherePulqueWentConfig(view: ResultsView): ChartConfiguration<'bar'> {
+export function buildWherePulqueWentConfig(
+  view: ResultsView,
+  scale: 'units' | 'percent' = 'units',
+): ChartConfiguration<'bar'> {
   const players = view.players
   const datasets: ChartConfiguration<'bar'>['data']['datasets'] = [
     {
@@ -102,10 +105,20 @@ export function buildWherePulqueWentConfig(view: ResultsView): ChartConfiguratio
       backgroundColor: MEASURE_STYLES.liquidated.color,
     },
   )
+  if (scale === 'percent') {
+    // Each pulquería's own total over the datasets present, so its values sum to 100.
+    const totals = players.map((_, i) => datasets.reduce((sum, d) => sum + (d.data[i] as number), 0))
+    for (const d of datasets) {
+      d.data = (d.data as number[]).map((value, i) => (totals[i] === 0 ? 0 : (100 * value) / totals[i]))
+    }
+  }
   const options = {
     indexAxis: 'y',
     scales: {
-      x: { stacked: true, title: { display: true, text: 'Units' } },
+      x:
+        scale === 'percent'
+          ? { stacked: true, max: 100, title: { display: true, text: "% of the pulquería's pulque" } }
+          : { stacked: true, title: { display: true, text: 'Units' } },
       y: { stacked: true },
     },
   } as ChartOptions<'bar'>

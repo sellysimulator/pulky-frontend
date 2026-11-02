@@ -1043,8 +1043,230 @@ describe('registerCharts registers the section 33 plugins (criterion 5)', () => 
     setup.registerCharts()
     const { registry } = chartjs.Chart
     for (const id of ['eventBands', 'crosshairSync', 'peakShading']) expect(() => registry.getPlugin(id), id).not.toThrow()
-    for (const id of ['radar', 'polarArea', 'scatter', 'bubble', 'sankey']) expect(() => registry.getController(id), id).toThrow()
+    for (const id of ['radar', 'polarArea', 'scatter', 'bubble']) expect(() => registry.getController(id), id).toThrow()
     for (const id of ['time', 'logarithmic', 'radialLinear']) expect(() => registry.getScale(id), id).toThrow()
     for (const id of ['legend', 'title', 'subtitle']) expect(() => registry.getPlugin(id), id).toThrow()
+  })
+})
+
+describe('section 35: INSURANCE_TIER_COLORS (criterion 10, failure mode 7)', () => {
+  it('holds the four solid steps of one hue, light to dark', async () => {
+    const { setup } = await fresh()
+    expect(setup.INSURANCE_TIER_COLORS).toEqual({ exw: '#86B6EF', cip: '#5598E7', dap: '#2A78D6', ddp: '#1C5CAB' })
+  })
+
+  it('has no alpha suffix on any tier (six-digit hex)', async () => {
+    const { setup } = await fresh()
+    for (const colour of Object.values(setup.INSURANCE_TIER_COLORS)) expect(colour).toMatch(/^#[0-9A-Fa-f]{6}$/)
+  })
+
+  it('is not part of CHART_COLORS: no key is named after a tier', async () => {
+    const { setup } = await fresh()
+    for (const tier of ['exw', 'cip', 'dap', 'ddp']) expect(Object.keys(setup.CHART_COLORS)).not.toContain(tier)
+  })
+})
+
+describe('section 35: registerCharts (criterion 11)', () => {
+  it('registers the Sankey controller and the Flow element, and the two new plugins', async () => {
+    const { setup, chartjs } = await fresh()
+    setup.registerCharts()
+    const { registry } = chartjs.Chart
+    expect(() => registry.getController('sankey')).not.toThrow()
+    expect(() => registry.getElement('flow')).not.toThrow()
+    for (const id of ['lineEndLabels', 'quadrantLabels']) expect(() => registry.getPlugin(id), id).not.toThrow()
+  })
+
+  it('still registers no bubble or scatter controller', async () => {
+    const { setup, chartjs } = await fresh()
+    setup.registerCharts()
+    for (const id of ['bubble', 'scatter']) expect(() => chartjs.Chart.registry.getController(id), id).toThrow()
+  })
+
+  it('names the plugins lineEndLabels and quadrantLabels', async () => {
+    const { setup } = await fresh()
+    expect(setup.lineEndLabelsPlugin.id).toBe('lineEndLabels')
+    expect(setup.quadrantLabelsPlugin.id).toBe('quadrantLabels')
+  })
+})
+
+describe('section 35: canvas plugins with a recording context', () => {
+  interface Rec {
+    fn: string
+    args: unknown[]
+    fillStyle: unknown
+    textAlign: unknown
+    textBaseline: unknown
+    font: unknown
+  }
+  function recorder() {
+    const calls: Rec[] = []
+    const state: Record<string, unknown> = { fillStyle: '', textAlign: 'start', textBaseline: 'alphabetic', font: '' }
+    const ctx = new Proxy(
+      {},
+      {
+        get(_t, prop: string) {
+          if (prop in state) return state[prop]
+          return (...args: unknown[]) => {
+            calls.push({ fn: prop, args, fillStyle: state.fillStyle, textAlign: state.textAlign, textBaseline: state.textBaseline, font: state.font })
+          }
+        },
+        set(_t, prop: string, value: unknown) {
+          state[prop] = value
+          return true
+        },
+      },
+    )
+    return { ctx, calls, texts: () => calls.filter((c) => c.fn === 'fillText') }
+  }
+  type Hook = (chart: unknown, args: unknown, options: unknown) => void
+
+  /** Datasets of `{ label, values, hidden }`; element i of a dataset sits at x = 100 + 50 i, y = 400 - value. */
+  function lineChart(
+    ctx: unknown,
+    datasets: Array<{ label: string; values: Array<number | null>; hidden?: boolean }>,
+    display: boolean | undefined,
+    bottom = 300,
+  ) {
+    const options = { plugins: { lineEndLabels: display === undefined ? {} : { display } } }
+    return {
+      ctx,
+      chartArea: { left: 100, right: 400, top: 20, bottom, width: 300, height: bottom - 20 },
+      scales: {
+        x: { getPixelForValue: (v: number) => 100 + 50 * v, getPixelForTick: (i: number) => 100 + 50 * i },
+        y: { getPixelForValue: (v: number) => 400 - v },
+      },
+      data: { datasets: datasets.map((d) => ({ label: d.label, data: d.values })) },
+      options,
+      width: 500,
+      height: 400,
+      isDatasetVisible: (i: number) => !datasets[i].hidden,
+      getDatasetMeta: (i: number) => ({
+        hidden: datasets[i].hidden ?? false,
+        data: datasets[i].values.map((v, k) => ({ x: 100 + 50 * k, y: v === null ? NaN : 400 - v, skip: v === null })),
+      }),
+    }
+  }
+  const runEndLabels = async (chart: ReturnType<typeof lineChart>) => {
+    const { setup } = await fresh()
+    const hook = setup.lineEndLabelsPlugin.afterDatasetsDraw as unknown as Hook
+    expect(hook).toBeTypeOf('function')
+    hook.call(setup.lineEndLabelsPlugin, chart, {}, chart.options.plugins.lineEndLabels)
+  }
+
+  it('lineEndLabels draws nothing unless display is true', async () => {
+    for (const display of [false, undefined]) {
+      const r = recorder()
+      await runEndLabels(lineChart(r.ctx, [{ label: 'A', values: [100, 150] }], display))
+      expect(r.texts(), String(display)).toHaveLength(0)
+    }
+  })
+
+  it('lineEndLabels writes each visible dataset\'s label 8px right of its last point, left/middle, 12px, ink-muted, inside save/restore', async () => {
+    const { setup } = await fresh()
+    const r = recorder()
+    await runEndLabels(lineChart(r.ctx, [
+      { label: 'A', values: [100, 150] },
+      { label: 'B', values: [50, 200], hidden: true },
+      { label: 'C', values: [10, 60] },
+    ], true, 380))
+    const texts = r.texts()
+    expect(texts.map((t) => t.args[0])).toEqual(['A', 'C'])
+    for (const t of texts) {
+      expect(t.args[1]).toBe(150 + 8)
+      expect(t.textAlign).toBe('left')
+      expect(t.textBaseline).toBe('middle')
+      expect(String(t.font)).toMatch(/12px/)
+      expect(norm(String(t.fillStyle))).toBe(norm(setup.CHART_COLORS['ink-muted']))
+    }
+    expect(texts[0].args[2]).toBe(400 - 150)
+    expect(texts[1].args[2]).toBe(400 - 60)
+    const names = r.calls.map((c) => c.fn)
+    expect(names[0]).toBe('save')
+    expect(names[names.length - 1]).toBe('restore')
+  })
+
+  it('lineEndLabels uses the last non-null point of a dataset', async () => {
+    const r = recorder()
+    await runEndLabels(lineChart(r.ctx, [{ label: 'A', values: [100, 130, null] }], true))
+    const t = r.texts()[0]
+    expect(t.args[1]).toBe(150 + 8)
+    expect(t.args[2]).toBe(400 - 130)
+  })
+
+  it('lineEndLabels pushes crowded labels apart by at least 14px, top to bottom by their points\' y', async () => {
+    const r = recorder()
+    // end points at y 150, 145, 140 (the highest value is the highest on screen)
+    await runEndLabels(lineChart(r.ctx, [
+      { label: 'low', values: [0, 250] },
+      { label: 'mid', values: [0, 255] },
+      { label: 'high', values: [0, 260] },
+    ], true))
+    const ys = Object.fromEntries(r.texts().map((t) => [t.args[0] as string, t.args[2] as number]))
+    expect(ys.mid - ys.high).toBeGreaterThanOrEqual(14 - 1e-9)
+    expect(ys.low - ys.mid).toBeGreaterThanOrEqual(14 - 1e-9)
+    expect(ys.high).toBeLessThanOrEqual(ys.mid)
+  })
+
+  it('lineEndLabels leaves an uncrowded label at its point', async () => {
+    const r = recorder()
+    await runEndLabels(lineChart(r.ctx, [
+      { label: 'A', values: [0, 200] },
+      { label: 'B', values: [0, 100] },
+    ], true))
+    const ys = Object.fromEntries(r.texts().map((t) => [t.args[0] as string, t.args[2] as number]))
+    expect(ys).toEqual({ A: 200, B: 300 })
+  })
+
+  it('lineEndLabels keeps every label inside the plot\'s bottom edge, pushing the lowest ones up with the 14px gaps kept', async () => {
+    const r = recorder()
+    await runEndLabels(lineChart(r.ctx, [
+      { label: 'a', values: [0, 105] }, // y 295
+      { label: 'b', values: [0, 102] }, // y 298
+      { label: 'c', values: [0, 100] }, // y 300 (the bottom edge)
+    ], true, 300))
+    const ys = Object.fromEntries(r.texts().map((t) => [t.args[0] as string, t.args[2] as number]))
+    for (const y of Object.values(ys)) expect(y).toBeLessThanOrEqual(300 + 1e-9)
+    expect(ys.b - ys.a).toBeGreaterThanOrEqual(14 - 1e-9)
+    expect(ys.c - ys.b).toBeGreaterThanOrEqual(14 - 1e-9)
+  })
+
+  describe('quadrantLabels', () => {
+    const labels = { topLeft: 'TL', topRight: 'TR', bottomLeft: 'BL', bottomRight: 'BR' }
+    async function runQuadrants(q: Record<string, string>) {
+      const { setup } = await fresh()
+      const r = recorder()
+      const chart = {
+        ctx: r.ctx,
+        chartArea: { left: 50, right: 450, top: 20, bottom: 220, width: 400, height: 200 },
+        options: { plugins: { quadrantLabels: q } },
+        width: 500,
+        height: 260,
+      }
+      const hook = setup.quadrantLabelsPlugin.afterDraw as unknown as Hook
+      expect(hook).toBeTypeOf('function')
+      hook.call(setup.quadrantLabelsPlugin, chart, {}, q)
+      return { r, setup }
+    }
+
+    it('writes each string 8px inside its corner with the right alignment, 12px ink-subtle, inside save/restore', async () => {
+      const { r, setup } = await runQuadrants(labels)
+      const by = Object.fromEntries(r.texts().map((t) => [t.args[0] as string, t]))
+      expect(by.TL).toMatchObject({ args: ['TL', 58, 28], textAlign: 'left', textBaseline: 'top' })
+      expect(by.TR).toMatchObject({ args: ['TR', 442, 28], textAlign: 'right', textBaseline: 'top' })
+      expect(by.BL).toMatchObject({ args: ['BL', 58, 212], textAlign: 'left', textBaseline: 'bottom' })
+      expect(by.BR).toMatchObject({ args: ['BR', 442, 212], textAlign: 'right', textBaseline: 'bottom' })
+      for (const t of r.texts()) {
+        expect(String(t.font)).toMatch(/12px/)
+        expect(norm(String(t.fillStyle))).toBe(norm(setup.CHART_COLORS['ink-subtle']))
+      }
+      const names = r.calls.map((c) => c.fn)
+      expect(names[0]).toBe('save')
+      expect(names[names.length - 1]).toBe('restore')
+    })
+
+    it('skips a missing string', async () => {
+      const { r } = await runQuadrants({ topLeft: 'TL', bottomRight: 'BR' })
+      expect(r.texts().map((t) => t.args[0])).toEqual(['TL', 'BR'])
+    })
   })
 })

@@ -508,6 +508,22 @@ export interface Participant {
 
 // ---------------------------------------------------------------- stats (section 10)
 
+/** Spec §8.6: one pulquería's pulque, from the supplier to where it ended. It balances by construction. */
+export interface PulqueFlow {
+  initial_stock: number
+  initial_pipeline: number
+  shipped_spot: number
+  shipped_futures: number
+  lost_transport: number
+  in_transit_end: number
+  delivered: number
+  peer_bought: number
+  sold: number
+  peer_sold: number
+  spoiled: number
+  closing_stock: number
+}
+
 export interface PlayerStats {
   alias: string
   display_name: string
@@ -560,6 +576,7 @@ export interface PlayerStats {
     cooperate: boolean[]
   }
   final_settlement: FinalSettlement
+  flow?: PulqueFlow
 }
 
 export interface MarketStats {

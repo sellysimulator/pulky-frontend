@@ -15,6 +15,8 @@ import {
   type ChartOptions,
   type Plugin,
 } from 'chart.js'
+import { Flow, SankeyController } from 'chartjs-chart-sankey'
+import type { IncotermTier } from '../../types/game'
 import { hasSecondChannel, slotIndex } from '../../styles/slots'
 
 /**
@@ -74,6 +76,14 @@ export const CHART_COLORS: Record<string, string> = {
   'series-backlog': '#D9622B',
   'series-lost': '#C9518A',
   'series-liquidated': '#A88400',
+}
+
+/** design.md §3.3: the shipping insurance tiers as solid steps of one hue, light to dark. They have no CSS token. */
+export const INSURANCE_TIER_COLORS: Record<IncotermTier, string> = {
+  exw: '#86B6EF',
+  cip: '#5598E7',
+  dap: '#2A78D6',
+  ddp: '#1C5CAB',
 }
 
 const FONT_FAMILY = '"Figtree", ui-sans-serif, system-ui, sans-serif'
@@ -270,6 +280,82 @@ export function pulqueriaLine(alias: string, emphasis: Emphasis): PulqueriaLineS
   }
 }
 
+// ── Line end labels and quadrant labels ──
+
+const LABEL_GAP_PX = 14
+const LABEL_OFFSET_PX = 8
+const LABEL_FONT_PX = 12
+
+/** Names each line at its last point, spread so the labels never overlap or leave the plot. */
+export const lineEndLabelsPlugin: Plugin = {
+  id: 'lineEndLabels',
+  afterDatasetsDraw(chart, _args, pluginOptions) {
+    const fromChart = (chartPlugins(chart)?.['lineEndLabels'] as { display?: boolean } | undefined)?.display
+    const display = (pluginOptions as { display?: boolean } | undefined)?.display ?? fromChart
+    if (display !== true) return
+    const { ctx, chartArea: area } = chart
+    const ends: { label: string; x: number; y: number }[] = []
+    chart.data.datasets.forEach((dataset, datasetIndex) => {
+      if (!chart.isDatasetVisible(datasetIndex)) return
+      const data = dataset.data as unknown[]
+      let last = data.length - 1
+      while (last >= 0 && (data[last] === null || data[last] === undefined)) last -= 1
+      if (last < 0) return
+      const point = chart.getDatasetMeta(datasetIndex).data[last]
+      if (!point) return
+      ends.push({ label: dataset.label ?? '', x: point.x, y: point.y })
+    })
+    ends.sort((a, b) => a.y - b.y)
+    for (let i = 1; i < ends.length; i += 1) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + LABEL_GAP_PX)
+    const overflow = ends.length > 0 ? ends[ends.length - 1].y - area.bottom : 0
+    if (overflow > 0) {
+      ends[ends.length - 1].y = area.bottom
+      for (let i = ends.length - 2; i >= 0; i -= 1) ends[i].y = Math.min(ends[i].y, ends[i + 1].y - LABEL_GAP_PX)
+    }
+    ctx.save()
+    ctx.font = `${LABEL_FONT_PX}px ${FONT_FAMILY}`
+    ctx.fillStyle = CHART_COLORS['ink-muted']
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'middle'
+    for (const end of ends) ctx.fillText(end.label, end.x + LABEL_OFFSET_PX, end.y)
+    ctx.restore()
+  },
+}
+
+interface QuadrantLabels {
+  topLeft?: string
+  topRight?: string
+  bottomLeft?: string
+  bottomRight?: string
+}
+
+/** Names the four corners of the plot (design.md §9). Reads `plugins.quadrantLabels`. */
+export const quadrantLabelsPlugin: Plugin = {
+  id: 'quadrantLabels',
+  afterDraw(chart, _args, pluginOptions) {
+    const fromChart = chartPlugins(chart)?.['quadrantLabels'] as QuadrantLabels | undefined
+    const labels = (pluginOptions as QuadrantLabels | undefined) ?? fromChart
+    if (!labels || typeof labels !== 'object') return
+    const { ctx, chartArea: a } = chart
+    const corners: { text: string | undefined; x: number; y: number; align: CanvasTextAlign; baseline: CanvasTextBaseline }[] = [
+      { text: labels.topLeft, x: a.left + LABEL_OFFSET_PX, y: a.top + LABEL_OFFSET_PX, align: 'left', baseline: 'top' },
+      { text: labels.topRight, x: a.right - LABEL_OFFSET_PX, y: a.top + LABEL_OFFSET_PX, align: 'right', baseline: 'top' },
+      { text: labels.bottomLeft, x: a.left + LABEL_OFFSET_PX, y: a.bottom - LABEL_OFFSET_PX, align: 'left', baseline: 'bottom' },
+      { text: labels.bottomRight, x: a.right - LABEL_OFFSET_PX, y: a.bottom - LABEL_OFFSET_PX, align: 'right', baseline: 'bottom' },
+    ]
+    ctx.save()
+    ctx.font = `${LABEL_FONT_PX}px ${FONT_FAMILY}`
+    ctx.fillStyle = CHART_COLORS['ink-subtle']
+    for (const c of corners) {
+      if (!c.text) continue
+      ctx.textAlign = c.align
+      ctx.textBaseline = c.baseline
+      ctx.fillText(c.text, c.x, c.y)
+    }
+    ctx.restore()
+  },
+}
+
 // ── Crosshair (design.md §9.5) ──
 
 interface CrosshairState {
@@ -429,6 +515,10 @@ export function registerCharts(): void {
     peakShadingPlugin,
     eventBandsPlugin,
     crosshairSyncPlugin,
+    SankeyController,
+    Flow,
+    lineEndLabelsPlugin,
+    quadrantLabelsPlugin,
   )
 
   const d = Chart.defaults

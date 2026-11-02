@@ -126,7 +126,7 @@ export default defineConfig(({ mode }) => {
             if (id.includes('vite/preload-helper')) return 'vendor'
             if (!id.includes('node_modules')) return undefined
             if (/[\\/]node_modules[\\/](firebase|@firebase)[\\/]/.test(id)) return 'firebase'
-            if (/[\\/]node_modules[\\/](chart\.js|react-chartjs-2)[\\/]/.test(id)) return 'charts'
+            if (/[\\/]node_modules[\\/](chart\.js|react-chartjs-2|chartjs-chart-sankey)[\\/]/.test(id)) return 'charts'
             if (/[\\/]node_modules[\\/](socket\.io-client|engine\.io-client|engine\.io-parser|socket\.io-parser)[\\/]/.test(id))
               return 'socket'
             // The 3D board's whole dependency tree, in one lazy chunk (spec §13.11.8). [HARD-WON] The second list is packages that

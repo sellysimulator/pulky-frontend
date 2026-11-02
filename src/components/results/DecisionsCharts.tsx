@@ -3,7 +3,7 @@ import type { ReactElement } from 'react'
 import { Bar, Line } from 'react-chartjs-2'
 import { INCOTERM_TIERS, type IncotermTier } from '../../types/game'
 import { INCOTERM_TIER_NAMES, formatMoney, formatQty, weekdayShort } from '../../utils/format'
-import { CHART_COLORS, MEASURE_STYLES } from '../charts/chartSetup'
+import { CHART_COLORS, INSURANCE_TIER_COLORS, MEASURE_STYLES } from '../charts/chartSetup'
 import ChartBox from '../shared/ChartBox'
 import DataTable, { type Column } from '../shared/DataTable'
 import Legend from '../shared/Legend'
@@ -15,9 +15,6 @@ const ROW_PX = 40
 const EXTRA_PX = 32
 const PEER_PX = 240
 const SPOT_PX = 280
-
-/** One-hue ordinal ramp for the tiers, light to dark (design.md §3.3), from the blue token at rising alpha. */
-const TIER_ALPHA = { exw: '55', cip: '88', dap: 'BB', ddp: 'FF' } as const satisfies Record<IncotermTier, string>
 
 const horizontal = (xTitle: string): ChartOptions<'bar'> =>
   ({
@@ -78,7 +75,7 @@ function CooperationVotes({ view }: { view: ResultsView }): ReactElement {
 
 function TiersUsed({ view }: { view: ResultsView }): ReactElement {
   const players = rankRows(view)
-  const colorOf = (tier: IncotermTier): string => `${CHART_COLORS['p1']}${TIER_ALPHA[tier]}`
+  const colorOf = (tier: IncotermTier): string => INSURANCE_TIER_COLORS[tier]
   const data: ChartData<'bar'> = {
     labels: players.map((p) => p.display_name),
     datasets: INCOTERM_TIERS.map((tier) => ({
