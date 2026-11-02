@@ -12,6 +12,7 @@ import {
   PieController,
   PointElement,
   Tooltip,
+  type ChartOptions,
   type Plugin,
 } from 'chart.js'
 import { hasSecondChannel, slotIndex } from '../../styles/slots'
@@ -112,36 +113,270 @@ export const MEASURE_STYLES: Record<Measure, { color: string; dash: number[]; wi
   liquidated: { color: CHART_COLORS['series-liquidated'], dash: [], width: 0 },
 }
 
-const PEAK_RULE_PX = 3
+// ── Hatching (design.md §3.1, §9.1) ──
+
+const HATCH_TILE = 6
+const hatchCache = new Map<string, CanvasPattern>()
+
+/** The colour crossed by 1.5px card-coloured stripes at 45 degrees, created once per colour string. */
+export function hatchPattern(color: string): CanvasPattern | string {
+  const cached = hatchCache.get(color)
+  if (cached) return cached
+  const tile = document.createElement('canvas')
+  tile.width = HATCH_TILE
+  tile.height = HATCH_TILE
+  const ctx = tile.getContext('2d')
+  if (!ctx) return color
+  ctx.fillStyle = color
+  ctx.fillRect(0, 0, HATCH_TILE, HATCH_TILE)
+  ctx.strokeStyle = CHART_COLORS['card']
+  ctx.lineWidth = 1.5
+  ctx.beginPath()
+  for (const shift of [-HATCH_TILE, 0, HATCH_TILE]) {
+    ctx.moveTo(shift, HATCH_TILE)
+    ctx.lineTo(shift + HATCH_TILE, 0)
+  }
+  ctx.stroke()
+  const pattern = ctx.createPattern(tile, 'repeat')
+  if (!pattern) return color
+  hatchCache.set(color, pattern)
+  return pattern
+}
+
+/** The scriptable form a dataset takes; resolved when the chart draws, so building a configuration touches no canvas. */
+export function hatched(color: string): () => CanvasPattern | string {
+  return () => hatchPattern(color)
+}
+
+// ── Event bands (design.md §9.3) ──
+
+export type BandTone = 'peak' | 'warning' | 'danger'
+export interface EventBand {
+  index: number
+  tone: BandTone
+}
+
+const BAND_RULE_PX = 3
+const BAND_TONES: Record<BandTone, { fill: string; rule: string }> = {
+  peak: { fill: CHART_COLORS['peak'], rule: CHART_COLORS['ochre'] },
+  warning: { fill: CHART_COLORS['warning-subtle'], rule: CHART_COLORS['warning'] },
+  danger: { fill: CHART_COLORS['danger-subtle'], rule: CHART_COLORS['danger'] },
+}
+
+/** Fills each band's column the full plot height, then a 3px rule along the top, in list order. */
+function drawBands(chart: Chart, bands: readonly EventBand[]): void {
+  const x = chart.scales.x
+  if (bands.length === 0 || !x) return
+
+  const { ctx, chartArea: area } = chart
+  const count = Math.max(1, x.max - x.min + 1)
+  const column = (area.right - area.left) / count
+
+  ctx.save()
+  for (const band of bands) {
+    if (band.index < x.min || band.index > x.max) continue
+    const centre = x.getPixelForValue(band.index)
+    const left = Math.max(area.left, centre - column / 2)
+    const right = Math.min(area.right, centre + column / 2)
+    if (right <= left) continue
+    const tone = BAND_TONES[band.tone]
+    ctx.fillStyle = tone.fill
+    ctx.fillRect(left, area.top, right - left, area.bottom - area.top)
+    ctx.fillStyle = tone.rule
+    ctx.fillRect(left, area.top, right - left, BAND_RULE_PX)
+  }
+  ctx.restore()
+}
+
+type ChartPlugins = Record<string, unknown> | undefined
+const chartPlugins = (chart: Chart): ChartPlugins => (chart.options as { plugins?: ChartPlugins }).plugins
+
+/** design.md §9.3: marks whole days behind the data. Reads `plugins.eventBands.bands` (0-based x indices). */
+export const eventBandsPlugin: Plugin = {
+  id: 'eventBands',
+  beforeDatasetsDraw(chart, _args, pluginOptions) {
+    const fromChart = (chartPlugins(chart)?.['eventBands'] as { bands?: EventBand[] } | undefined)?.bands
+    drawBands(chart, (pluginOptions as { bands?: EventBand[] } | undefined)?.bands ?? fromChart ?? [])
+  },
+}
 
 /**
- * design.md §9.3: fills each peak-window day's column behind the data and
- * draws a 3px ochre rule along its top edge. Reads `plugins.peakShading.days`
- * (0-based x indices).
+ * design.md §9.3: the `peak` band on every peak-window day, under its own id and option
+ * (`plugins.peakShading.days`, 0-based x indices).
  */
 export const peakShadingPlugin: Plugin = {
   id: 'peakShading',
   beforeDatasetsDraw(chart, _args, pluginOptions) {
-    const fromChart = (chart.options as { plugins?: { peakShading?: { days?: number[] } } }).plugins?.peakShading?.days
+    const fromChart = (chartPlugins(chart)?.['peakShading'] as { days?: number[] } | undefined)?.days
     const days = (pluginOptions as { days?: number[] } | undefined)?.days ?? fromChart ?? []
-    const x = chart.scales.x
-    if (days.length === 0 || !x) return
+    drawBands(chart, days.map((index): EventBand => ({ index, tone: 'peak' })))
+  },
+}
 
-    const { ctx, chartArea: area } = chart
-    const count = Math.max(1, x.max - x.min + 1)
-    const column = (area.right - area.left) / count
+// ── Emphasis (design.md §9.6) ──
 
-    ctx.save()
-    for (const day of days) {
-      const centre = x.getPixelForValue(day)
-      const left = Math.max(area.left, centre - column / 2)
-      const right = Math.min(area.right, centre + column / 2)
-      if (right <= left) continue
-      ctx.fillStyle = CHART_COLORS['peak']
-      ctx.fillRect(left, area.top, right - left, area.bottom - area.top)
-      ctx.fillStyle = CHART_COLORS['ochre']
-      ctx.fillRect(left, area.top, right - left, PEAK_RULE_PX)
+export type Emphasis = 'none' | 'focus' | 'context'
+
+export function emphasisOf(alias: string, focus: string | null): Emphasis {
+  if (focus === null) return 'none'
+  return alias === focus ? 'focus' : 'context'
+}
+
+export interface PulqueriaLineStyle {
+  borderColor: string
+  backgroundColor: string
+  borderWidth: number
+  borderDash: number[]
+  pointStyle: string
+  pointRadius: number
+  pointHoverRadius: number
+  pointBackgroundColor: string
+  pointBorderColor: string
+  pointBorderWidth: number
+  order: number
+}
+
+export function pulqueriaLine(alias: string, emphasis: Emphasis): PulqueriaLineStyle {
+  const s = pulqueriaStyle(alias)
+  const borderDash = s.dashed ? [6, 4] : []
+  if (emphasis === 'context') {
+    const strong = CHART_COLORS['border-strong']
+    return {
+      borderColor: strong,
+      backgroundColor: strong,
+      borderWidth: 1.5,
+      borderDash,
+      pointStyle: s.pointStyle,
+      pointRadius: 0,
+      pointHoverRadius: 3,
+      pointBackgroundColor: strong,
+      pointBorderColor: strong,
+      pointBorderWidth: 1,
+      order: 2,
     }
+  }
+  return {
+    borderColor: s.color,
+    backgroundColor: s.color,
+    borderWidth: emphasis === 'focus' ? 3 : 2.5,
+    borderDash,
+    pointStyle: s.pointStyle,
+    pointRadius: 4,
+    pointHoverRadius: 5,
+    pointBackgroundColor: s.dashed ? CHART_COLORS['card'] : s.color,
+    pointBorderColor: s.color,
+    pointBorderWidth: s.dashed ? 2 : 1,
+    order: emphasis === 'focus' ? 0 : 1,
+  }
+}
+
+// ── Crosshair (design.md §9.5) ──
+
+interface CrosshairState {
+  index: number | null
+  listeners: Set<(index: number | null) => void>
+}
+const crosshairs = new Map<string, CrosshairState>()
+
+function crosshairState(group: string): CrosshairState {
+  let state = crosshairs.get(group)
+  if (!state) {
+    state = { index: null, listeners: new Set() }
+    crosshairs.set(group, state)
+  }
+  return state
+}
+
+export function setCrosshair(group: string, index: number | null): void {
+  const state = crosshairState(group)
+  if (state.index === index) return
+  state.index = index
+  for (const listener of [...state.listeners]) listener(index)
+}
+
+export function getCrosshair(group: string): number | null {
+  return crosshairs.get(group)?.index ?? null
+}
+
+export function subscribeCrosshair(group: string, listener: (index: number | null) => void): () => void {
+  const state = crosshairState(group)
+  state.listeners.add(listener)
+  return () => {
+    state.listeners.delete(listener)
+  }
+}
+
+export function withCrosshair<T extends ChartOptions>(options: T, group: string | null): T {
+  if (group === null) return options
+  return { ...options, plugins: { ...options.plugins, crosshairSync: { group } } } as T
+}
+
+function groupOf(chart: Chart, pluginOptions?: unknown): string | null {
+  const own = (pluginOptions as { group?: unknown } | undefined)?.group
+  const group = own ?? (chartPlugins(chart)?.['crosshairSync'] as { group?: unknown } | undefined)?.group
+  return typeof group === 'string' && group !== '' ? group : null
+}
+
+const crosshairSubscriptions = new WeakMap<Chart, () => void>()
+
+function showCrosshair(chart: Chart, index: number | null): void {
+  const active =
+    index === null
+      ? []
+      : chart.data.datasets.flatMap((dataset, datasetIndex) => {
+          const value = (dataset.data as unknown[])[index]
+          return chart.isDatasetVisible(datasetIndex) && value !== null && value !== undefined ? [{ datasetIndex, index }] : []
+        })
+  const x = chart.scales.x
+  chart.setActiveElements(active)
+  chart.tooltip?.setActiveElements(active, {
+    x: index === null || !x ? 0 : x.getPixelForValue(index),
+    y: chart.chartArea.top,
+  })
+  chart.update()
+}
+
+/** design.md §9.5: one day read across every chart of a group. Inert on a chart without `plugins.crosshairSync.group`. */
+export const crosshairSyncPlugin: Plugin = {
+  id: 'crosshairSync',
+  afterInit(chart, _args, pluginOptions) {
+    const group = groupOf(chart, pluginOptions)
+    if (group === null) return
+    crosshairSubscriptions.get(chart)?.()
+    crosshairSubscriptions.set(chart, subscribeCrosshair(group, (index) => showCrosshair(chart, index)))
+  },
+  afterDestroy(chart) {
+    crosshairSubscriptions.get(chart)?.()
+    crosshairSubscriptions.delete(chart)
+  },
+  afterEvent(chart, args, pluginOptions) {
+    const group = groupOf(chart, pluginOptions)
+    const x = chart.scales.x
+    if (group === null || !x) return
+    const { event, inChartArea } = args as { event: { type: string; x: number | null }; inChartArea: boolean }
+    if (event.type === 'mousemove' && inChartArea && event.x !== null) {
+      const last = Math.max(0, (chart.data.labels?.length ?? 1) - 1)
+      const raw = Math.round(x.getValueForPixel(event.x) ?? 0)
+      setCrosshair(group, Math.min(last, Math.max(0, raw)))
+    } else if (event.type === 'mouseout' || event.type === 'mousemove') {
+      setCrosshair(group, null)
+    }
+  },
+  afterDatasetsDraw(chart, _args, pluginOptions) {
+    const group = groupOf(chart, pluginOptions)
+    const x = chart.scales.x
+    if (group === null || !x) return
+    const index = getCrosshair(group)
+    if (index === null || index < x.min || index > x.max) return
+    const { ctx, chartArea: area } = chart
+    const px = x.getPixelForValue(index)
+    ctx.save()
+    ctx.lineWidth = 1
+    ctx.strokeStyle = CHART_COLORS['ink-subtle']
+    ctx.beginPath()
+    ctx.moveTo(px, area.top)
+    ctx.lineTo(px, area.bottom)
+    ctx.stroke()
     ctx.restore()
   },
 }
@@ -192,6 +427,8 @@ export function registerCharts(): void {
     Tooltip,
     Filler,
     peakShadingPlugin,
+    eventBandsPlugin,
+    crosshairSyncPlugin,
   )
 
   const d = Chart.defaults

@@ -4,7 +4,7 @@ import { Bar, Line } from 'react-chartjs-2'
 import type { DayRecord, PlayerView, PublicDayResults } from '../../types/game'
 import { formatMoney, formatQty } from '../../utils/format'
 import { getUiFlag, setUiFlag } from '../../utils/storage'
-import { CHART_COLORS, MEASURE_STYLES, pulqueriaStyle } from '../charts/chartSetup'
+import { CHART_COLORS, MEASURE_STYLES, pulqueriaStyle , hatched } from '../charts/chartSetup'
 import ChartBox from '../shared/ChartBox'
 import Collapsible from '../shared/Collapsible'
 import DataTable, { type Column } from '../shared/DataTable'
@@ -21,26 +21,6 @@ interface DetailsPanelProps {
 type LegendItems = Parameters<typeof Legend>[0]['items']
 
 const CHART_HEIGHT = 240
-
-/** Design.md §3.1: a hatched fill is the slot colour crossed by card-coloured stripes, drawn lazily on a canvas pattern. */
-function hatch(color: string): () => CanvasPattern | string {
-  return () => {
-    const tile = document.createElement('canvas')
-    tile.width = 6
-    tile.height = 6
-    const ctx = tile.getContext('2d')
-    if (!ctx) return color
-    ctx.fillStyle = color
-    ctx.fillRect(0, 0, 6, 6)
-    ctx.strokeStyle = CHART_COLORS['card']
-    ctx.lineWidth = 1.5
-    ctx.beginPath()
-    ctx.moveTo(-1, 7)
-    ctx.lineTo(7, -1)
-    ctx.stroke()
-    return ctx.createPattern(tile, 'repeat') ?? color
-  }
-}
 
 function axes(yTitle: string, stacked = false): { scales: { x: object; y: object } } {
   return {
@@ -264,7 +244,7 @@ function CostsChart({ own }: { own: DayRecord[] }): ReactElement {
         type: 'bar',
         label: s.label,
         data: s.values,
-        backgroundColor: s.hatched ? hatch(s.color) : s.color,
+        backgroundColor: s.hatched ? hatched(s.color) : s.color,
         borderColor: CHART_COLORS['card'],
         borderWidth: 1,
         stack: 'costs',

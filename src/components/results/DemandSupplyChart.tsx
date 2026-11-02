@@ -1,10 +1,10 @@
-import { Check } from 'lucide-react'
 import { useState, type ReactElement } from 'react'
 import { Line } from 'react-chartjs-2'
 import { formatQty, weekdayShort } from '../../utils/format'
 import { MEASURE_STYLES } from '../charts/chartSetup'
 import ChartBox from '../shared/ChartBox'
 import DataTable, { type Column } from '../shared/DataTable'
+import Legend from '../shared/Legend'
 import SectionCard from '../shared/SectionCard'
 import {
   DEMAND_SUPPLY_LABELS,
@@ -35,24 +35,6 @@ function rowsFor(view: ResultsView): DayRow[] {
   }))
 }
 
-function LineSwatch({ series }: { series: DemandSupplySeries }): ReactElement {
-  const style = MEASURE_STYLES[series]
-  return (
-    <svg width="24" height="12" viewBox="0 0 24 12" aria-hidden="true" className="shrink-0">
-      <line
-        x1="0"
-        y1="6"
-        x2="24"
-        y2="6"
-        stroke={style.color}
-        strokeWidth={style.width}
-        strokeLinecap="round"
-        strokeDasharray={style.dash.length > 0 ? style.dash.join(' ') : undefined}
-      />
-    </svg>
-  )
-}
-
 /** Block 2 of spec §13.8, THE CHART: demand against what arrived, sold and spoiled, with a switch legend. */
 export default function DemandSupplyChart({ view }: { view: ResultsView }): ReactElement {
   const [visible, setVisible] = useState<DemandSupplySeries[]>(DEMAND_SUPPLY_LEGEND_ORDER)
@@ -77,35 +59,15 @@ export default function DemandSupplyChart({ view }: { view: ResultsView }): Reac
   ]
 
   const legend = (
-    <div className="flex flex-wrap gap-x-4 gap-y-2 print:hidden">
-      {DEMAND_SUPPLY_LEGEND_ORDER.map((s) => {
-        const on = visible.includes(s)
-        return (
-          <button
-            key={s}
-            type="button"
-            role="switch"
-            aria-checked={on}
-            onClick={() => toggle(s)}
-            className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-sm border border-border-control px-3 text-sm"
-          >
-            <span
-              aria-hidden="true"
-              className={[
-                'grid size-4 shrink-0 place-items-center rounded-xs border border-border-control',
-                on ? 'bg-accent text-on-accent' : 'bg-card',
-              ].join(' ')}
-            >
-              {on ? <Check size={12} /> : null}
-            </span>
-            <span className={on ? '' : 'opacity-30'}>
-              <LineSwatch series={s} />
-            </span>
-            <span className={on ? 'text-ink' : 'text-ink-subtle'}>{DEMAND_SUPPLY_LABELS[s]}</span>
-          </button>
-        )
-      })}
-    </div>
+    <Legend
+      items={DEMAND_SUPPLY_LEGEND_ORDER.map((s) => ({
+        key: s,
+        label: DEMAND_SUPPLY_LABELS[s],
+        swatch: { kind: 'line' as const, color: MEASURE_STYLES[s].color, dash: MEASURE_STYLES[s].dash, width: MEASURE_STYLES[s].width },
+      }))}
+      hidden={new Set(DEMAND_SUPPLY_LEGEND_ORDER.filter((s) => !visible.includes(s)))}
+      onToggle={(key) => toggle(key as DemandSupplySeries)}
+    />
   )
 
   return (

@@ -4,7 +4,7 @@ import type { ReactElement, ReactNode } from 'react'
 import { Bar, Line } from 'react-chartjs-2'
 import type { GameConfig, HostView, MarketDay } from '../../types/game'
 import { formatMoney, formatPercent, formatQty, weekdayShort } from '../../utils/format'
-import { CHART_COLORS, MEASURE_STYLES, pulqueriaStyle } from '../charts/chartSetup'
+import { CHART_COLORS, MEASURE_STYLES, pulqueriaStyle , hatched } from '../charts/chartSetup'
 import ChartBox from '../shared/ChartBox'
 import DataTable, { type Column } from '../shared/DataTable'
 import EmptyState from '../shared/EmptyState'
@@ -31,26 +31,6 @@ const BAND_ALPHA = '1F'
 
 function aliasNumber(alias: string): number {
   return Number(/^P(\d+)$/.exec(alias)?.[1] ?? Number.MAX_SAFE_INTEGER)
-}
-
-/** Design.md §3.1: a hatched fill is the slot colour crossed by card-coloured stripes, drawn lazily on a canvas pattern. */
-function hatch(color: string): () => CanvasPattern | string {
-  return () => {
-    const tile = document.createElement('canvas')
-    tile.width = 6
-    tile.height = 6
-    const ctx = tile.getContext('2d')
-    if (!ctx) return color
-    ctx.fillStyle = color
-    ctx.fillRect(0, 0, 6, 6)
-    ctx.strokeStyle = CHART_COLORS['card']
-    ctx.lineWidth = 1.5
-    ctx.beginPath()
-    ctx.moveTo(-1, 7)
-    ctx.lineTo(7, -1)
-    ctx.stroke()
-    return ctx.createPattern(tile, 'repeat') ?? color
-  }
 }
 
 function axes(yTitle: string, stacked = false, yMax?: number): { scales: { x: object; y: object } } {
@@ -152,7 +132,7 @@ function MarketShareChart(shared: Shared): ReactElement {
       return {
         label: hostView.players[alias]?.display_name ?? alias,
         data: values,
-        backgroundColor: style.hatched ? hatch(style.color) : style.color,
+        backgroundColor: style.hatched ? hatched(style.color) : style.color,
         borderColor: CHART_COLORS['card'],
         borderWidth: 1,
       }

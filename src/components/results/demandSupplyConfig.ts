@@ -1,5 +1,5 @@
-import type { ChartConfiguration, ChartOptions, Color, ScriptableContext } from 'chart.js'
-import { CHART_COLORS, MEASURE_STYLES } from '../charts/chartSetup'
+import type { ChartConfiguration, ChartOptions } from 'chart.js'
+import { MEASURE_STYLES, hatched } from '../charts/chartSetup'
 import { weekdayShort } from '../../utils/format'
 import type { ResultsView } from './resultsView'
 
@@ -17,39 +17,6 @@ export const DEMAND_SUPPLY_LABELS: Record<DemandSupplySeries, string> = {
 
 /** Datasets are drawn in this order, so demand, the last, lands on top (design.md §3.3). */
 const DRAW_ORDER: DemandSupplySeries[] = ['delivered', 'sold', 'spoiled', 'backlog', 'demand']
-
-const HATCH_TILE = 6
-const patterns = new Map<string, CanvasPattern>()
-
-/** Solid hue crossed by 1.5px card-coloured stripes at 45 degrees, 6px apart (design.md §3.1). */
-function hatchPattern(color: string): Color {
-  const cached = patterns.get(color)
-  if (cached) return cached
-  const tile = document.createElement('canvas')
-  tile.width = HATCH_TILE
-  tile.height = HATCH_TILE
-  const ctx = tile.getContext('2d')
-  if (!ctx) return color
-  ctx.fillStyle = color
-  ctx.fillRect(0, 0, HATCH_TILE, HATCH_TILE)
-  ctx.strokeStyle = CHART_COLORS['card']
-  ctx.lineWidth = 1.5
-  ctx.beginPath()
-  for (const shift of [-HATCH_TILE, 0, HATCH_TILE]) {
-    ctx.moveTo(shift, HATCH_TILE)
-    ctx.lineTo(shift + HATCH_TILE, 0)
-  }
-  ctx.stroke()
-  const pattern = ctx.createPattern(tile, 'repeat')
-  if (!pattern) return color
-  patterns.set(color, pattern)
-  return pattern
-}
-
-/** Resolved when the chart draws, so building a configuration never touches a canvas. */
-function hatched(color: string): (ctx: ScriptableContext<'bar'>) => Color {
-  return () => hatchPattern(color)
-}
 
 function dayLabels(view: ResultsView): string[][] {
   return Array.from({ length: view.days_played }, (_, i) => [String(i + 1), weekdayShort(view.market.weekday[i])])
