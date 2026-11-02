@@ -469,6 +469,26 @@ describe('what each applier writes (spec 3.2)', () => {
       expect(S().lastError).toMatchObject({ code: 'GAME_FINISHED' })
     })
 
+    it('STALE_DAY raises exactly one success alert with the server message', () => {
+      const message = 'That day is over. Your screen has been updated.'
+      call('applyError', { code: 'STALE_DAY', message })
+      expect(S().alerts).toHaveLength(1)
+      expect(S().alerts[0]).toMatchObject({ kind: 'success', message })
+    })
+
+    it('STALE_DAY still sets lastError', () => {
+      const err = { code: 'STALE_DAY', message: 'That day is over. Your screen has been updated.' }
+      call('applyError', err)
+      expect(S().lastError).toMatchObject(err)
+    })
+
+    it('ALREADY_SUBMITTED still raises one error alert', () => {
+      const message = "You have already submitted today's decision."
+      call('applyError', { code: 'ALREADY_SUBMITTED', message })
+      expect(S().alerts).toHaveLength(1)
+      expect(S().alerts[0]).toMatchObject({ kind: 'error', message })
+    })
+
     it('clearLastError clears it', () => {
       call('applyError', { code: 'GAME_FINISHED', message: 'The game is over.' })
       S().clearLastError()

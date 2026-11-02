@@ -309,7 +309,8 @@ export const useGameStore = create<GameState & GameActions>()((set, get) => {
 
     applyError: (p) => {
       set({ lastError: p })
-      if (p.code !== 'GAME_FINISHED') get().addAlert({ kind: 'error', message: p.message })
+      if (p.code === 'GAME_FINISHED') return
+      get().addAlert({ kind: p.code === 'STALE_DAY' ? 'success' : 'error', message: p.message })
     },
 
     clearLastError: () => set({ lastError: null }),

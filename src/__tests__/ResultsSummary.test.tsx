@@ -304,6 +304,19 @@ describe('block 3: where the pulque went (criterion 12, failure mode 10)', () =>
     expect(chart.data.datasets[1].data).toEqual([0, 0, 4])
   })
 
+  it('titles the Compare all chart and its table caption by what it plots, never as the card is titled', async () => {
+    renderSummary()
+    const title = 'Sold, spoiled, lost and liquidated, per pulquería'
+    const figure = chartWithDataset('Sold to pulquerías')!.element.closest('figure') as HTMLElement
+    expect(within(figure).getByText(title)).toBeInTheDocument()
+    await userEvent.click(within(figure).getByRole('button', { name: /Show table/ }))
+    expect(within(figure).getByRole('table', { name: title })).toBeInTheDocument()
+    const card = figure.closest('section') as HTMLElement
+    for (const f of Array.from(card.querySelectorAll('figure'))) {
+      expect(within(f as HTMLElement).queryByText(/^Where the pulque went$/)).not.toBeInTheDocument()
+    }
+  })
+
   it('shows Bought from pulquerías, Peak backlog and Days with backlog beside each bar, in rank order', () => {
     renderSummary()
     expect(numbersAfter('Bought from pulquerías')).toEqual(['2', '0', '16'])
@@ -724,12 +737,12 @@ describe('section 35: block 3 View control (criterion 6, failure mode 6)', () =>
     expect(chartWithDataset('Sold to pulquerías')).toBeUndefined()
     const data = JSON.parse(sankey()[0].getAttribute('data-chart')!).data.datasets[0].data
     expect(data).toEqual(expectedBands(FLOWS_BY_ALIAS.P1))
-    expect(screen.getByText(`Where ${NAMES.P1}'s pulque went`)).toBeInTheDocument()
+    expect(screen.getByText(`${NAMES.P1}: from shipments to sold, spoiled and left at the end`)).toBeInTheDocument()
   })
 
   it('passes the viewer\'s alias on: their chip comes first', () => {
     renderSummary({ view: makeFlowView(), viewer: { isHost: false, myAlias: 'P3' }, hostSecret: null })
-    expect(screen.getByText(`Where ${NAMES.P3}'s pulque went`)).toBeInTheDocument()
+    expect(screen.getByText(`${NAMES.P3}: from shipments to sold, spoiled and left at the end`)).toBeInTheDocument()
   })
 
   it('Compare all shows section 29\'s chart with a Show control on Units first', () => {

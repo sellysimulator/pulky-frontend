@@ -61,11 +61,11 @@ export default function PulqueFlowChart({ view, myAlias }: { view: ResultsView; 
 
   return (
     <ChartBox
-      title={`Where ${name}'s pulque went`}
+      title={`${name}: from shipments to sold, spoiled and left at the end`}
       ariaLabel={`Flow chart of ${name}'s pulque from the supplier through the cellar to where it ended`}
       height={360}
       controls={chips}
-      table={<DataTable caption={`Where ${name}'s pulque went`} columns={columns} rows={rows} rowKey={(r) => r.key} density="compact" />}
+      table={<DataTable caption={`${name}: from shipments to sold, spoiled and left at the end`} columns={columns} rows={rows} rowKey={(r) => r.key} density="compact" />}
     >
       <Chart type="sankey" data={config.data} options={config.options} />
     </ChartBox>

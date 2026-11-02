@@ -251,12 +251,12 @@ describe('PulqueFlowChart', () => {
     expect(chips()[0]).toHaveTextContent('You')
     expect(chips()[0]).toHaveAttribute('aria-pressed', 'true')
     expect(chips()[1]).not.toHaveTextContent('You')
-    expect(screen.getByText("Where El Tinacal's pulque went")).toBeInTheDocument()
+    expect(screen.getByText("El Tinacal: from shipments to sold, spoiled and left at the end")).toBeInTheDocument()
   })
 
   it('titles the box and names the plot for the chosen pulquería', () => {
     render(<PulqueFlowChart view={flowView} myAlias={null} />)
-    expect(screen.getByText("Where Don Agave's pulque went")).toBeInTheDocument()
+    expect(screen.getByText("Don Agave: from shipments to sold, spoiled and left at the end")).toBeInTheDocument()
     expect(
       screen.getByRole('img', {
         name: "Flow chart of Don Agave's pulque from the supplier through the cellar to where it ended",
@@ -270,7 +270,7 @@ describe('PulqueFlowChart', () => {
     fireEvent.click(chips()[1])
     expect(chips()[1]).toHaveAttribute('aria-pressed', 'true')
     expect(chips()[0]).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByText("Where La Chula's pulque went")).toBeInTheDocument()
+    expect(screen.getByText("La Chula: from shipments to sold, spoiled and left at the end")).toBeInTheDocument()
     expect(sankey().data.datasets[0].data).toEqual(expectedBands(FLOW_DISTINCT))
     fireEvent.click(chips()[2])
     expect(sankey().data.datasets[0].data).toEqual(expectedBands(FLOW_UNBALANCED))
@@ -279,7 +279,7 @@ describe('PulqueFlowChart', () => {
   it('criterion 9: the table lists From, To and Units for each band in the builder\'s order, with node names', async () => {
     render(<PulqueFlowChart view={flowView} myAlias={null} />)
     await userEvent.click(screen.getByRole('button', { name: /Show table/ }))
-    const table = screen.getByRole('table', { name: "Where Don Agave's pulque went" })
+    const table = screen.getByRole('table', { name: "Don Agave: from shipments to sold, spoiled and left at the end" })
     expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['From', 'To', 'Units'])
     const rows = within(table).getAllByRole('row').slice(1).map((r) => within(r).getAllByRole('cell').map((c) => c.textContent))
     const bands = expectedBands(FLOW_EXAMPLE)

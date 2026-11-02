@@ -4,6 +4,7 @@ import { WEEKDAYS, type ConfigFieldMeta, type GameConfig } from '../../types/gam
 import { weekdayShort } from '../../utils/format'
 import Collapsible from '../shared/Collapsible'
 import NumberField from '../shared/NumberField'
+import Select from '../shared/Select'
 import Switch from '../shared/Switch'
 import { DOCS } from './docs/entries'
 import InfoButton from './docs/InfoButton'
@@ -33,6 +34,9 @@ const MONEY_PATHS = new Set([
   'stock.conservation_cost_per_unit',
   'transport.unit_cost',
 ])
+
+/** The peak-window weekday choices, Mon to Sun. */
+const WEEKDAY_OPTIONS = WEEKDAYS.map((d) => ({ value: d, label: weekdayShort(d) }))
 
 const PERCENT_PATHS = new Set(['supplier.quality_min', 'supplier.quality_max'])
 
@@ -102,25 +106,16 @@ export default function ConfigField({ path, config, meta, readOnly, error, warni
   } else if (type === 'weekday') {
     const describedBy = [error ? `${id}-error` : null, warning ? `${id}-warning` : null].filter(Boolean).join(' ')
     control = (
-      <select
+      <Select
         id={id}
-        value={typeof value === 'string' ? value : ''}
+        value={typeof value === 'string' ? value : null}
+        options={WEEKDAY_OPTIONS}
         disabled={readOnly}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy || undefined}
-        onChange={(e) => onEdit(path, e.target.value)}
-        className={[
-          'h-11 rounded-md border px-3 text-base',
-          error ? 'border-danger' : warning ? 'border-warning' : 'border-border-control',
-          readOnly ? 'cursor-not-allowed bg-inset text-ink' : 'cursor-pointer bg-card text-ink',
-        ].join(' ')}
-      >
-        {WEEKDAYS.map((d) => (
-          <option key={d} value={d}>
-            {weekdayShort(d)}
-          </option>
-        ))}
-      </select>
+        onChange={(next) => onEdit(path, next)}
+        className={error ? '' : warning ? '[&>button]:border-warning' : ''}
+      />
     )
   } else {
     const kind = type === 'int' ? 'quantity' : MONEY_PATHS.has(path) ? 'money' : 'decimal'

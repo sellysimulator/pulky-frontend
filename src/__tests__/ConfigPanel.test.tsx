@@ -337,17 +337,20 @@ describe('sections and fields (acceptance 1, failure mode 10)', () => {
     }
   })
 
-  it('renders the peak window as native selects with Mon to Sun', async () => {
+  it('renders the peak window as custom comboboxes with Mon to Sun', async () => {
     await mount()
     for (const k of ['demand.weekday_peak.from', 'demand.weekday_peak.to']) {
-      const select = control(k) as HTMLSelectElement
-      expect(select.tagName).toBe('SELECT')
-      const options = within(select).getAllByRole('option') as HTMLOptionElement[]
+      const box = control(k)
+      expect(box).toHaveAttribute('role', 'combobox')
+      expect(box.tagName).toBe('BUTTON')
+      fireEvent.click(box)
+      const options = screen.getAllByRole('option')
       expect(options.map((o) => o.textContent)).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
-      expect(options.map((o) => o.value)).toEqual(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])
+      expect(options.map((o) => o.getAttribute('data-value'))).toEqual(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])
+      fireEvent.click(box)
     }
-    expect((control('demand.weekday_peak.from') as HTMLSelectElement).value).toBe('thu')
-    expect((control('demand.weekday_peak.to') as HTMLSelectElement).value).toBe('sat')
+    expect(control('demand.weekday_peak.from')).toHaveTextContent('Thu')
+    expect(control('demand.weekday_peak.to')).toHaveTextContent('Sat')
   })
 
   it('shows the helper line Between {min} and {max} for bounded numeric fields', async () => {
@@ -454,7 +457,8 @@ describe('sending (acceptance 5, failure modes 4 and 5)', () => {
 
   it('sends a weekday edit as a three-level leaf', async () => {
     await mount()
-    fireEvent.change(control('demand.weekday_peak.to'), { target: { value: 'sun' } })
+    fireEvent.click(control('demand.weekday_peak.to'))
+    fireEvent.click(screen.getByRole('option', { name: 'Sun' }))
     await advance(400)
     await advance(0)
     expect((configUpdateCalls()[0][1] as { config: object }).config).toEqual({ demand: { weekday_peak: { to: 'sun' } } })
@@ -768,7 +772,7 @@ describe('calculator inside the panel (acceptance 9)', () => {
 
 describe('locked (acceptance 10)', () => {
   function expectAllLocked(container: HTMLElement): void {
-    const controls = container.querySelectorAll<HTMLInputElement>('input,select,textarea,[role="switch"]')
+    const controls = container.querySelectorAll<HTMLInputElement>('input,select,textarea,[role="switch"],[role="combobox"]')
     expect(controls.length).toBeGreaterThan(10)
     for (const el of Array.from(controls)) {
       const locked =

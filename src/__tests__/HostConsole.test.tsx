@@ -317,6 +317,11 @@ describe('HostConsole when finished (acceptance 2)', () => {
     expect(screen.getByRole('table', { name: 'Pulquerías' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Events' })).toBeInTheDocument()
   })
+
+  it('drops the Submissions card, which would read everyone as still deciding', () => {
+    renderConsole({ finished: true })
+    expect(screen.queryByRole('region', { name: 'Submissions' })).toBeNull()
+  })
 })
 
 describe('SubmissionTracker (acceptance 4, failure mode 3)', () => {

@@ -126,7 +126,7 @@ function CompareAll({ view }: { view: ResultsView }): ReactElement {
 
   return (
     <ChartBox
-      title="Where the pulque went"
+      title="Sold, spoiled, lost and liquidated, per pulquería"
       ariaLabel="Stacked horizontal bars of units sold, sold to pulquerías, spoiled, lost in transit and liquidated at the end, for each pulquería"
       height={rowPx * view.players.length + AXIS_PX}
       controls={
@@ -141,7 +141,7 @@ function CompareAll({ view }: { view: ResultsView }): ReactElement {
         />
       }
       legend={<Legend items={legendItems} />}
-      table={<DataTable caption="Where the pulque went" columns={columns} rows={view.players} rowKey={(p) => p.alias} density="compact" />}
+      table={<DataTable caption="Sold, spoiled, lost and liquidated, per pulquería" columns={columns} rows={view.players} rowKey={(p) => p.alias} density="compact" />}
     >
       <div className="flex h-full gap-4">
         <div className="min-w-0 flex-1">

@@ -65,7 +65,8 @@ export default function HostConsole({
           )}
         </div>
       </div>
-      <SubmissionTracker hostView={hostView} />
+      {/* Who is still deciding is a question about an open day; once the game is over it has no answer (an early end cancels the pending decisions), so the card is gone rather than wrong. */}
+      {finished ? null : <SubmissionTracker hostView={hostView} />}
       <PlayersTable hostView={hostView} histories={histories} />
       <MarketCharts hostView={hostView} histories={histories} config={hostView.config} />
       <EventHistory hostView={hostView} histories={histories} />
