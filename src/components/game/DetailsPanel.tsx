@@ -1,14 +1,18 @@
 import type { ChartData, ChartOptions } from 'chart.js'
-import { useState, type ReactElement, type ReactNode } from 'react'
+import { useEffect, useState, type ReactElement, type ReactNode } from 'react'
 import { Bar, Line } from 'react-chartjs-2'
 import type { DayRecord, PlayerView, PublicDayResults } from '../../types/game'
 import { formatMoney, formatQty } from '../../utils/format'
 import { getUiFlag, setUiFlag } from '../../utils/storage'
-import { CHART_COLORS, MEASURE_STYLES, pulqueriaStyle , hatched } from '../charts/chartSetup'
+import { useGameStore } from '../../store/gameStore'
+import { CHART_COLORS, MEASURE_STYLES, pulqueriaStyle, hatched, withCrosshair } from '../charts/chartSetup'
+import CrosshairGroup, { useCrosshairGroup } from '../charts/CrosshairGroup'
 import ChartBox from '../shared/ChartBox'
 import Collapsible from '../shared/Collapsible'
 import DataTable, { type Column } from '../shared/DataTable'
 import Legend from '../shared/Legend'
+import SegmentedControl from '../shared/SegmentedControl'
+import DayLedgerChart from './DayLedgerChart'
 import { LedgerTable } from './DayRecap'
 
 interface DetailsPanelProps {
@@ -98,7 +102,8 @@ function InventoryChart({ own }: { own: DayRecord[] }): ReactElement {
       { label: 'Backlog', data: backlog, backgroundColor: CHART_COLORS['series-backlog'] },
     ],
   }
-  const options: ChartOptions<'bar'> = axes('Units', true)
+  const group = useCrosshairGroup()
+  const options: ChartOptions<'bar'> = withCrosshair(axes('Units', true), group)
   const format = (v: number): string => formatQty(v)
   return (
     <Box
@@ -165,7 +170,8 @@ function CollaborationChart({ own, pub }: { own: DayRecord[]; pub: PublicDayResu
       },
     ],
   } as unknown as ChartData<'bar'>
-  const options: ChartOptions<'bar'> = {
+  const group = useCrosshairGroup()
+  const options: ChartOptions<'bar'> = withCrosshair({
     scales: {
       x: { stacked: true, title: { display: true, text: 'Day' } },
       y: { stacked: true, title: { display: true, text: `Pulquerías (of ${players})` }, suggestedMax: players },
@@ -181,7 +187,7 @@ function CollaborationChart({ own, pub }: { own: DayRecord[]; pub: PublicDayResu
         },
       },
     },
-  }
+  }, group)
   const yesNo = (v: number): string => (v > 0 ? 'Yes' : 'No')
   return (
     <Box
@@ -268,7 +274,8 @@ function CostsChart({ own }: { own: DayRecord[] }): ReactElement {
       },
     ],
   } as unknown as ChartData<'bar'>
-  const options: ChartOptions<'bar'> = axes('$', true)
+  const group = useCrosshairGroup()
+  const options: ChartOptions<'bar'> = withCrosshair(axes('$', true), group)
   const series: Series[] = [
     ...stack.map((s) => ({ key: s.key, label: s.label, values: s.values, format: formatMoney })),
     { key: 'sales', label: 'Sales revenue', values: salesValues, format: formatMoney },
@@ -295,6 +302,7 @@ function CostsChart({ own }: { own: DayRecord[] }): ReactElement {
 }
 
 function SoldSpoiledChart({ own }: { own: DayRecord[] }): ReactElement {
+  const group = useCrosshairGroup()
   const sold = own.map((r) => r.sold)
   const spoiled = own.map((r) => r.spoiled)
   const data: ChartData<'line'> = {
@@ -341,7 +349,7 @@ function SoldSpoiledChart({ own }: { own: DayRecord[] }): ReactElement {
         />
       }
     >
-      <Line data={data} options={axes('Units')} />
+      <Line data={data} options={withCrosshair(axes('Units'), group)} />
     </Box>
   )
 }
@@ -352,6 +360,7 @@ function ReputationChart({ own, pub, alias }: { own: DayRecord[]; pub: PublicDay
     const values = Object.values(p.players).map((x) => x.reputation)
     return values.length > 0 ? sum(values) / values.length : null
   })
+  const group = useCrosshairGroup()
   const style = pulqueriaStyle(alias)
   const data: ChartData<'line'> = {
     labels: dayLabels(pub),
@@ -396,12 +405,13 @@ function ReputationChart({ own, pub, alias }: { own: DayRecord[]; pub: PublicDay
         />
       }
     >
-      <Line data={data} options={axes('Reputation')} />
+      <Line data={data} options={withCrosshair(axes('Reputation'), group)} />
     </Box>
   )
 }
 
 function InsuranceChart({ own }: { own: DayRecord[] }): ReactElement {
+  const group = useCrosshairGroup()
   const fees = runningTotal(own.map((r) => r.cost_insurance))
   const refunds = runningTotal(own.map((r) => r.refund_insurance))
   const data: ChartData<'line'> = {
@@ -445,26 +455,58 @@ function InsuranceChart({ own }: { own: DayRecord[] }): ReactElement {
         />
       }
     >
-      <Line data={data} options={axes('$')} />
+      <Line data={data} options={withCrosshair(axes('$'), group)} />
     </Box>
   )
 }
 
+type CostsView = 'ledger' | 'trend'
+
 export default function DetailsPanel({ view, ownHistory, publicHistory, lastRecord }: DetailsPanelProps): ReactElement {
   const [open, setOpen] = useState<boolean>(() => getUiFlag('details_open'))
+  const [costs, setCosts] = useState<CostsView>('ledger')
+  const selectedDay = useGameStore((s) => s.selectedDay)
   const change = (next: boolean): void => {
     setOpen(next)
     setUiFlag('details_open', next)
   }
+  useEffect(
+    () =>
+      useGameStore.subscribe((state, previous) => {
+        if (state.selectedDay === previous.selectedDay || state.selectedDay === null) return
+        setOpen(true)
+        setUiFlag('details_open', true)
+        setCosts('ledger')
+      }),
+    [],
+  )
+  const ledgerRecord = ownHistory.find((r) => r.day === selectedDay) ?? ownHistory[ownHistory.length - 1] ?? null
   return (
     <Collapsible variant="card" summary="Details" open={open} onOpenChange={change}>
       <div className="flex flex-col gap-4">
-        <InventoryChart own={ownHistory} />
-        <CollaborationChart own={ownHistory} pub={publicHistory} />
-        <CostsChart own={ownHistory} />
-        <SoldSpoiledChart own={ownHistory} />
-        <ReputationChart own={ownHistory} pub={publicHistory} alias={view.alias} />
-        <InsuranceChart own={ownHistory} />
+        <CrosshairGroup days={ownHistory.length}>
+          <div className="flex flex-col gap-4">
+            <InventoryChart own={ownHistory} />
+            <CollaborationChart own={ownHistory} pub={publicHistory} />
+            {ledgerRecord ? (
+              <div className="flex flex-col gap-2">
+                <SegmentedControl
+                  label="Costs"
+                  options={[
+                    { value: 'ledger', label: 'Ledger' },
+                    { value: 'trend', label: 'Trend' },
+                  ]}
+                  value={costs}
+                  onChange={setCosts}
+                />
+                {costs === 'ledger' ? <DayLedgerChart record={ledgerRecord} /> : <CostsChart own={ownHistory} />}
+              </div>
+            ) : null}
+            <SoldSpoiledChart own={ownHistory} />
+            <ReputationChart own={ownHistory} pub={publicHistory} alias={view.alias} />
+            <InsuranceChart own={ownHistory} />
+          </div>
+        </CrosshairGroup>
         {lastRecord ? (
           <div className="flex flex-col gap-2">
             <h3 className="text-base font-semibold">Last day's ledger</h3>

@@ -2,13 +2,20 @@ import { createElement } from 'react'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { vi } from 'vitest'
 
-vi.mock('react-chartjs-2', () => {
-  const make = (type: string) => (props: { data?: unknown; options?: unknown }) =>
-    createElement('div', {
+const seen = vi.hoisted(() => new Map<string, { data: any; options: any }>()) // eslint-disable-line @typescript-eslint/no-explicit-any
+
+vi.mock('react-chartjs-2', async () => {
+  const { useId } = await import('react')
+  const make = (type: string) => (props: { data?: unknown; options?: unknown }) => {
+    const id = useId()
+    seen.set(id, props as never)
+    return createElement('div', {
       'data-testid': `chart-${type}`,
+      'data-chart-id': id,
       'data-chart': JSON.stringify({ type, data: props.data, options: props.options }),
     })
-  return { Bar: make('bar'), Line: make('line'), Pie: make('pie'), Doughnut: make('doughnut') }
+  }
+  return { Bar: make('bar'), Line: make('line'), Pie: make('pie'), Doughnut: make('doughnut'), Chart: make('chart') }
 })
 
 import Board2D, { type BoardViewProps } from '../components/game/views/Board2D'
@@ -358,7 +365,10 @@ export function before(a: HTMLElement, b: HTMLElement): boolean {
  * Section 27 - MarketPanel (spec 13.7, 9.3). Acceptance criteria 6, 6b; failure modes 10, 11.
  */
 
-import { describe, expect, it } from 'vitest'
+import { act } from '@testing-library/react'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { useGameStore } from '../store/gameStore'
+import { CHART_COLORS } from '../components/charts/chartSetup'
 
 const SPOTS = [12.5, 13, 14.2, 13.4]
 
@@ -426,23 +436,17 @@ describe('Peer market totals line (failure modes 10, 11)', () => {
 })
 
 describe('Market charts', () => {
-  it('SharePie: one slice per pulquería in alias order, own slice offset', () => {
+  it('ShareBars: one bar per pulquería, largest share first, own bar bordered', () => {
     market()
     const chart = chartOf('Market share yesterday')
-    expect(chart.type).toBe('pie')
-    const data = chart.data.datasets[0].data
-    expect(data).toHaveLength(3)
-    const sum = data.reduce((a, b) => a + b, 0)
-    const shares = [0.25, 0.3, 0.2]
-    const total = shares.reduce((a, b) => a + b, 0)
-    shares.forEach((s, i) => expect(data[i] / sum).toBeCloseTo(s / total, 6))
-    const offset = chart.data.datasets[0].offset as number[]
-    expect(offset[0]).toBe(10)
-    expect(offset[1]).toBe(0)
-    expect(offset[2]).toBe(0)
+    expect(chart.type).toBe('bar')
+    expect(chart.data.labels).toEqual(['La Chula', 'Don Agave', 'El Tinacal'])
+    expect(chart.data.datasets[0].data).toEqual([0.3, 0.25, 0.2])
+    expect((chart.data.datasets[0] as { borderWidth?: number[] }).borderWidth).toEqual([0, 2, 0])
+    expect(chart.data.datasets[1].label).toBe('Fair share (1 ÷ 3)')
   })
 
-  it('SharePie has a table view', () => {
+  it('ShareBars has a table view', () => {
     market()
     const table = tableOf('Market share yesterday')
     expect(within(table).getByText('La Chula')).toBeInTheDocument()
@@ -488,5 +492,117 @@ describe('Before the first day closes', () => {
     expect(screen.getByText('They appear after the first day closes.')).toBeInTheDocument()
     expect(screen.queryByRole('table', { name: "Yesterday's market" })).toBeNull()
     expect(screen.queryByText('Market share yesterday')).toBeNull()
+  })
+})
+
+// ── Section 36: choosing a day, the loss swatch, share bars in the market panel ──
+
+beforeEach(() => {
+  useGameStore.getState().reset()
+})
+
+const propsOf = (title: string) => {
+  const id = figure(title).querySelector('[data-chart-id]')?.getAttribute('data-chart-id') as string
+  return seen.get(id) as { data: any; options: any } // eslint-disable-line @typescript-eslint/no-explicit-any
+}
+const slider = () => screen.getByLabelText('Day to break down') as HTMLInputElement
+const widths = () => propsOf('Your profit per day').data.datasets[0].borderWidth as number[]
+
+describe('Your profit per day: legend and the chosen day (acceptance 2, 8)', () => {
+  it('has a Profit and a Loss legend item', () => {
+    market()
+    const box = figure('Your profit per day')
+    expect(within(box).getByText('Profit')).toBeInTheDocument()
+    expect(within(box).getByText('Loss')).toBeInTheDocument()
+  })
+
+  it('borders the last day when nothing is selected', () => {
+    market()
+    expect(widths()).toEqual([0, 0, 0, 2])
+    const ds = propsOf('Your profit per day').data.datasets[0]
+    expect(ds.borderColor).toHaveLength(4)
+    expect(ds.borderColor[3]).toBe(CHART_COLORS['ink'])
+  })
+
+  it('shows the slider on the last day', () => {
+    market()
+    expect(slider().type).toBe('range')
+    expect(slider().min).toBe('1')
+    expect(slider().max).toBe('4')
+    expect(slider().step).toBe('1')
+    expect(slider().value).toBe('4')
+    expect(within(figure('Your profit per day')).getByText('Day 4')).toBeInTheDocument()
+  })
+
+  it('follows a selected day and falls back to the last day for one that was not played', () => {
+    market()
+    act(() => useGameStore.getState().selectDay(2))
+    expect(slider().value).toBe('2')
+    expect(widths()).toEqual([0, 2, 0, 0])
+    expect(within(figure('Your profit per day')).getByText('Day 2')).toBeInTheDocument()
+    act(() => useGameStore.getState().selectDay(99))
+    expect(slider().value).toBe('4')
+    expect(widths()).toEqual([0, 0, 0, 2])
+  })
+
+  it('moving the slider selects that day and the chart and slider agree (failure mode 4)', () => {
+    market()
+    fireEvent.change(slider(), { target: { value: '2' } })
+    expect(useGameStore.getState().selectedDay).toBe(2)
+    expect(slider().value).toBe('2')
+    expect(widths()).toEqual([0, 2, 0, 0])
+  })
+
+  it('uses the position in ownHistory, not the day number, for the slider', () => {
+    const own = [3, 4, 5].map((d) => makeRecord(d, { profit: d }))
+    renderBoard({ publicHistory: history(), ownHistory: own, lastRecord: own[2] })
+    expect(slider().max).toBe('3')
+    act(() => useGameStore.getState().selectDay(4))
+    expect(slider().value).toBe('2')
+    fireEvent.change(slider(), { target: { value: '3' } })
+    expect(useGameStore.getState().selectedDay).toBe(5)
+    expect(widths()).toEqual([0, 0, 2])
+  })
+
+  it('keeps a slider with one day, min = max = 1', () => {
+    renderBoard({ publicHistory: history(), ownHistory: [makeRecord(1, { profit: 5 })], lastRecord: makeRecord(1) })
+    expect(slider().min).toBe('1')
+    expect(slider().max).toBe('1')
+    expect(slider().value).toBe('1')
+  })
+
+  it('selects the clicked bar day and ignores a click on nothing', () => {
+    market()
+    const { onClick } = propsOf('Your profit per day').options
+    act(() => onClick({}, [{ index: 1 }]))
+    expect(useGameStore.getState().selectedDay).toBe(2)
+    act(() => propsOf('Your profit per day').options.onClick({}, []))
+    expect(useGameStore.getState().selectedDay).toBe(2)
+    expect(widths()).toEqual([0, 2, 0, 0])
+  })
+
+  it('keeps the profit colours: loss in danger', () => {
+    market()
+    const colours = propsOf('Your profit per day').data.datasets[0].backgroundColor
+    expect(colours[1]).toBe(CHART_COLORS['danger'])
+    expect(colours[0]).toBe(CHART_COLORS['p1'])
+  })
+})
+
+describe('Market panel layout and crosshair isolation (acceptance 3, 7)', () => {
+  it('puts the share tile and bars beside the spot price chart in one two-column grid', () => {
+    market()
+    expect(screen.getByText('Your market share')).toBeInTheDocument()
+    const grid = figure('Market share yesterday').closest('.grid') as HTMLElement
+    expect(grid.className).toContain('md:grid-cols-2')
+    expect(grid.contains(figure('Spot price'))).toBe(true)
+    expect(screen.queryByTestId('chart-pie')).toBeNull()
+  })
+
+  it('carries no crosshair group on the charts outside Details', () => {
+    market()
+    for (const title of ['Market share yesterday', 'Spot price', 'Your profit per day']) {
+      expect(propsOf(title).options?.plugins?.crosshairSync).toBeUndefined()
+    }
   })
 })

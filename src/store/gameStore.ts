@@ -73,6 +73,8 @@ export interface GameState {
   finished: GameFinishedPayload | null
   gamePublicId: string | null
   alerts: Alert[]
+  /** The day chosen under Your profit per day; board UI state, written only by the board through selectDay. */
+  selectedDay: number | null
   connectionError: string | null
   lastError: ServerError | null
 }
@@ -106,6 +108,7 @@ export interface GameActions {
   setConnectionError(message: string | null): void
   addAlert(a: Omit<Alert, 'id'>): string
   dismissAlert(id: string): void
+  selectDay(day: number | null): void
 }
 
 export const INITIAL_STATE: GameState = {
@@ -138,6 +141,7 @@ export const INITIAL_STATE: GameState = {
   finished: null,
   gamePublicId: null,
   alerts: [],
+  selectedDay: null,
   connectionError: null,
   lastError: null,
 }
@@ -322,5 +326,7 @@ export const useGameStore = create<GameState & GameActions>()((set, get) => {
 
     dismissAlert: (id) =>
       set((state) => ({ alerts: state.alerts.filter((a) => a.id !== id) })),
+
+    selectDay: (day) => set({ selectedDay: day }),
   }
 })

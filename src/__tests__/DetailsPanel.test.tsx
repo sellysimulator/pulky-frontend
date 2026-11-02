@@ -361,6 +361,9 @@ export function before(a: HTMLElement, b: HTMLElement): boolean {
  */
 
 import { describe, expect, it } from 'vitest'
+import { act } from '@testing-library/react'
+import { beforeEach } from 'vitest'
+import { useGameStore } from '../store/gameStore'
 import { getUiFlag, setUiFlag } from '../utils/storage'
 
 const OWN = [
@@ -398,6 +401,10 @@ function details(extra: Partial<BoardViewProps> = {}) {
   return renderBoard({ ownHistory: OWN, lastRecord: OWN[2], publicHistory: PUBLIC, ...extra })
 }
 
+const showTrend = (): void => {
+  fireEvent.click(screen.getByRole('button', { name: 'Trend' }))
+}
+
 const detailsEl = () => screen.getByText('Details').closest('details') as HTMLDetailsElement
 
 const sets = (title: string) => chartOf(title).data.datasets.map((d) => d.data.map((v) => v + 0))
@@ -432,6 +439,7 @@ describe('DetailsPanel collapse (acceptance 7)', () => {
 describe('DetailsPanel contents', () => {
   it('lists the charts in the specified order and ends with the last day ledger', () => {
     details()
+    showTrend()
     const titles = [
       'Inventory vs backlog',
       'Equal supply votes',
@@ -450,6 +458,7 @@ describe('DetailsPanel contents', () => {
 
   it('every chart sits in a ChartBox that can switch to a table', () => {
     details()
+    showTrend()
     for (const title of [
       'Inventory vs backlog',
       'Equal supply votes',
@@ -500,6 +509,7 @@ describe('DetailsPanel contents', () => {
 
   it('Costs per day carries the eight cost segments and the two revenue lines, in order', () => {
     details()
+    showTrend()
     const chart = chartOf('Costs per day')
     expect(chart.data.datasets.map((d) => d.label)).toEqual([
       'Spot',
@@ -529,6 +539,7 @@ describe('DetailsPanel contents', () => {
 
   it('Costs per day table has a Day column and one column per dataset', () => {
     details()
+    showTrend()
     const table = tableOf('Costs per day')
     expect(
       within(table)
@@ -576,7 +587,151 @@ describe('DetailsPanel contents', () => {
 
   it('shows the peer purchases and peer sales series when the peer market is on', () => {
     details({ config: makeConfig(true) })
+    showTrend()
     expect(byLabel('Costs per day', 'Peer purchases')).toBeDefined()
     expect(byLabel('Costs per day', 'Peer sales revenue')).toBeDefined()
+  })
+})
+
+// ── Section 36: ledger / trend, opening on a choice, one crosshair ──
+
+beforeEach(() => {
+  useGameStore.getState().reset()
+})
+
+const pressed = (name: string): boolean => screen.getByRole('button', { name }).getAttribute('aria-pressed') === 'true'
+const choose = (day: number | null): void => {
+  act(() => useGameStore.getState().selectDay(day))
+}
+const DAY_TITLE = (d: number): string => `Day ${d}: where the profit came from`
+
+describe('Ledger / Trend (acceptance 5)', () => {
+  it('offers a Costs control with Ledger first and pressed', () => {
+    details()
+    const group = screen.getByRole('group', { name: 'Costs' })
+    expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['Ledger', 'Trend'])
+    expect(pressed('Ledger')).toBe(true)
+    expect(pressed('Trend')).toBe(false)
+  })
+
+  it('shows the ledger of the last record, and not Costs per day, by default', () => {
+    details()
+    expect(screen.getByText(DAY_TITLE(3))).toBeInTheDocument()
+    expect(screen.queryByText('Costs per day')).toBeNull()
+    expect(chartOf(DAY_TITLE(3)).data.datasets[0].data[0]).toEqual([0, 800])
+  })
+
+  it('shows the ledger of the selected day when it was played, else the last record', () => {
+    details()
+    choose(2)
+    expect(screen.getByText(DAY_TITLE(2))).toBeInTheDocument()
+    expect(screen.queryByText(DAY_TITLE(3))).toBeNull()
+    expect(chartOf(DAY_TITLE(2)).data.datasets[0].data[0]).toEqual([0, 900])
+    choose(40)
+    expect(screen.getByText(DAY_TITLE(3))).toBeInTheDocument()
+  })
+
+  it('keeps Costs per day reachable through Trend, in place of the ledger', () => {
+    details()
+    showTrend()
+    expect(pressed('Trend')).toBe(true)
+    expect(screen.getByText('Costs per day')).toBeInTheDocument()
+    expect(screen.queryByText(DAY_TITLE(3))).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Ledger' }))
+    expect(screen.getByText(DAY_TITLE(3))).toBeInTheDocument()
+    expect(screen.queryByText('Costs per day')).toBeNull()
+  })
+
+  it('shows neither with no records', () => {
+    details({ ownHistory: [], lastRecord: null, publicHistory: [] })
+    expect(screen.queryByText('Costs per day')).toBeNull()
+    expect(screen.queryByText(/where the profit came from/)).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Costs' })).toBeNull()
+  })
+
+  it('still ends with the last day ledger', () => {
+    details()
+    expect(within(detailsEl()).getByText("Last day's ledger")).toBeInTheDocument()
+  })
+})
+
+describe('Opening on a choice (acceptance 6; failure mode 5)', () => {
+  it('does not open on its first render when a day is already selected', () => {
+    useGameStore.setState({ selectedDay: 2 })
+    details()
+    expect(detailsEl()).not.toHaveAttribute('open')
+    expect(getUiFlag('details_open')).toBe(false)
+  })
+
+  it('opens, remembers it and shows the Ledger of that day when a day is chosen while mounted', () => {
+    details()
+    expect(detailsEl()).not.toHaveAttribute('open')
+    choose(2)
+    expect(detailsEl()).toHaveAttribute('open')
+    expect(getUiFlag('details_open')).toBe(true)
+    expect(pressed('Ledger')).toBe(true)
+    expect(screen.getByText(DAY_TITLE(2))).toBeInTheDocument()
+  })
+
+  it('switches Trend back to Ledger when a day is chosen', () => {
+    details()
+    showTrend()
+    choose(1)
+    expect(pressed('Ledger')).toBe(true)
+    expect(screen.getByText(DAY_TITLE(1))).toBeInTheDocument()
+    expect(screen.queryByText('Costs per day')).toBeNull()
+  })
+
+  it('reopens after the player closed it, on the next choice', () => {
+    details()
+    choose(1)
+    fireEvent.click(screen.getByText('Details'))
+    expect(detailsEl()).not.toHaveAttribute('open')
+    choose(2)
+    expect(detailsEl()).toHaveAttribute('open')
+  })
+
+  it('does not open when the selection is cleared', () => {
+    details()
+    choose(1)
+    fireEvent.click(screen.getByText('Details'))
+    choose(null)
+    expect(detailsEl()).not.toHaveAttribute('open')
+  })
+})
+
+describe('One crosshair (acceptance 7)', () => {
+  const SIX = [
+    'Inventory vs backlog',
+    'Equal supply votes',
+    'Costs per day',
+    'Sold vs spoiled',
+    'Reputation',
+    'Insurance: fees vs refunds',
+  ]
+  const groupOf = (title: string): unknown =>
+    (chartOf(title) as unknown as { options?: { plugins?: { crosshairSync?: { group?: unknown } } } }).options?.plugins?.crosshairSync?.group
+
+  it('gives the six day-axis charts the same group', () => {
+    details()
+    showTrend()
+    const groups = SIX.map(groupOf)
+    expect(typeof groups[0]).toBe('string')
+    expect(groups[0]).not.toBe('')
+    for (const g of groups) expect(g).toBe(groups[0])
+  })
+
+  it('keeps the options the charts already had', () => {
+    details()
+    showTrend()
+    expect(chartOf('Inventory vs backlog').options?.scales?.x?.stacked).toBe(true)
+    expect(chartOf('Costs per day').options?.scales?.y?.stacked).toBe(true)
+  })
+
+  it('gives a chart outside Details no group', () => {
+    details()
+    expect(groupOf('Spot price')).toBeUndefined()
+    expect(groupOf('Your profit per day')).toBeUndefined()
+    expect(groupOf('Market share yesterday')).toBeUndefined()
   })
 })

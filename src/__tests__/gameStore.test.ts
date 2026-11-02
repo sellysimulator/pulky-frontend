@@ -122,6 +122,7 @@ describe('INITIAL_STATE and reset (criterion 1)', () => {
     finished: null,
     gamePublicId: null,
     alerts: [],
+    selectedDay: null,
     connectionError: null,
     lastError: null,
   }
@@ -716,5 +717,33 @@ describe('host_state (spec 3.2, 12.5, 12.6)', () => {
     call('applyDayClosed', { seq: 2, day: 3, public: pub(3) })
     call('applyDayClosed', { seq: 3, day: 3, public: pub(3) })
     expect(days(S().publicHistory)).toEqual([1, 2, 3])
+  })
+})
+
+describe('selectedDay (section 36, acceptance 9)', () => {
+  it('starts null', () => {
+    expect(INITIAL_STATE.selectedDay).toBeNull()
+    expect(S().selectedDay).toBeNull()
+  })
+
+  it('selectDay sets the day and null clears it', () => {
+    S().selectDay(3)
+    expect(S().selectedDay).toBe(3)
+    S().selectDay(null)
+    expect(S().selectedDay).toBeNull()
+  })
+
+  it('reset() puts it back to null', () => {
+    S().selectDay(5)
+    S().reset()
+    expect(S().selectedDay).toBeNull()
+  })
+
+  it('is not cleared when a day closes', () => {
+    S().setRoom('ABC234', false)
+    S().selectDay(2)
+    call('applyYourDayClosed', { seq: 1, day: 3, record: rec(3) })
+    call('applyDayClosed', { seq: 2, day: 3, public: pub(3) })
+    expect(S().selectedDay).toBe(2)
   })
 })

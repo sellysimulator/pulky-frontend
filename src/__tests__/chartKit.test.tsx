@@ -464,7 +464,7 @@ describe('one hatch helper (criterion 1)', () => {
     expect(offenders).toEqual([])
   })
 
-  it.each(['components/host/MarketCharts.tsx', 'components/game/SharePie.tsx', 'components/game/DetailsPanel.tsx', 'components/results/demandSupplyConfig.ts'])(
+  it.each(['components/host/MarketCharts.tsx', 'components/game/DetailsPanel.tsx', 'components/results/demandSupplyConfig.ts'])(
     '%s imports hatched from chartSetup',
     (file) => {
       const src = readFileSync(resolve(root, file), 'utf8')
