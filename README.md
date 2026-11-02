@@ -12,6 +12,24 @@ npm run dev        # http://localhost:5173, proxies /api and /socket.io to local
 npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build   # the gates ci.yml runs
 ```
 
+## Charts
+
+Every chart is a Chart.js chart inside a `ChartBox` (title, caption, a **Show table** toggle and an error fallback), built by a pure
+`build…Config` function that the tests assert on (they mock `react-chartjs-2`, since jsdom has no canvas). The shared kit is
+`src/components/charts/chartSetup.ts`:
+
+- canvas colours mirrored from the CSS tokens (a test compares them with `src/index.css`), `pulqueriaStyle(alias)` and `MEASURE_STYLES`;
+- one cached hatch helper, `hatched(color)`, for P7–P12 and the hatched measures;
+- `pulqueriaLine(alias, emphasis)` for line emphasis (the focused line on top, the rest in the context grey);
+- local plugins: `eventBands` (whole-day bands; `peakShading` is its peak tone), `crosshairSync` with `CrosshairGroup.tsx`
+  (one day crosshair across several charts, mouse and keyboard), `lineEndLabels` and `quadrantLabels`.
+
+`Legend` (in `src/components/shared/`) is static, a set of `role="switch"` toggles, or an emphasis legend. The summary's flow
+chart uses `chartjs-chart-sankey`, pinned at exactly `0.19.1` (spec §13.1): read its diff before moving the pin, keep it in the
+`charts` chunk of `manualChunks`, and never use its default gradient colour mode.
+
+The rules are in `../docs/design.md` §3 and §9 and spec §13.7–§13.8; the build contracts are `../docs/plan/33`–`37`.
+
 ## Third-party 3D assets
 
 The 3D pulquería draws three models licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Their credits
