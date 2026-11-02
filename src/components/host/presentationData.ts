@@ -1,6 +1,14 @@
 import type { GameState } from '../../store/gameStore'
 import type { Brief, DayRecord, HostView, MarketDay, PublicDayResults, Weekday } from '../../types/game'
 
+export interface PresentationDay {
+  day: number
+  weekday: Weekday
+  demand_total: number
+  units_sold_total: number
+  shares: Record<string, { display_name: string; market_share: number }>
+}
+
 /** The only data presentation mode may show: public values, copied field by field (spec §11.1, §11.4). */
 export interface PresentationData {
   day: number
@@ -11,6 +19,7 @@ export interface PresentationData {
   latest: PublicDayResults | null
   peerMarket: boolean
   submitted: Array<{ alias: string; displayName: string; submitted: boolean }>
+  history: PresentationDay[]
 }
 
 export interface HostHistories {
@@ -48,6 +57,22 @@ function copyLatest(latest: PublicDayResults | undefined): PublicDayResults | nu
     peer_avg_price: latest.peer_avg_price,
     players,
   }
+}
+
+function copyHistory(publicHistory: PublicDayResults[]): PresentationDay[] {
+  return publicHistory.map((entry) => {
+    const shares: PresentationDay['shares'] = {}
+    for (const [alias, row] of Object.entries(entry.players)) {
+      shares[alias] = { display_name: row.display_name, market_share: row.market_share }
+    }
+    return {
+      day: entry.day,
+      weekday: entry.weekday,
+      demand_total: entry.demand_total,
+      units_sold_total: entry.units_sold_total,
+      shares,
+    }
+  })
 }
 
 function submittedRows(hostView: HostView): PresentationData['submitted'] {
@@ -93,6 +118,7 @@ export function selectPresentationData(state: GameState): PresentationData | nul
     latest: copyLatest(latest),
     peerMarket: hostView.config.peer_market.enabled,
     submitted: submittedRows(hostView),
+    history: copyHistory(state.publicHistory),
   }
 }
 

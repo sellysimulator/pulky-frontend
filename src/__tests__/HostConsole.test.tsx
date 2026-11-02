@@ -12,12 +12,16 @@ vi.mock('react-chartjs-2', () => {
   const make = (type: string) => (props: { data?: unknown; options?: unknown }) =>
     createElement('div', {
       'data-testid': `chart-${type}`,
-      'data-chart': JSON.stringify({ type, data: props.data, options: props.options }),
+      'data-chart': JSON.stringify({ type, data: props.data, options: props.options }, (_k, v) =>
+        typeof v === 'function' ? '__fn__' : v,
+      ),
     })
   return { Bar: make('bar'), Line: make('line'), Pie: make('pie'), Doughnut: make('doughnut') }
 })
 
 import { socket } from '../api/socket'
+import { pulqueriaLine, pulqueriaStyle } from '../components/charts/chartSetup'
+import { buildProfitRaceConfig } from '../components/results/resultsChartsConfig'
 import HostConsole from '../components/host/HostConsole'
 import MarketCharts from '../components/host/MarketCharts'
 import type { HostHistories } from '../components/host/presentationData'
@@ -356,6 +360,7 @@ describe('MarketCharts (acceptance 5)', () => {
     screen.getAllByRole('figure').map((f) => (f.querySelector('figcaption')?.textContent ?? '').trim())
 
   const ORDER = [
+    'Profit race',
     'Market share',
     'Reputation',
     'Demand vs units sold',
@@ -380,18 +385,18 @@ describe('MarketCharts (acceptance 5)', () => {
     return within(f).getByRole('table')
   }
 
-  it('renders the seven charts in order when the peer market is on', () => {
+  it('renders the eight charts in order, the race first, when the peer market is on', () => {
     renderConsole()
     const got = titles()
-    expect(got).toHaveLength(7)
+    expect(got).toHaveLength(8)
     ORDER.forEach((t, i) => expect(got[i]).toContain(t))
   })
 
-  it('renders six charts and no Peer units traded when the peer market is off', () => {
+  it('renders seven charts and no Peer units traded when the peer market is off', () => {
     renderConsole({ hostView: hostView(false) })
     const got = titles()
-    expect(got).toHaveLength(6)
-    ORDER.slice(0, 6).forEach((t, i) => expect(got[i]).toContain(t))
+    expect(got).toHaveLength(7)
+    ORDER.slice(0, 7).forEach((t, i) => expect(got[i]).toContain(t))
     expect(got.some((t) => t.includes('Peer units traded'))).toBe(false)
   })
 
@@ -442,11 +447,17 @@ describe('MarketCharts (acceptance 5)', () => {
     expect(text).toContain('81')
   })
 
-  it('Spoilage per day sums spoiled units over every pulquería', () => {
+  it('Spoilage per day: Day, one column per pulquería, then Total summing every pulquería', () => {
     renderConsole()
-    const cells = within(tableOf('Spoilage per day')).getAllByRole('cell').map((c) => c.textContent?.trim())
-    expect(cells).toContain('15') // 6 + 9 on day 5
-    expect(cells).toContain('13') // 2 + 11 on day 4
+    const table = tableOf('Spoilage per day')
+    const heads = within(table).getAllByRole('columnheader').map((h) => h.textContent?.trim())
+    expect(heads[0]).toBe('Day')
+    expect(heads.slice(1)).toEqual(['Don Agave', 'La Chula', 'El Tinacal', 'Total'])
+    const rows = within(table).getAllByRole('row').slice(1)
+    const cells = (i: number) => Array.from(rows[i].querySelectorAll('th, td')).map((c) => c.textContent?.trim())
+    const d5 = cells(4).slice(1)
+    expect([d5[0], d5[1], d5[3]]).toEqual(['6', '9', '15']) // day 5
+    expect(cells(3).slice(1)).toEqual(['2', '11', '—', '13']) // day 4
   })
 
   it('Peer units traded is a single-series bar chart of peer_units', () => {
@@ -483,13 +494,13 @@ describe('MarketCharts (acceptance 5)', () => {
   it('works with no config (the spot chart simply has no base-price line)', () => {
     const view = hostView(true)
     render(<MarketCharts hostView={view} histories={histories()} config={null} />)
-    expect(screen.getAllByRole('figure').length).toBeGreaterThanOrEqual(6)
+    expect(screen.getAllByRole('figure').length).toBeGreaterThanOrEqual(7)
   })
 
   it('draws the charts from the histories it is given, not from the host view', () => {
     const view = hostView(true, { public_history: [], market_history: [] })
     render(<MarketCharts hostView={view} histories={histories()} config={view.config as GameConfig} />)
-    expect(screen.getAllByRole('figure')).toHaveLength(7)
+    expect(screen.getAllByRole('figure')).toHaveLength(8)
   })
 })
 
@@ -558,5 +569,270 @@ describe('EventHistory (acceptance 6, failure mode 9)', () => {
   it('says No events yet. before any day has closed', () => {
     renderConsole({ histories: EMPTY })
     expect(within(region()).getByText('No events yet.')).toBeInTheDocument()
+  })
+})
+
+/* ------------------------------------------------------------------ section 37 */
+
+const M2: Record<string, string> = { P1: 'Don Agave', P2: 'La Chula' }
+
+/** plan 37 §4 as the console's inputs: two pulquerías, closed days Mon-Wed (Tue and Wed peak). */
+function section4(over: { omitP2Day1?: boolean } = {}): { view: HostView; hist: HostHistories } {
+  const profit: Record<string, number[]> = { P1: [100, -10, 40.25], P2: [80, 30, 20] }
+  const spoiled: Record<string, number[]> = { P1: [2, 0, 1], P2: [0, 3, 1] }
+  const share: Record<string, number[]> = { P1: [0.5, 0.4, 0.55], P2: [0.5, 0.6, 0.45] }
+  const mult = [0.5, 1, 1]
+  const wd = ['mon', 'tue', 'wed']
+  const players: Obj = {}
+  const records: Obj = {}
+  for (const a of ['P1', 'P2']) {
+    players[a] = { display_name: M2[a], has_submitted: false }
+    records[a] = [0, 1, 2]
+      .filter((i) => !(over.omitP2Day1 && a === 'P2' && i === 0))
+      .map((i) => rec(i + 1, { profit: profit[a][i], spoiled: spoiled[a][i] }))
+  }
+  const publicHistory = [0, 1, 2].map((i) => {
+    const p: Obj = {}
+    for (const a of ['P1', 'P2']) p[a] = { display_name: M2[a], units_sold: 10, market_share: share[a][i], reputation: 0.5 + i / 10 }
+    return { ...pub(i + 1), players: p } as unknown as PublicDayResults
+  })
+  const marketHistory = [0, 1, 2].map((i) => market(i + 1, { weekday: wd[i], weekday_multiplier: mult[i] }))
+  return {
+    view: hostView(true, { players }),
+    hist: { players: records, publicHistory, marketHistory } as unknown as HostHistories,
+  }
+}
+
+function scenario(n: number): { view: HostView; hist: HostHistories } {
+  const players: Obj = {}
+  const records: Obj = {}
+  for (let k = 1; k <= n; k++) {
+    players[`P${k}`] = { display_name: `Name ${k}`, has_submitted: false }
+    records[`P${k}`] = [rec(1, { profit: k, spoiled: k }), rec(2, { profit: k, spoiled: k })]
+  }
+  const p: Obj = {}
+  for (let k = 1; k <= n; k++) p[`P${k}`] = { display_name: `Name ${k}`, units_sold: 1, market_share: 1 / n, reputation: 0.5 }
+  return {
+    view: hostView(true, { players }),
+    hist: {
+      players: records,
+      publicHistory: [1, 2].map((d) => ({ ...pub(d), players: p }) as unknown as PublicDayResults),
+      marketHistory: [market(1), market(2)],
+    } as unknown as HostHistories,
+  }
+}
+
+function mount(s: { view: HostView; hist: HostHistories }) {
+  return render(<MarketCharts hostView={s.view} histories={s.hist} config={s.view.config as GameConfig} />)
+}
+
+const col = (table: HTMLElement, header: string): string[] => {
+  const heads = within(table).getAllByRole('columnheader').map((h) => (h.textContent ?? '').trim())
+  const i = heads.indexOf(header)
+  if (i < 0) throw new Error(`no column ${header}: ${heads.join('|')}`)
+  return within(table)
+    .getAllByRole('row')
+    .slice(1)
+    .map((r) => (r.querySelectorAll('th, td')[i]?.textContent ?? '').trim())
+}
+
+const fig = (title: string): HTMLElement => {
+  const f = screen.getAllByRole('figure').find((el) => (el.querySelector('figcaption')?.textContent ?? '').includes(title))
+  if (!f) throw new Error(`no chart ${title}`)
+  return f
+}
+const chart = (title: string): { data: { labels: unknown[]; datasets: Obj[] }; options: Obj } =>
+  JSON.parse(fig(title).querySelector('[data-testid^="chart-"]')!.getAttribute('data-chart')!)
+const table = (title: string): HTMLElement => {
+  fireEvent.click(within(fig(title)).getByRole('button', { name: 'Show table' }))
+  return within(fig(title)).getByRole('table', { name: title })
+}
+const legendItem = (title: string, label: string): HTMLElement =>
+  within(fig(title)).getAllByText(label).map((e) => e.closest('li')).find(Boolean) as HTMLElement
+
+describe('Profit race (plan 37 §3.3, acceptance 3, 6, failure mode 3)', () => {
+  it('is the first chart, ahead of Market share, with its accessible name', () => {
+    mount(section4())
+    const figures = screen.getAllByRole('figure')
+    expect(figures[0].textContent).toContain('Profit race')
+    expect(figures[1].textContent).toContain('Market share')
+    expect(
+      within(figures[0]).getByRole('img', { name: "Line chart of each pulquería's running profit on each day played so far" }),
+    ).toBeInTheDocument()
+  })
+
+  it('plots the running profit per day (worked example) and nothing else', () => {
+    mount(section4())
+    const c = chart('Profit race')
+    expect(c.data.datasets.map((d) => d.label)).toEqual(['Don Agave', 'La Chula'])
+    expect(c.data.datasets[0].data).toEqual([100, 90, 130.25])
+    expect(c.data.datasets[1].data).toEqual([80, 110, 130])
+  })
+
+  it('failure mode 3: there is no End point, exactly one label per closed day', () => {
+    mount(section4())
+    const c = chart('Profit race')
+    expect(c.data.labels).toEqual([['1', 'Mon'], ['2', 'Tue'], ['3', 'Wed']])
+    for (const d of c.data.datasets) expect(d.data).toHaveLength(3)
+    expect(JSON.stringify(c.data.labels)).not.toContain('End')
+  })
+
+  it('shades the days whose weekday multiplier is 1', () => {
+    mount(section4())
+    const plugins = chart('Profit race').options.plugins as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(plugins.eventBands.bands).toEqual([
+      { index: 1, tone: 'peak' },
+      { index: 2, tone: 'peak' },
+    ])
+  })
+
+  it('acceptance 3: its day points equal the results race for the same records', () => {
+    const s = section4()
+    mount(s)
+    const profit = { P1: [100, -10, 40.25], P2: [80, 30, 20] } as Record<string, number[]>
+    const view = {
+      days_played: 3,
+      market: { weekday: ['mon', 'tue', 'wed'], weekday_multiplier: [0.5, 1, 1] },
+      players: ['P1', 'P2'].map((a) => ({ alias: a, display_name: M2[a], series: { profit: profit[a] }, total_profit: 999 })),
+    } as never
+    const results = buildProfitRaceConfig(view, null) as unknown as { data: { datasets: Array<{ data: number[] }> } }
+    chart('Profit race').data.datasets.forEach((d, i) => expect(d.data).toEqual(results.data.datasets[i].data.slice(0, 3)))
+  })
+
+  it('table: Day then one column per pulquería with the running totals in money', () => {
+    mount(section4())
+    const t = table('Profit race')
+    const heads = within(t).getAllByRole('columnheader').map((h) => h.textContent?.trim())
+    expect(heads).toEqual(['Day', 'Don Agave', 'La Chula'])
+    expect(col(t, 'Don Agave')).toEqual(['$100.00', '$90.00', '$130.25'])
+    expect(col(t, 'La Chula')).toEqual(['$80.00', '$110.00', '$130.00'])
+  })
+
+  it('legend: a line item per pulquería, dashed from P7', () => {
+    mount(scenario(7))
+    const items = Array.from(fig('Profit race').querySelectorAll('li'))
+    expect(items.map((li) => li.textContent?.trim())).toEqual(Array.from({ length: 7 }, (_, i) => `Name ${i + 1}`))
+    items.forEach((li, i) => {
+      const dash = li.querySelector('line')?.getAttribute('stroke-dasharray')
+      if (i < 6) expect(dash ?? '').toBe('')
+      else expect(dash).toBe('6 4')
+    })
+  })
+
+  it('hovering a legend item emphasises that line and leaving clears it', () => {
+    mount(section4())
+    fireEvent.pointerEnter(legendItem('Profit race', 'La Chula'))
+    const on = chart('Profit race').data.datasets
+    expect(on[1]).toMatchObject(pulqueriaLine('P2', 'focus'))
+    expect(on[0]).toMatchObject(pulqueriaLine('P1', 'context'))
+    fireEvent.pointerLeave(legendItem('Profit race', 'La Chula'))
+    chart('Profit race').data.datasets.forEach((d, i) => expect(d).toMatchObject(pulqueriaLine(`P${i + 1}`, 'none')))
+  })
+})
+
+describe('Reputation emphasis (plan 37 §3.3, acceptance 5, failure mode 4)', () => {
+  const styles = () => chart('Reputation').data.datasets
+
+  it('with nothing hovered every line has its normal (none) style', () => {
+    mount(section4())
+    styles().forEach((d, i) => expect(d).toMatchObject(pulqueriaLine(`P${i + 1}`, 'none')))
+  })
+
+  it('hovering a legend item focuses that line and puts the others in context', () => {
+    mount(section4())
+    fireEvent.pointerEnter(legendItem('Reputation', 'Don Agave'))
+    expect(styles()[0]).toMatchObject(pulqueriaLine('P1', 'focus'))
+    expect(styles()[1]).toMatchObject(pulqueriaLine('P2', 'context'))
+  })
+
+  it('focusing a legend item does the same', () => {
+    mount(section4())
+    fireEvent.focus(legendItem('Reputation', 'La Chula'))
+    expect(styles()[1]).toMatchObject(pulqueriaLine('P2', 'focus'))
+    expect(styles()[0]).toMatchObject(pulqueriaLine('P1', 'context'))
+  })
+
+  it('failure mode 4: after the pointer leaves, every line is back to none', () => {
+    mount(section4())
+    fireEvent.pointerEnter(legendItem('Reputation', 'Don Agave'))
+    fireEvent.pointerLeave(legendItem('Reputation', 'Don Agave'))
+    styles().forEach((d, i) => expect(d).toMatchObject(pulqueriaLine(`P${i + 1}`, 'none')))
+  })
+
+  it('failure mode 4: after blur, every line is back to none', () => {
+    mount(section4())
+    fireEvent.focus(legendItem('Reputation', 'Don Agave'))
+    fireEvent.blur(legendItem('Reputation', 'Don Agave'))
+    styles().forEach((d, i) => expect(d).toMatchObject(pulqueriaLine(`P${i + 1}`, 'none')))
+  })
+
+  it('keeps its data and its table', () => {
+    mount(section4())
+    expect(styles().map((d) => d.data)).toEqual([[0.5, 0.6, 0.7], [0.5, 0.6, 0.7]])
+    expect(table('Reputation')).toBeInTheDocument()
+  })
+})
+
+describe('Spoilage per day stacked by pulquería (plan 37 §3.3, acceptance 2, failure mode 2)', () => {
+  it('has one dataset per pulquería with the spoiled units per day, stacked, y titled Units', () => {
+    mount(section4())
+    const c = chart('Spoilage per day')
+    expect(c.data.datasets.map((d) => d.label)).toEqual(['Don Agave', 'La Chula'])
+    expect(c.data.datasets[0].data).toEqual([2, 0, 1])
+    expect(c.data.datasets[1].data).toEqual([0, 3, 1])
+    const scales = c.options.scales as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(scales.x.stacked).toBe(true)
+    expect(scales.y.stacked).toBe(true)
+    expect(scales.y.title.text).toBe('Units')
+  })
+
+  it('failure mode 2: the datasets sum, day by day, to 2, 3, 2', () => {
+    mount(section4())
+    const ds = chart('Spoilage per day').data.datasets
+    const sums = [0, 1, 2].map((i) => ds.reduce((s, d) => s + ((d.data as Array<number | null>)[i] ?? 0), 0))
+    expect(sums).toEqual([2, 3, 2])
+  })
+
+  it('failure mode 2: the table Total column reads 2, 3, 2', () => {
+    mount(section4())
+    const t = table('Spoilage per day')
+    expect(within(t).getAllByRole('columnheader').map((h) => h.textContent?.trim())).toEqual(['Day', 'Don Agave', 'La Chula', 'Total'])
+    expect(col(t, 'Total')).toEqual(['2', '3', '2'])
+    expect(col(t, 'Don Agave')).toEqual(['2', '0', '1'])
+    expect(col(t, 'La Chula')).toEqual(['0', '3', '1'])
+  })
+
+  it('a day with no record for a pulquería is null in the data and a dash in the table', () => {
+    mount(section4({ omitP2Day1: true }))
+    expect(chart('Spoilage per day').data.datasets[1].data).toEqual([null, 3, 1])
+    const t = table('Spoilage per day')
+    expect(col(t, 'La Chula')).toEqual(['—', '3', '1'])
+    expect(col(t, 'Total')).toEqual(['2', '3', '2'])
+  })
+
+  it('colours the stacks as the share bars: the pulquería colour, hatched from P7', () => {
+    mount(scenario(7))
+    const ds = chart('Spoilage per day').data.datasets
+    expect(ds).toHaveLength(7)
+    ds.forEach((d, i) => {
+      if (i < 6) expect(d.backgroundColor).toBe(pulqueriaStyle(`P${i + 1}`).color)
+      else expect(d.backgroundColor).toBe('__fn__')
+    })
+  })
+
+  it('legend: one fill item per pulquería, hatched from P7', () => {
+    mount(scenario(7))
+    const items = Array.from(fig('Spoilage per day').querySelectorAll('li'))
+    expect(items.map((li) => li.textContent?.trim())).toEqual(Array.from({ length: 7 }, (_, i) => `Name ${i + 1}`))
+    items.forEach((li, i) => expect(li.querySelector('pattern') !== null).toBe(i >= 6))
+  })
+
+  it('orders pulquerías by alias number', () => {
+    const s = scenario(2)
+    const v = s.view as unknown as { players: Obj }
+    v.players.P10 = { display_name: 'Diez', has_submitted: false }
+    ;(s.hist.players as unknown as Obj).P10 = [rec(1, { spoiled: 4 }), rec(2, { spoiled: 4 })]
+    mount(s)
+    expect(chart('Spoilage per day').data.datasets.map((d) => d.label)).toEqual(['Name 1', 'Name 2', 'Diez'])
   })
 })

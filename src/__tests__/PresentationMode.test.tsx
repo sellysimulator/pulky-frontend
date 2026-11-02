@@ -68,6 +68,7 @@ function data(over: Partial<PresentationData> = {}): PresentationData {
       futures: b.futures,
       transport: b.transport,
     },
+    history: [],
     latest: pub(),
     peerMarket: true,
     submitted: [
@@ -370,5 +371,61 @@ describe('PresentationMode leaks nothing private (failure modes 1, 2, 3, 8)', ()
     expect(text).not.toContain('6,120.55')
     expect(text).not.toContain('1,120.55')
     expect(text).not.toContain('6120.55')
+  })
+})
+
+describe('PresentationMode charts (plan 37 §3.2, acceptance 4)', () => {
+  const HISTORY = [
+    {
+      day: 1,
+      weekday: 'mon',
+      demand_total: 50,
+      units_sold_total: 44,
+      shares: { P1: { display_name: 'Don Agave', market_share: 0.5 }, P2: { display_name: 'La Chula', market_share: 0.5 } },
+    },
+    {
+      day: 2,
+      weekday: 'tue',
+      demand_total: 70,
+      units_sold_total: 60,
+      shares: { P1: { display_name: 'Don Agave', market_share: 0.4 }, P2: { display_name: 'La Chula', market_share: 0.6 } },
+    },
+  ] as PresentationData['history']
+
+  it('with no closed day still renders the brief, the empty results and the charts empty state', () => {
+    render(
+      <PresentationMode data={data({ latest: null, history: [], day: 1, weekday: 'mon', isPeak: false })} onExit={() => {}} />,
+    )
+    expect(screen.getByText('Expected demand')).toBeInTheDocument()
+    expect(screen.getByText('No results yet.')).toBeInTheDocument()
+    expect(screen.getByText('No days closed yet')).toBeInTheDocument()
+    expect(screen.getByText('Charts fill in as days close.')).toBeInTheDocument()
+    expect(screen.queryAllByRole('figure')).toHaveLength(0)
+  })
+
+  it('renders the two projector charts from data.history, after the main area', () => {
+    render(<PresentationMode data={data({ history: HISTORY })} onExit={() => {}} />)
+    const figures = screen.getAllByRole('figure')
+    expect(figures).toHaveLength(2)
+    expect(figures[0].textContent).toContain('Market share by day')
+    expect(figures[1].textContent).toContain('Market demand vs units sold')
+    const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(follows(screen.getByRole('table'), figures[0])).toBe(true)
+    expect(follows(screen.getByText('Submissions'), figures[0])).toBe(true)
+    expect(screen.queryByText('No days closed yet')).toBeNull()
+  })
+
+  it('the chart tables show the public history', () => {
+    render(<PresentationMode data={data({ history: HISTORY })} onExit={() => {}} />)
+    const fig = screen.getAllByRole('figure')[1]
+    fireEvent.click(within(fig).getByRole('button', { name: 'Show table' }))
+    const table = within(fig).getByRole('table', { name: 'Market demand vs units sold' })
+    expect(table).toHaveTextContent('70')
+    expect(table).toHaveTextContent('44')
+  })
+
+  it('the Yesterday table is still the only table until a chart table is shown', () => {
+    render(<PresentationMode data={data({ history: HISTORY })} onExit={() => {}} />)
+    expect(screen.getAllByRole('table')).toHaveLength(1)
   })
 })

@@ -1,14 +1,15 @@
 import type { ChartData, ChartDataset, ChartOptions } from 'chart.js'
 import { ChartLine } from 'lucide-react'
-import type { ReactElement, ReactNode } from 'react'
+import { useState, type ReactElement, type ReactNode } from 'react'
 import { Bar, Line } from 'react-chartjs-2'
 import type { GameConfig, HostView, MarketDay } from '../../types/game'
 import { formatMoney, formatPercent, formatQty, weekdayShort } from '../../utils/format'
-import { CHART_COLORS, MEASURE_STYLES, pulqueriaStyle , hatched } from '../charts/chartSetup'
+import { CHART_COLORS, MEASURE_STYLES, emphasisOf, hatched, pulqueriaLine, pulqueriaStyle } from '../charts/chartSetup'
 import ChartBox from '../shared/ChartBox'
 import DataTable, { type Column } from '../shared/DataTable'
 import EmptyState from '../shared/EmptyState'
 import Legend from '../shared/Legend'
+import { buildRaceConfig } from '../results/resultsChartsConfig'
 import type { HostHistories } from './presentationData'
 
 interface MarketChartsProps {
@@ -65,17 +66,19 @@ function Box({
   title,
   ariaLabel,
   legend,
+  onFocusItem,
   table,
   children,
 }: {
   title: string
   ariaLabel: string
   legend: LegendItems
+  onFocusItem?: (key: string | null) => void
   table: ReactNode
   children: ReactNode
 }): ReactElement {
   return (
-    <ChartBox title={title} ariaLabel={ariaLabel} height={CHART_HEIGHT} legend={<Legend items={legend} />} table={table}>
+    <ChartBox title={title} ariaLabel={ariaLabel} height={CHART_HEIGHT} legend={<Legend items={legend} onFocusItem={onFocusItem} />} table={table}>
       {children}
     </ChartBox>
   )
@@ -164,24 +167,15 @@ function MarketShareChart(shared: Shared): ReactElement {
 
 function ReputationChart(shared: Shared): ReactElement {
   const { hostView, days, labels, aliases } = shared
+  const [focus, setFocus] = useState<string | null>(null)
   const series = aliases.map((alias) => ({ alias, values: publicSeries(shared, alias, (r) => r.reputation) }))
   const data: ChartData<'line'> = {
     labels,
-    datasets: series.map(({ alias, values }) => {
-      const style = pulqueriaStyle(alias)
-      return {
-        label: hostView.players[alias]?.display_name ?? alias,
-        data: values,
-        borderColor: style.color,
-        backgroundColor: style.color,
-        pointStyle: style.pointStyle as 'circle',
-        pointBackgroundColor: style.dashed ? CHART_COLORS['card'] : style.color,
-        pointBorderWidth: style.dashed ? 2 : 1,
-        borderDash: style.dashed ? [6, 4] : [],
-        borderWidth: 2.5,
-        pointRadius: 4,
-      }
-    }),
+    datasets: series.map(({ alias, values }) => ({
+      label: hostView.players[alias]?.display_name ?? alias,
+      data: values,
+      ...pulqueriaLine(alias, emphasisOf(alias, focus)),
+    })) as ChartData<'line'>['datasets'],
   }
   const options: ChartOptions<'line'> = axes('Reputation', false, 1)
   return (
@@ -189,6 +183,7 @@ function ReputationChart(shared: Shared): ReactElement {
       title="Reputation"
       ariaLabel="Lines of each pulquería's reputation on each day played"
       legend={pulqueriaLegend(hostView, aliases, 'line')}
+      onFocusItem={setFocus}
       table={
         <SeriesTable
           caption="Reputation"
@@ -203,6 +198,45 @@ function ReputationChart(shared: Shared): ReactElement {
       }
     >
       <Line data={data} options={options} />
+    </Box>
+  )
+}
+
+function ProfitRaceChart({ hostView, histories, market, days, aliases }: Shared): ReactElement {
+  const [focus, setFocus] = useState<string | null>(null)
+  const config = buildRaceConfig(
+    {
+      weekdays: market.map((m) => m.weekday),
+      peak: market.map((m) => m.weekday_multiplier === 1),
+      lines: aliases.map((a) => ({
+        alias: a,
+        name: hostView.players[a].display_name,
+        profit: (histories.players[a] ?? []).map((r) => r.profit),
+      })),
+    },
+    focus,
+  )
+  const datasets = config.data.datasets
+  return (
+    <Box
+      title="Profit race"
+      ariaLabel="Line chart of each pulquería's running profit on each day played so far"
+      legend={pulqueriaLegend(hostView, aliases, 'line')}
+      onFocusItem={setFocus}
+      table={
+        <SeriesTable
+          caption="Profit race"
+          days={days}
+          series={aliases.map((alias, i) => ({
+            key: alias,
+            label: hostView.players[alias].display_name,
+            values: datasets[i].data as Array<number | null>,
+            format: (v: number) => formatMoney(v),
+          }))}
+        />
+      }
+    >
+      <Line data={config.data} options={config.options} />
     </Box>
   )
 }
@@ -368,28 +402,48 @@ function CapacityChart({ histories, market, days, labels }: Shared): ReactElemen
   )
 }
 
-function SpoilageChart({ histories, days, labels }: Shared): ReactElement {
-  const spoiled = days.map((d) =>
-    sum(Object.values(histories.players).flatMap((records) => records.filter((r) => r.day === d).map((r) => r.spoiled))),
-  )
+function SpoilageChart({ hostView, histories, days, labels, aliases }: Shared): ReactElement {
+  const series = aliases.map((alias) => ({
+    alias,
+    values: days.map((d) => (histories.players[alias] ?? []).find((r) => r.day === d)?.spoiled ?? null),
+  }))
+  const totals = days.map((_, i) => sum(series.map((s) => s.values[i] ?? 0)))
   const data: ChartData<'bar'> = {
     labels,
-    datasets: [{ label: 'Spoiled', data: spoiled, backgroundColor: CHART_COLORS['p1'] }],
+    datasets: series.map(({ alias, values }) => {
+      const style = pulqueriaStyle(alias)
+      return {
+        label: hostView.players[alias]?.display_name ?? alias,
+        data: values,
+        backgroundColor: style.hatched ? hatched(style.color) : style.color,
+        borderColor: CHART_COLORS['card'],
+        borderWidth: 1,
+      }
+    }),
   }
+  const format = (v: number): string => formatQty(v)
   return (
     <Box
       title="Spoilage per day"
-      ariaLabel="Bars of the units that spoiled across all pulquerías on each day played"
-      legend={[{ key: 'spoiled', label: 'Spoiled', swatch: { kind: 'fill', color: CHART_COLORS['p1'] } }]}
+      ariaLabel="Stacked bars of the units that spoiled in each pulquería on each day played"
+      legend={pulqueriaLegend(hostView, aliases, 'fill')}
       table={
         <SeriesTable
           caption="Spoilage per day"
           days={days}
-          series={[{ key: 'spoiled', label: 'Spoiled', values: spoiled, format: (v: number) => formatQty(v) }]}
+          series={[
+            ...series.map(({ alias, values }) => ({
+              key: alias,
+              label: hostView.players[alias]?.display_name ?? alias,
+              values,
+              format,
+            })),
+            { key: 'total', label: 'Total', values: totals, format },
+          ]}
         />
       }
     >
-      <Bar data={data} options={axes('Units') as ChartOptions<'bar'>} />
+      <Bar data={data} options={axes('Units', true) as ChartOptions<'bar'>} />
     </Box>
   )
 }
@@ -442,6 +496,7 @@ export default function MarketCharts({ hostView, histories, config }: MarketChar
   }
   return (
     <div className="grid gap-4 xl:grid-cols-2">
+      <ProfitRaceChart {...shared} />
       <MarketShareChart {...shared} />
       <ReputationChart {...shared} />
       <DemandChart {...shared} />

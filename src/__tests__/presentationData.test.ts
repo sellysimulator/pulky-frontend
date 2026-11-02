@@ -7,7 +7,7 @@ import type { Brief, DayRecord, HostView, MarketDay, PublicDayResults } from '..
 
 const NAMES: Record<string, string> = { P1: 'Don Agave', P2: 'La Chula', P3: 'El Tinacal' }
 
-const PRESENTATION_KEYS = ['brief', 'day', 'durationDays', 'isPeak', 'latest', 'peerMarket', 'submitted', 'weekday']
+const PRESENTATION_KEYS = ['brief', 'day', 'durationDays', 'history', 'isPeak', 'latest', 'peerMarket', 'submitted', 'weekday']
 const BRIEF_KEYS = ['expected_demand', 'futures', 'supplier', 'transport']
 
 function brief(over: Partial<Brief> = {}): Brief {
@@ -268,5 +268,95 @@ describe('selectHostHistories', () => {
     expect(after.publicHistory.length).toBe(before.publicHistory.length)
     expect(after.marketHistory.length).toBe(before.marketHistory.length)
     expect(after.players.P1?.length).toBe(before.players.P1.length)
+  })
+})
+
+describe('selectPresentationData history (plan 37 §3.1, acceptance 1, failure mode 1)', () => {
+  const DAY_KEYS = ['day', 'demand_total', 'shares', 'units_sold_total', 'weekday']
+
+  function poisonedEntry(day: number, share: Record<string, number>): PublicDayResults {
+    const players: Record<string, unknown> = {}
+    for (const [a, name] of Object.entries(NAMES)) {
+      players[a] = {
+        display_name: name,
+        units_sold: 4242,
+        market_share: share[a],
+        reputation: 0.6,
+        cash: 777001.5,
+        cellar: [{ qty: 31337 }],
+        order_spot: 5151,
+        order_futures: 4141,
+        capacity: 88123,
+      }
+    }
+    return {
+      ...pub(day),
+      weekday: (['mon', 'tue', 'wed'] as const)[day - 1],
+      demand_total: 50 + day,
+      units_sold_total: 40 + day,
+      cash: 777002.5,
+      cellar: [{ qty: 31338 }],
+      order_spot: 5152,
+      order_futures: 4142,
+      capacity: 88124,
+      players,
+    } as unknown as PublicDayResults
+  }
+
+  const store = (): PublicDayResults[] => [
+    poisonedEntry(1, { P1: 0.5, P2: 0.3, P3: 0.2 }),
+    poisonedEntry(2, { P1: 0.4, P2: 0.4, P3: 0.2 }),
+    poisonedEntry(3, { P1: 0.1, P2: 0.6, P3: 0.3 }),
+  ]
+
+  it('has one entry per public entry, in day order, with exactly the five keys', () => {
+    seed({ publicHistory: store() })
+    const { history } = selectPresentationData(useGameStore.getState())!
+    expect(history.map((h) => h.day)).toEqual([1, 2, 3])
+    for (const h of history) expect(Object.keys(h).sort()).toEqual(DAY_KEYS)
+    expect(history[1]).toEqual({
+      day: 2,
+      weekday: 'tue',
+      demand_total: 52,
+      units_sold_total: 42,
+      shares: {
+        P1: { display_name: 'Don Agave', market_share: 0.4 },
+        P2: { display_name: 'La Chula', market_share: 0.4 },
+        P3: { display_name: 'El Tinacal', market_share: 0.2 },
+      },
+    })
+  })
+
+  it('each shares entry has exactly display_name and market_share', () => {
+    seed({ publicHistory: store() })
+    const { history } = selectPresentationData(useGameStore.getState())!
+    for (const h of history) {
+      expect(Object.keys(h.shares).sort()).toEqual(['P1', 'P2', 'P3'])
+      for (const e of Object.values(h.shares)) expect(Object.keys(e).sort()).toEqual(['display_name', 'market_share'])
+    }
+  })
+
+  it('failure mode 1: no private key or value of the public entries or of the host data reaches history', () => {
+    seed({ publicHistory: store() })
+    const { history } = selectPresentationData(useGameStore.getState())!
+    const text = JSON.stringify(history)
+    for (const v of ['777001', '777002', '31337', '31338', '5151', '5152', '4141', '4142', '88123', '88124', '4242', '6120.55', '1120.55', '13.31', '17.77', '987654321']) {
+      expect(text, v).not.toContain(v)
+    }
+    const keys = allKeys(history)
+    for (const k of ['cash', 'cellar', 'order_spot', 'order_futures', 'capacity', 'units_sold', 'reputation', 'peer_trades', 'peer_units', 'spot_price', 'profit', 'cash_end']) {
+      expect(keys.has(k), k).toBe(false)
+    }
+  })
+
+  it('is [] before day 1 closes', () => {
+    seed({ publicHistory: [] })
+    expect(selectPresentationData(useGameStore.getState())!.history).toEqual([])
+  })
+
+  it('a daily host_state does not empty history', () => {
+    seed({ publicHistory: store() })
+    useGameStore.getState().applyHostState({ seq: 9, ...(hostView() as unknown as object), full: false } as never)
+    expect(selectPresentationData(useGameStore.getState())!.history).toHaveLength(3)
   })
 })
