@@ -150,7 +150,7 @@ describe('failure mode 2: a different summary for the same game', () => {
     detail.unmount()
 
     const reference = render(
-      <ResultsSummary view={makeView()} viewer={{ isHost: false, myAlias: 'P1' }} showActions={false} hostSecret={null} />,
+      <ResultsSummary view={makeView()} viewer={{ isHost: false, canExport: false, myAlias: 'P1' }} showActions={false} hostSecret={null} />,
     )
     expect(detailOl).toBe(reference.container.querySelector('ol')!.textContent)
     expect(detailOl).toContain(NAMES.P2)

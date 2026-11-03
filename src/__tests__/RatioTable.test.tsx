@@ -55,7 +55,7 @@ beforeEach(() => {
 function renderTable(view: ResultsView = makeView()) {
   render(
     <MemoryRouter>
-      <ResultsSummary view={view} viewer={{ isHost: false, myAlias: null }} showActions={false} hostSecret={null} />
+      <ResultsSummary view={view} viewer={{ isHost: false, canExport: false, myAlias: null }} showActions={false} hostSecret={null} />
     </MemoryRouter>,
   )
   return screen.getByRole('table', { name: 'Ratios' })

@@ -87,12 +87,12 @@ const FULL_CONFIG = {
   transport: { unit_cost: 1 },
 }
 
-const HOST = { isHost: true, myAlias: null }
-const PLAYER = { isHost: false, myAlias: 'P1' }
+const HOST = { isHost: true, canExport: true, myAlias: null }
+const PLAYER = { isHost: false, canExport: false, myAlias: 'P1' }
 
 interface Opts {
   view?: ResultsView
-  viewer?: { isHost: boolean; myAlias: string | null }
+  viewer?: { isHost: boolean; canExport: boolean; myAlias: string | null }
   showActions?: boolean
   hostSecret?: string | null
 }
@@ -429,6 +429,16 @@ describe('block 6: host actions', () => {
     expect(
       screen.getByText('Download the data during the debrief: the room expires 24 hours after its last activity.'),
     ).toBeInTheDocument()
+  })
+
+  it('offers a signed-in host without the secret the export only, with the leaderboard shown', () => {
+    useGameStore.setState({ roomCode: ROOM, gamePublicId: GAME_ID, isHost: true, config: FULL_CONFIG as never })
+    renderSummary({ viewer: { isHost: false, canExport: true, myAlias: null }, hostSecret: null })
+    expect(screen.getByRole('button', { name: 'Export CSV' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export JSON' })).toBeInTheDocument()
+    expect(screen.queryByText('Debrief notes')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Play again' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reveal' })).not.toBeInTheDocument()
   })
 
   it('offers a player none of the host actions', () => {
@@ -796,7 +806,7 @@ describe('section 35: block 3 View control (criterion 6, failure mode 6)', () =>
   })
 
   it('passes the viewer\'s alias on: their chip comes first', () => {
-    renderSummary({ view: makeFlowView(), viewer: { isHost: false, myAlias: 'P3' }, hostSecret: null })
+    renderSummary({ view: makeFlowView(), viewer: { isHost: false, canExport: false, myAlias: 'P3' }, hostSecret: null })
     expect(screen.getByText(`${NAMES.P3}: from shipments to sold, spoiled and left at the end`)).toBeInTheDocument()
   })
 

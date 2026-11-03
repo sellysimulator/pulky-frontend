@@ -13,7 +13,11 @@ import WherePulqueWent from './WherePulqueWent'
 
 interface ResultsSummaryProps {
   view: ResultsView
-  viewer: { isHost: boolean; myAlias: string | null }
+  /**
+   * `isHost`: this browser holds the game's host secret (hides the leaderboard, offers Play again and
+   * the debrief notes). `canExport`: offer the export, with the secret or to the signed-in host.
+   */
+  viewer: { isHost: boolean; canExport: boolean; myAlias: string | null }
   showActions: boolean
   hostSecret: string | null
 }
@@ -41,7 +45,7 @@ export default function ResultsSummary({ view, viewer, showActions, hostSecret }
         <div className="print:hidden">
           <SectionCard title="6. Actions">
             <div className="flex flex-col gap-4">
-              {viewer.isHost ? <ExportControls gameId={view.game_id} roomCode={view.room_code} hostSecret={hostSecret} /> : null}
+              {viewer.canExport ? <ExportControls gameId={view.game_id} roomCode={view.room_code} hostSecret={hostSecret} /> : null}
               <GuestClaimPrompt gameId={view.game_id} />
               {viewer.isHost ? <PlayAgainButton gameId={view.game_id} /> : null}
               {viewer.isHost ? <DebriefNotes leadTimeDays={view.config?.supplier.lead_time_days ?? null} /> : null}

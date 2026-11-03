@@ -105,13 +105,16 @@ export interface HttpSpy {
   restore(): void
 }
 
-/** Replaces the axios adapter of the shared instance (section 21, 3.3a); nothing else is mocked. */
-export function mockHttp(handler: (cfg: InternalAxiosRequestConfig, nth: number) => Reply): HttpSpy {
+/**
+ * Replaces the axios adapter of the shared instance (section 21, 3.3a); nothing else is mocked.
+ * A handler may answer later by returning a promise of its reply.
+ */
+export function mockHttp(handler: (cfg: InternalAxiosRequestConfig, nth: number) => Reply | Promise<Reply>): HttpSpy {
   const original = http.defaults.adapter
   const seen: InternalAxiosRequestConfig[] = []
   const adapter: AxiosAdapter = async (config) => {
     seen.push(config)
-    const { status, data } = handler(config, seen.length)
+    const { status, data } = await handler(config, seen.length)
     const response = { data, status, statusText: String(status), headers: {}, config }
     if (status >= 400) throw new AxiosError(`HTTP ${status}`, String(status), config, null, response)
     return response

@@ -1,4 +1,4 @@
-import { AxiosHeaders, type AxiosAdapter, type InternalAxiosRequestConfig } from 'axios'
+import { AxiosError, AxiosHeaders, type AxiosAdapter, type InternalAxiosRequestConfig } from 'axios'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type Listener = (...args: unknown[]) => void
@@ -47,7 +47,7 @@ import http from '../api/http'
 import { createRoom, getRoomConfig, getRoomStatus, putRoomConfig } from '../api/rooms'
 import { getConfigDefaults, validateConfig } from '../api/config'
 import { claimGames, exportGame, getResultsById } from '../api/results'
-import { getMe, getMyGame, getMyGames, getMyStats, upsertUser } from '../api/users'
+import { getMe, getMyGame, getMyGames, getMyStats, isMyHostedGame, upsertUser } from '../api/users'
 import {
   endGameEarly,
   join,
@@ -281,6 +281,26 @@ describe('users.ts', () => {
     expect(method(seen[0])).toBe('GET')
     expect(path(seen[0])).toBe('users/me/games/g1')
     expect(out).toEqual(reply.data)
+  })
+
+  it('isMyHostedGame GETs /users/me/hosted-games/{id} with the bearer: true on 204, false on 404, throws otherwise', async () => {
+    h.state.currentUser = { getIdToken: async () => 'id-token-xyz' }
+    reply = { status: 204, data: '' }
+    expect(await isMyHostedGame('g1')).toBe(true)
+    expect(method(seen[0])).toBe('GET')
+    expect(path(seen[0])).toBe('users/me/hosted-games/g1')
+    expect(header(seen[0], 'Authorization')).toBe('Bearer id-token-xyz')
+
+    const failWith =
+      (status: number): AxiosAdapter =>
+      async (config) => {
+        const response = { data: {}, status, statusText: String(status), headers: {}, config }
+        throw new AxiosError(`HTTP ${status}`, String(status), config, null, response)
+      }
+    http.defaults.adapter = failWith(404)
+    expect(await isMyHostedGame('g1')).toBe(false)
+    http.defaults.adapter = failWith(500)
+    await expect(isMyHostedGame('g1')).rejects.toMatchObject({ response: { status: 500 } })
   })
 })
 
