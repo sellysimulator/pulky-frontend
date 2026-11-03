@@ -7,7 +7,7 @@ export default function SupplierFuturesSection(props: SectionProps): ReactElemen
   return (
     <SectionLayout
       knobs={<Knobs paths={SECTION_PATHS.supplier} {...props} />}
-      preview={<SpotRangePreview config={props.config} />}
+      preview={<SpotRangePreview />}
     />
   )
 }

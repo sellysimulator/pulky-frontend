@@ -2,15 +2,15 @@
   "config": {
     "max_players": 4,
     "duration_days": 14,
-    "starting_cash": 5000,
+    "starting_cash": 5000.0,
     "random_seed": null,
     "demand": {
-      "per_player_peak": 25,
+      "per_player_peak": 25.0,
       "weekday_peak": {
         "from": "thu",
         "to": "sat"
       },
-      "retail_price": 30,
+      "retail_price": 30.0,
       "backlog_penalty": 1.5
     },
     "reputation": {
@@ -19,13 +19,13 @@
       "waste_weight": 0.3
     },
     "supplier": {
-      "base_price": 12,
+      "base_price": 12.0,
       "spot_spread": 0.25,
-      "capacity_mean_per_player": 22,
-      "capacity_sd_per_player": 5,
-      "disruption_probability": 0.05,
+      "capacity_mean_per_player": 22.0,
+      "capacity_sd_per_player": null,
+      "disruption_probability": null,
       "disruption_factor": 0.4,
-      "lead_time_days": 1,
+      "lead_time_days": 0,
       "initial_pipeline_qty": 0,
       "quality_min": 80,
       "quality_max": 100
@@ -38,7 +38,7 @@
       "max_days": 3,
       "holding_cost": 0.2,
       "initial_stock": 30,
-      "salvage_value": 2,
+      "salvage_value": 2.0,
       "conservation_extra_fresh_days": 2,
       "conservation_cost_per_unit": 1.0
     },
@@ -48,8 +48,8 @@
     "transport": {
       "unit_cost": 1.0,
       "shared": false,
-      "failure_probability": 0.14,
-      "loss_fraction": 0.3
+      "failure_probability": null,
+      "loss_fraction": null
     },
     "insurance": {
       "tiers": {
@@ -76,301 +76,344 @@
       "min": 2,
       "max": 12,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "duration_days": {
       "type": "int",
       "min": 7,
       "max": 60,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "starting_cash": {
       "type": "float",
       "min": 0,
       "max": 1000000.0,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "random_seed": {
       "type": "int",
       "min": 0,
       "max": 9007199254740991,
       "nullable": true,
-      "players": "secret"
+      "players": "secret",
+      "hidden_default": false
     },
     "demand.per_player_peak": {
       "type": "float",
       "min": 1,
       "max": 500,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "demand.weekday_peak.from": {
       "type": "weekday",
       "min": null,
       "max": null,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "demand.weekday_peak.to": {
       "type": "weekday",
       "min": null,
       "max": null,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "demand.retail_price": {
       "type": "float",
       "min": 0,
       "max": 10000,
       "nullable": false,
-      "players": "shown"
+      "players": "shown",
+      "hidden_default": false
     },
     "demand.backlog_penalty": {
       "type": "float",
       "min": 0,
       "max": 10000,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "reputation.starting": {
       "type": "float",
       "min": 0,
       "max": 1,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "reputation.smoothing": {
       "type": "float",
       "min": 0,
       "max": 1,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "reputation.waste_weight": {
       "type": "float",
       "min": 0,
       "max": 1,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "supplier.base_price": {
       "type": "float",
       "min": 0,
       "max": 10000,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "supplier.spot_spread": {
       "type": "float",
       "min": 0,
       "max": 0.9,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "supplier.capacity_mean_per_player": {
       "type": "float",
       "min": 0,
       "max": 9999,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "supplier.capacity_sd_per_player": {
       "type": "float",
       "min": 0,
       "max": 9999,
-      "nullable": false,
-      "players": "secret"
+      "nullable": true,
+      "players": "secret",
+      "hidden_default": true
     },
     "supplier.disruption_probability": {
       "type": "float",
       "min": 0,
       "max": 1,
-      "nullable": false,
-      "players": "secret"
+      "nullable": true,
+      "players": "secret",
+      "hidden_default": true
     },
     "supplier.disruption_factor": {
       "type": "float",
       "min": 0,
       "max": 1,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "supplier.lead_time_days": {
       "type": "int",
       "min": 0,
       "max": 7,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "supplier.initial_pipeline_qty": {
       "type": "int",
       "min": 0,
       "max": 9999,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "supplier.quality_min": {
       "type": "int",
       "min": 1,
       "max": 100,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "supplier.quality_max": {
       "type": "int",
       "min": 1,
       "max": 100,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "futures.horizon_days": {
       "type": "int",
       "min": 1,
       "max": 14,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "stock.fresh_days": {
       "type": "int",
       "min": 0,
       "max": 14,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "stock.max_days": {
       "type": "int",
       "min": 1,
       "max": 14,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "stock.holding_cost": {
       "type": "float",
       "min": 0,
       "max": 10000,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "stock.initial_stock": {
       "type": "int",
       "min": 0,
       "max": 9999,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "stock.salvage_value": {
       "type": "float",
       "min": 0,
       "max": 10000,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "stock.conservation_extra_fresh_days": {
       "type": "int",
       "min": 1,
       "max": 14,
       "nullable": false,
-      "players": "shown"
+      "players": "shown",
+      "hidden_default": false
     },
     "stock.conservation_cost_per_unit": {
       "type": "float",
       "min": 0,
       "max": 10000,
       "nullable": false,
-      "players": "shown"
+      "players": "shown",
+      "hidden_default": false
     },
     "peer_market.enabled": {
       "type": "bool",
       "min": null,
       "max": null,
       "nullable": false,
-      "players": "shown"
+      "players": "shown",
+      "hidden_default": false
     },
     "transport.unit_cost": {
       "type": "float",
       "min": 0,
       "max": 10000,
       "nullable": false,
-      "players": "shown"
+      "players": "shown",
+      "hidden_default": false
     },
     "transport.shared": {
       "type": "bool",
       "min": null,
       "max": null,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "transport.failure_probability": {
       "type": "float",
       "min": 0,
       "max": 1,
-      "nullable": false,
-      "players": "secret"
+      "nullable": true,
+      "players": "secret",
+      "hidden_default": true
     },
     "transport.loss_fraction": {
       "type": "float",
       "min": 0,
       "max": 1,
-      "nullable": false,
-      "players": "secret"
+      "nullable": true,
+      "players": "secret",
+      "hidden_default": true
     },
     "insurance.tiers.cip.enabled": {
       "type": "bool",
       "min": null,
       "max": null,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "insurance.tiers.cip.fee": {
       "type": "float",
       "min": 0,
       "max": 10000,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "insurance.tiers.dap.enabled": {
       "type": "bool",
       "min": null,
       "max": null,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "insurance.tiers.dap.fee": {
       "type": "float",
       "min": 0,
       "max": 10000,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "insurance.tiers.ddp.enabled": {
       "type": "bool",
       "min": null,
       "max": null,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "insurance.tiers.ddp.fee": {
       "type": "float",
       "min": 0,
       "max": 10000,
       "nullable": false,
-      "players": "not_shown"
+      "players": "not_shown",
+      "hidden_default": false
     },
     "insurance.target_margin": {
       "type": "float",
       "min": -0.5,
       "max": 2.0,
       "nullable": false,
-      "players": "secret"
+      "players": "secret",
+      "hidden_default": false
     },
     "insurance.reference_shipment": {
       "type": "int",
       "min": 1,
       "max": 9999,
       "nullable": false,
-      "players": "secret"
+      "players": "secret",
+      "hidden_default": false
     }
   },
   "limits": {
@@ -385,7 +428,7 @@
     "MAX_HORIZON": 14,
     "MAX_CONSERVE_LOTS": 30,
     "MAX_PEER_PRICE": 10000,
-    "MAX_MONEY": 1000000,
+    "MAX_MONEY": 1000000.0,
     "MAX_DISPLAY_NAME": 24,
     "ROOM_TTL_SECONDS": 86400,
     "LOCK_TIMEOUT_SECONDS": 10

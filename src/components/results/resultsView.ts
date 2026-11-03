@@ -1,4 +1,4 @@
-import type { GameFinishedPayload, GameStats, IncotermTier, ResultsResponse, Weekday } from '../../types/game'
+import type { GameConfig, GameFinishedPayload, GameStats, IncotermTier, PulqueFlow, ResultsResponse, Weekday } from '../../types/game'
 
 /** Spec §13.8, field for field. The peer fields are optional: a stored payload without them renders no peer segment, column or chart. */
 export interface PulqueriaResultView {
@@ -39,6 +39,7 @@ export interface PulqueriaResultView {
   revenue_peer?: number
   peer_net?: number
   incoterm_tier_days: Record<IncotermTier, number>
+  flow?: PulqueFlow
   series: {
     delivered: number[]
     peer_bought?: number[]
@@ -49,6 +50,7 @@ export interface PulqueriaResultView {
     closing_stock: number[]
     reputation: number[]
     profit: number[]
+    cumulative_profit: number[]
     cooperate: boolean[]
   }
 }
@@ -61,6 +63,8 @@ export interface ResultsView {
   ended_early: boolean
   started_at?: string
   finished_at?: string
+  /** The full config the game ran with: the end reveals the hidden defaults (spec §9.3). Absent from an older payload. */
+  config?: GameConfig
   market: {
     weekday: Weekday[]
     weekday_multiplier: number[]
@@ -130,6 +134,7 @@ const SERIES_KEYS = [
   'closing_stock',
   'reputation',
   'profit',
+  'cumulative_profit',
   'cooperate',
 ] as const
 
@@ -161,17 +166,44 @@ function pick(source: object, keys: readonly string[]): Record<string, unknown> 
   return out
 }
 
+const FLOW_KEYS = [
+  'initial_stock',
+  'initial_pipeline',
+  'shipped_spot',
+  'shipped_futures',
+  'lost_transport',
+  'in_transit_end',
+  'delivered',
+  'peer_bought',
+  'sold',
+  'peer_sold',
+  'spoiled',
+  'closing_stock',
+] as const
+
+/** The whole `flow` when it is an object with all twelve numeric keys; never faked, never partly copied. */
+function flowOf(source: unknown): PulqueFlow | undefined {
+  if (typeof source !== 'object' || source === null) return undefined
+  const record = source as Record<string, unknown>
+  if (!FLOW_KEYS.every((key) => typeof record[key] === 'number')) return undefined
+  return Object.fromEntries(FLOW_KEYS.map((key) => [key, record[key]])) as unknown as PulqueFlow
+}
+
 function normalise(
   stats: GameStats,
   head: Pick<ResultsView, 'game_id' | 'room_code' | 'days_played' | 'duration_days' | 'ended_early'>,
 ): ResultsView {
   const players = Object.values(stats.players)
     .sort((a, b) => a.rank - b.rank)
-    .map((p) => ({
-      ...pick(p, PLAYER_KEYS),
-      incoterm_tier_days: { ...p.incoterm_tier_days },
-      series: pick(p.series, SERIES_KEYS),
-    })) as unknown as PulqueriaResultView[]
+    .map((p) => {
+      const flow = flowOf((p as { flow?: unknown }).flow)
+      return {
+        ...pick(p, PLAYER_KEYS),
+        incoterm_tier_days: { ...p.incoterm_tier_days },
+        ...(flow ? { flow } : {}),
+        series: pick(p.series, SERIES_KEYS),
+      }
+    }) as unknown as PulqueriaResultView[]
   return {
     ...head,
     market: pick(stats.market.series, MARKET_KEYS) as unknown as ResultsView['market'],
@@ -184,13 +216,16 @@ export function resultsViewFromLive(
   p: GameFinishedPayload,
   ctx: { roomCode: string; durationDays: number },
 ): ResultsView {
-  return normalise(p.stats, {
-    game_id: p.game_id,
-    room_code: ctx.roomCode,
-    days_played: p.days_played,
-    duration_days: ctx.durationDays,
-    ended_early: p.ended_early,
-  })
+  return {
+    ...normalise(p.stats, {
+      game_id: p.game_id,
+      room_code: ctx.roomCode,
+      days_played: p.days_played,
+      duration_days: ctx.durationDays,
+      ended_early: p.ended_early,
+    }),
+    ...(p.config ? { config: p.config } : {}),
+  }
 }
 
 /** Copies a stored `ResultsResponse` into the same view model, adding the two timestamps. */
@@ -205,5 +240,6 @@ export function resultsViewFromResponse(r: ResultsResponse): ResultsView {
     }),
     started_at: r.started_at,
     finished_at: r.finished_at,
+    ...(r.config ? { config: r.config } : {}),
   }
 }

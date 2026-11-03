@@ -139,6 +139,11 @@ const BODY: ManualPageSpec[] = [
             <>
               <strong>Reset to defaults</strong> puts every setting back. The settings lock when the game starts.
             </>,
+            <>
+              <strong>Default (hidden)</strong>: anyone can open a host screen, so the four risk odds (the refrigeration
+              failure chance, the share of a shipment lost, the disruption chance and the capacity spread) show no default.
+              Leave them blank to play with the defaults, or type your own. The results reveal the values the game ran with.
+            </>,
           ]}
         />
         <p>
@@ -180,8 +185,8 @@ const BODY: ManualPageSpec[] = [
     content: (
       <>
         <p>
-          Reputation splits the town's demand between the pulquerías. Backlog and spoiled pulque lower it; clean days bring it
-          back.
+          Reputation splits the town's demand between the pulquerías. Each night it moves toward the day's score, which
+          backlog and spoiled pulque lower and a clean day sets at the top.
         </p>
         <Settings paths={SECTION_PATHS.reputation} />
         <p>Preview: how demand splits for sample reputations.</p>
@@ -273,6 +278,11 @@ const BODY: ManualPageSpec[] = [
             or <strong>No risk configured</strong>.
           </>,
           'The chance of at least one failure during the game, and the expected number of failures.',
+          <>
+            While the failure chance or the loss share is left at its hidden default, those figures read{' '}
+            <strong>Hidden until the game ends</strong> and <strong>Set fees from margin</strong> is off: type both to use the
+            calculator. The default fees were set for the defaults.
+          </>,
         ]}
       />
     ),
@@ -459,7 +469,7 @@ const BODY: ManualPageSpec[] = [
           ]}
         />
         <Tip title="The point to land">
-          Nobody was careless: lead time, perishability and scarce supply produced these outcomes.
+          Nobody was careless: perishability, scarce supply and, when you set one, the lead time produced these outcomes.
         </Tip>
       </>
     ),

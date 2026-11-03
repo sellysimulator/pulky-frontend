@@ -80,6 +80,7 @@ export const SERIES_KEYS = [
   'closing_stock',
   'reputation',
   'profit',
+  'cumulative_profit',
   'cooperate',
 ] as const
 
@@ -162,6 +163,8 @@ function player(alias: string, rank: number, over: Dict, seriesOver: Dict = {}):
       closing_stock: repeat([5, 8, 6, 9, 7, 5, 6]),
       reputation: repeat([0.5, 0.52, 0.55, 0.6, 0.62, 0.6, 0.58]),
       profit: repeat([10, 12, 14.5, 20, 22, 18, 9]),
+      // the server's running totals of `profit` (spec §8.6), as game_finished carries them
+      cumulative_profit: [10, 22, 36.5, 56.5, 78.5, 96.5, 105.5, 115.5, 127.5, 142, 162, 184, 202, 211].slice(0, DAYS),
       cooperate: repeat([1, 0, 1, 1, 0, 0, 1]).map((v) => v === 1),
       ...seriesOver,
     },

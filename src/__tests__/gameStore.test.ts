@@ -118,12 +118,15 @@ describe('INITIAL_STATE and reset (criterion 1)', () => {
     ownHistory: [],
     publicHistory: [],
     hostHistories: {},
+    hostRace: {},
     marketHistory: [],
     finished: null,
     gamePublicId: null,
     alerts: [],
+    selectedDay: null,
     connectionError: null,
     lastError: null,
+    limits: null,
   }
 
   it('is exactly the documented state', () => {
@@ -146,6 +149,17 @@ describe('INITIAL_STATE and reset (criterion 1)', () => {
     expect(data()).not.toEqual(EXPECTED)
     S().reset()
     expect(data()).toEqual(EXPECTED)
+  })
+
+  it("reset() and a new room keep the server's limits: they belong to the server, not to a room (spec §13.6)", () => {
+    const limits = { MAX_ORDER: 9999, MAX_PEER_PRICE: 10000, MAX_DISPLAY_NAME: 24 }
+    S().setLimits(limits)
+    S().setRoom('ABC234', true)
+    expect(S().limits).toEqual(limits)
+    S().setRoom('XYZ789', false)
+    expect(S().limits).toEqual(limits)
+    S().reset()
+    expect(data()).toEqual({ ...EXPECTED, limits })
   })
 })
 
@@ -468,6 +482,26 @@ describe('what each applier writes (spec 3.2)', () => {
       expect(S().lastError).toMatchObject({ code: 'GAME_FINISHED' })
     })
 
+    it('STALE_DAY raises exactly one success alert with the server message', () => {
+      const message = 'That day is over. Your screen has been updated.'
+      call('applyError', { code: 'STALE_DAY', message })
+      expect(S().alerts).toHaveLength(1)
+      expect(S().alerts[0]).toMatchObject({ kind: 'success', message })
+    })
+
+    it('STALE_DAY still sets lastError', () => {
+      const err = { code: 'STALE_DAY', message: 'That day is over. Your screen has been updated.' }
+      call('applyError', err)
+      expect(S().lastError).toMatchObject(err)
+    })
+
+    it('ALREADY_SUBMITTED still raises one error alert', () => {
+      const message = "You have already submitted today's decision."
+      call('applyError', { code: 'ALREADY_SUBMITTED', message })
+      expect(S().alerts).toHaveLength(1)
+      expect(S().alerts[0]).toMatchObject({ kind: 'error', message })
+    })
+
     it('clearLastError clears it', () => {
       call('applyError', { code: 'GAME_FINISHED', message: 'The game is over.' })
       S().clearLastError()
@@ -667,8 +701,8 @@ describe('host_state (spec 3.2, 12.5, 12.6)', () => {
   const fullHostState = (seq: number) =>
     hostState(seq, 3, true, {
       players: {
-        P1: hostPlayer('P1', { own_history: recs(1, 2) }),
-        P2: hostPlayer('P2', { own_history: recs(1, 2, 3) }),
+        P1: hostPlayer('P1', { own_history: recs(1, 2), cumulative_profit_by_day: [10, 25] }),
+        P2: hostPlayer('P2', { own_history: recs(1, 2, 3), cumulative_profit_by_day: [5, 7, 12.5] }),
       },
       public_history: pubs(1, 2),
       market_history: [mkt(1), mkt(2)],
@@ -711,10 +745,56 @@ describe('host_state (spec 3.2, 12.5, 12.6)', () => {
     expect(days(S().hostHistories.P1)).toEqual([1, 2])
   })
 
+  it("keeps the server's profit race: replaced by a full state, one point per new day from a daily state", () => {
+    call('applyHostState', fullHostState(1))
+    expect(S().hostRace).toEqual({ P1: [10, 25], P2: [5, 7, 12.5] })
+    const daily = (seq: number) =>
+      hostState(seq, 3, false, {
+        players: {
+          P1: hostPlayer('P1', { last_record: rec(3), cumulative_profit: 40.75 }),
+          P2: hostPlayer('P2', { last_record: null, cumulative_profit: 99 }),
+        },
+        last_market_day: mkt(3),
+      })
+    call('applyHostState', daily(2))
+    // the day's point is the server's cumulative_profit, never a sum the client makes
+    expect(S().hostRace).toEqual({ P1: [10, 25, 40.75], P2: [5, 7, 12.5] })
+    call('applyHostState', daily(3))
+    expect(S().hostRace.P1).toEqual([10, 25, 40.75])
+  })
+
   it('day_closed appends to the host public history under the append rule', () => {
     call('applyHostState', fullHostState(1))
     call('applyDayClosed', { seq: 2, day: 3, public: pub(3) })
     call('applyDayClosed', { seq: 3, day: 3, public: pub(3) })
     expect(days(S().publicHistory)).toEqual([1, 2, 3])
+  })
+})
+
+describe('selectedDay (section 36, acceptance 9)', () => {
+  it('starts null', () => {
+    expect(INITIAL_STATE.selectedDay).toBeNull()
+    expect(S().selectedDay).toBeNull()
+  })
+
+  it('selectDay sets the day and null clears it', () => {
+    S().selectDay(3)
+    expect(S().selectedDay).toBe(3)
+    S().selectDay(null)
+    expect(S().selectedDay).toBeNull()
+  })
+
+  it('reset() puts it back to null', () => {
+    S().selectDay(5)
+    S().reset()
+    expect(S().selectedDay).toBeNull()
+  })
+
+  it('is not cleared when a day closes', () => {
+    S().setRoom('ABC234', false)
+    S().selectDay(2)
+    call('applyYourDayClosed', { seq: 1, day: 3, record: rec(3) })
+    call('applyDayClosed', { seq: 2, day: 3, public: pub(3) })
+    expect(S().selectedDay).toBe(2)
   })
 })

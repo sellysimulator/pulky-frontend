@@ -4,7 +4,6 @@
  * writes are no-ops.
  */
 import { v4 as uuidv4 } from 'uuid'
-import { LIMITS } from '../types/game'
 
 export const GUEST_ID_KEY = 'pulky.guest_id'
 
@@ -161,17 +160,23 @@ export function getDisplayName(): string | null {
   return name === null || name === '' ? null : name
 }
 
-function sanitiseDisplayName(raw: string): string {
+function sanitiseDisplayName(raw: string, maxLength: number | null): string {
   const cleaned = raw
     .replace(/[\t\n\v\f\r]/g, ' ')
     .replace(/\p{Cc}/gu, '')
     .replace(/\s+/g, ' ')
     .trim()
-  return Array.from(cleaned).slice(0, LIMITS.MAX_DISPLAY_NAME).join('').trim()
+  if (maxLength === null) return cleaned
+  return Array.from(cleaned).slice(0, maxLength).join('').trim()
 }
 
-export function setDisplayName(name: string): void {
-  const clean = sanitiseDisplayName(name)
+/**
+ * `maxLength` is the server's `MAX_DISPLAY_NAME` (spec §13.6: the client holds no
+ * copy); null while the limits are loading, when the name is stored uncut and the
+ * server cuts it on join.
+ */
+export function setDisplayName(name: string, maxLength: number | null = null): void {
+  const clean = sanitiseDisplayName(name, maxLength)
   if (clean === '') removeLocal(DISPLAY_NAME_KEY)
   else writeLocal(DISPLAY_NAME_KEY, clean)
 }

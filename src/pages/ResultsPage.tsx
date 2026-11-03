@@ -2,9 +2,11 @@ import { useEffect, useLayoutEffect, useMemo, useState, type ReactElement } from
 import { useParams } from 'react-router-dom'
 import { errorMessage } from '../api/http'
 import { getResultsById } from '../api/results'
+import { useAuth } from '../auth/AuthContext'
 import { applyChartScale } from '../components/charts/chartSetup'
 import { resultsViewFromLive, resultsViewFromResponse, type ResultsView } from '../components/results/resultsView'
 import ResultsSummary from '../components/results/ResultsSummary'
+import { useHostedGame } from '../components/results/useHostedGame'
 import AppHeader from '../components/shared/AppHeader'
 import { InlineAlert } from '../components/shared/AlertContainer'
 import LoadingSpinner from '../components/shared/LoadingSpinner'
@@ -36,6 +38,8 @@ export default function ResultsPage(): ReactElement {
   const gamePublicId = useGameStore((s) => s.gamePublicId)
   const durationDays = useGameStore((s) => s.durationDays)
   const myAliasInStore = useGameStore((s) => s.myAlias)
+  const auth = useAuth()
+  const signedInUser = auth.mode === 'authenticated' ? auth.user : null
 
   useLayoutEffect(() => {
     const root = document.documentElement
@@ -95,14 +99,21 @@ export default function ResultsPage(): ReactElement {
 
   const current = outcome !== null && outcome.key === key ? outcome : null
   const view = liveView ?? (current?.kind === 'ok' ? current.view : null)
+  const hostSecret = view !== null ? getGameHostSecret(view.game_id) : null
+  // Without this game's secret, a signed-in viewer may still be its host on another tab or device:
+  // the server says so, and only the export follows that answer (spec §13.8 block 6).
+  const hostedByMe = useHostedGame(view?.game_id ?? null, hostSecret === null ? signedInUser : null)
 
   let body: ReactElement
   if (view !== null) {
-    const hostSecret = getGameHostSecret(view.game_id)
     body = (
       <ResultsSummary
         view={view}
-        viewer={{ isHost: hostSecret !== null, myAlias: gamePublicId === view.game_id ? myAliasInStore : null }}
+        viewer={{
+          isHost: hostSecret !== null,
+          canExport: hostSecret !== null || hostedByMe,
+          myAlias: gamePublicId === view.game_id ? myAliasInStore : null,
+        }}
         showActions
         hostSecret={hostSecret}
       />

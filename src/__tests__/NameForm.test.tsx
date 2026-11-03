@@ -1,21 +1,30 @@
 /** Section 23 — NameForm (spec 23 §3.3). Acceptance criterion 8. */
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../firebase', () => ({ auth: { currentUser: null }, googleProvider: {}, app: {} }))
 
 import NameForm from '../components/lobby/NameForm'
-import { LIMITS } from '../types/game'
+import { useGameStore } from '../store/gameStore'
+import { SERVER_LIMITS, seedServerLimits } from './fixtures/serverConfig'
 import { setDisplayName } from '../utils/storage'
 
 describe('NameForm', () => {
-  it('has the labelled input with the limit and placeholder, and the primary button', () => {
+  beforeEach(seedServerLimits)
+
+  it("has the labelled input with the server's limit and placeholder, and the primary button", () => {
     render(<NameForm onSubmit={vi.fn()} />)
     const input = screen.getByLabelText("Your pulquería's name")
-    expect(input).toHaveAttribute('maxlength', String(LIMITS.MAX_DISPLAY_NAME))
+    expect(input).toHaveAttribute('maxlength', String(SERVER_LIMITS.MAX_DISPLAY_NAME))
     expect(input).toHaveAttribute('placeholder', 'Pulquería P1')
     expect(screen.getByRole('button', { name: 'Take a seat' })).toHaveClass('bg-accent')
+  })
+
+  it('has no length limit of its own before the server limits load (spec §13.6)', () => {
+    useGameStore.setState({ limits: null })
+    render(<NameForm onSubmit={vi.fn()} />)
+    expect(screen.getByLabelText("Your pulquería's name")).not.toHaveAttribute('maxlength')
   })
 
   it('is prefilled with the stored display name', () => {

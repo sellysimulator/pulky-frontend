@@ -46,7 +46,7 @@ beforeEach(() => {
 function renderDecisions(view: ResultsView = makeView()) {
   return render(
     <MemoryRouter>
-      <ResultsSummary view={view} viewer={{ isHost: false, myAlias: null }} showActions={false} hostSecret={null} />
+      <ResultsSummary view={view} viewer={{ isHost: false, canExport: false, myAlias: null }} showActions={false} hostSecret={null} />
     </MemoryRouter>,
   )
 }

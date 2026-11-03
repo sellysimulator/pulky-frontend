@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent, type ReactElement } from 'react'
-import { LIMITS } from '../../types/game'
+import { useLimits } from '../../api/config'
 import { getDisplayName } from '../../utils/storage'
 import Button from '../shared/Button'
 
@@ -10,6 +10,7 @@ interface NameFormProps {
 
 export default function NameForm({ onSubmit, pending = false }: NameFormProps): ReactElement {
   const id = useId()
+  const limits = useLimits()
   const [name, setName] = useState<string>(() => getDisplayName() ?? '')
   const handleSubmit = (e: FormEvent): void => {
     e.preventDefault()
@@ -26,7 +27,7 @@ export default function NameForm({ onSubmit, pending = false }: NameFormProps): 
           id={id}
           type="text"
           autoComplete="off"
-          maxLength={LIMITS.MAX_DISPLAY_NAME}
+          maxLength={limits?.MAX_DISPLAY_NAME}
           placeholder="Pulquería P1"
           value={name}
           onChange={(e) => setName(e.target.value)}

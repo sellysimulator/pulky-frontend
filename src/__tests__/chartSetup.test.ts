@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { defaults as chartjsDefaults } from 'chart.js'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type ChartSetup = typeof import('../components/charts/chartSetup')
 type ChartJs = typeof import('chart.js')
@@ -452,4 +452,821 @@ describe('peakShadingPlugin (design.md §9.3)', () => {
 
 beforeEach(() => {
   vi.resetModules()
+})
+
+/* ───────────────────────── Section 33: chart kit hardening ───────────────────────── */
+
+interface KitCall {
+  fn: string
+  args: unknown[]
+  fillStyle: unknown
+  strokeStyle: unknown
+  lineWidth: unknown
+}
+
+/** A canvas context that records every call with the style in force at that moment. */
+function recordingCtx() {
+  const calls: KitCall[] = []
+  const state: Record<string, unknown> = { fillStyle: '', strokeStyle: '', lineWidth: 1 }
+  const ctx = new Proxy(
+    {},
+    {
+      get(_t, prop: string) {
+        if (prop in state) return state[prop]
+        return (...args: unknown[]) => {
+          calls.push({ fn: prop, args, fillStyle: state.fillStyle, strokeStyle: state.strokeStyle, lineWidth: state.lineWidth })
+        }
+      },
+      set(_t, prop: string, value: unknown) {
+        state[prop] = value
+        return true
+      },
+    },
+  )
+  return { ctx, calls }
+}
+
+interface KitChartOptions {
+  count?: number
+  plugins?: Record<string, unknown>
+  datasets?: Array<{ data: Array<number | null | undefined> }>
+  hidden?: number[]
+}
+
+/** A fake chart on a 7-day axis: plot left 100, right 590 (column 70), top 20, bottom 220. */
+function kitChart({ count = 7, plugins = {}, datasets, hidden = [] }: KitChartOptions = {}) {
+  const { ctx, calls } = recordingCtx()
+  const left = 100
+  const width = 70 * count
+  const x = {
+    min: 0,
+    max: count - 1,
+    getPixelForValue: (v: number) => left + (v + 0.5) * (width / count),
+    getValueForPixel: (px: number) => (px - left) / (width / count) - 0.5,
+  }
+  const ds = datasets ?? [{ data: Array.from({ length: count }, (_, i) => i) }, { data: Array.from({ length: count }, (_, i) => i * 2) }]
+  const chart = {
+    ctx,
+    chartArea: { left, right: left + width, top: 20, bottom: 220, width, height: 200 },
+    scales: { x },
+    data: { labels: Array.from({ length: count }, (_, i) => String(i + 1)), datasets: ds },
+    options: { plugins },
+    isDatasetVisible: vi.fn((i: number) => !hidden.includes(i)),
+    setActiveElements: vi.fn(),
+    tooltip: { setActiveElements: vi.fn() },
+    update: vi.fn(),
+  }
+  return { chart, calls, x }
+}
+
+type Hook = (chart: unknown, args: unknown, options: unknown) => unknown
+const hookOf = (plugin: object, name: string): Hook => (plugin as Record<string, Hook>)[name].bind(plugin)
+
+describe('hatchPattern and hatched (section 33, design.md §3.1, §9.1)', () => {
+  interface Tile {
+    width: number
+    height: number
+    calls: KitCall[]
+    pattern: object
+  }
+
+  /** Stubs getContext so each canvas tile gets its own recording context and createPattern returns a fresh object. */
+  function stubCanvas(mode: 'context' | 'none' | 'nopattern' = 'context') {
+    const tiles: Tile[] = []
+    const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (this: HTMLCanvasElement) {
+      if (mode === 'none') return null
+      const { ctx, calls } = recordingCtx()
+      const pattern = {}
+      const tile: Tile = { width: this.width, height: this.height, calls, pattern }
+      tiles.push(tile)
+      const wrapped = new Proxy(ctx as Record<string, unknown>, {
+        get(t, prop: string) {
+          if (prop === 'createPattern') {
+            return (src: HTMLCanvasElement, rep: string) => {
+              calls.push({ fn: 'createPattern', args: [src, rep], fillStyle: '', strokeStyle: '', lineWidth: 0 })
+              tile.width = src.width
+              tile.height = src.height
+              return mode === 'nopattern' ? null : pattern
+            }
+          }
+          return t[prop]
+        },
+        set(t, prop: string, value: unknown) {
+          t[prop] = value
+          return true
+        },
+      })
+      return wrapped as unknown as CanvasRenderingContext2D
+    } as never)
+    return { tiles, spy }
+  }
+
+  afterEach(() => vi.restoreAllMocks())
+
+  it('returns one cached pattern per exact colour string, each tile filled with its own colour', async () => {
+    const { setup } = await fresh()
+    const { tiles } = stubCanvas()
+    const a1 = setup.hatchPattern('#2a78d6')
+    const b1 = setup.hatchPattern('#d9622b')
+    const a2 = setup.hatchPattern('#2a78d6')
+    expect(a1).not.toBe('#2a78d6')
+    expect(b1).not.toBe(a1)
+    expect(a2).toBe(a1)
+    expect(tiles).toHaveLength(2)
+    const fills = tiles.map((t) => t.calls.find((c) => c.fn === 'fillRect')?.fillStyle)
+    expect(fills).toEqual(['#2a78d6', '#d9622b'])
+    // The cache key is the exact string: another spelling of the same colour is its own entry.
+    const upper = setup.hatchPattern('#2A78D6')
+    expect(upper).not.toBe(a1)
+    expect(tiles).toHaveLength(3)
+  })
+
+  it('draws a 6 x 6 tile: colour fill, then three 1.5px card-coloured 45 degree strokes, repeated', async () => {
+    const { setup } = await fresh()
+    const { tiles } = stubCanvas()
+    const pattern = setup.hatchPattern('#4a8a1f')
+    const [tile] = tiles
+    expect(tile.width).toBe(6)
+    expect(tile.height).toBe(6)
+    expect(tile.calls.find((c) => c.fn === 'fillRect')?.args).toEqual([0, 0, 6, 6])
+    const moves = tile.calls.filter((c) => c.fn === 'moveTo').map((c) => c.args)
+    const lines = tile.calls.filter((c) => c.fn === 'lineTo').map((c) => c.args)
+    expect(moves).toEqual([[-6, 6], [0, 6], [6, 6]])
+    expect(lines).toEqual([[0, 0], [6, 0], [12, 0]])
+    const stroke = tile.calls.filter((c) => c.fn === 'stroke')
+    expect(stroke.length).toBeGreaterThanOrEqual(1)
+    for (const s of stroke) {
+      expect(norm(String(s.strokeStyle))).toBe('#fffdf8')
+      expect(s.lineWidth).toBe(1.5)
+    }
+    expect(tile.calls.find((c) => c.fn === 'createPattern')?.args[1]).toBe('repeat')
+    expect(pattern).toBe(tile.pattern)
+  })
+
+  it('returns the colour itself and caches nothing when there is no 2D context; a later context still makes the pattern', async () => {
+    const { setup } = await fresh()
+    stubCanvas('none')
+    expect(setup.hatchPattern('#2a78d6')).toBe('#2a78d6')
+    expect(setup.hatchPattern('#2a78d6')).toBe('#2a78d6')
+    vi.restoreAllMocks()
+    stubCanvas('context')
+    const later = setup.hatchPattern('#2a78d6')
+    expect(later).not.toBe('#2a78d6')
+    expect(typeof later).toBe('object')
+  })
+
+  it('returns the colour and caches nothing when createPattern returns null', async () => {
+    const { setup } = await fresh()
+    stubCanvas('nopattern')
+    expect(setup.hatchPattern('#d9622b')).toBe('#d9622b')
+    vi.restoreAllMocks()
+    stubCanvas('context')
+    expect(typeof setup.hatchPattern('#d9622b')).toBe('object')
+  })
+
+  it('falls back to the colour under jsdom, which has no canvas', async () => {
+    const { setup } = await fresh()
+    expect(setup.hatchPattern('#a88400')).toBe('#a88400')
+  })
+
+  it('hatched(c) is a function and touches no canvas until it is called', async () => {
+    const { setup } = await fresh()
+    const { spy } = stubCanvas()
+    const createSpy = vi.spyOn(document, 'createElement')
+    const fn = setup.hatched('#2a78d6')
+    expect(typeof fn).toBe('function')
+    expect(createSpy).not.toHaveBeenCalledWith('canvas')
+    expect(spy).not.toHaveBeenCalled()
+    const first = fn()
+    expect(spy).toHaveBeenCalled()
+    expect(fn()).toBe(first)
+    expect(first).toBe(setup.hatchPattern('#2a78d6'))
+  })
+})
+
+describe('eventBandsPlugin and peakShadingPlugin (section 33, design.md §9.3)', () => {
+  const fills = (calls: KitCall[]) => calls.filter((c) => c.fn === 'fillRect')
+
+  async function bands(list: unknown, plugins: Record<string, unknown> = {}, passOptions = true) {
+    const { setup } = await fresh()
+    const { chart, calls } = kitChart({ plugins })
+    const opts = passOptions ? { bands: list } : undefined
+    hookOf(setup.eventBandsPlugin, 'beforeDatasetsDraw')(chart, { cancelable: true }, opts)
+    return { calls, chart, setup }
+  }
+
+  it('is a plugin named eventBands with no hook that runs after the datasets', async () => {
+    const { setup } = await fresh()
+    expect(setup.eventBandsPlugin.id).toBe('eventBands')
+    expect(setup.eventBandsPlugin.beforeDatasetsDraw).toBeTypeOf('function')
+    expect(setup.eventBandsPlugin.afterDatasetsDraw).toBeUndefined()
+    expect(setup.eventBandsPlugin.afterDraw).toBeUndefined()
+    expect(setup.eventBandsPlugin.afterDatasetsUpdate).toBeUndefined()
+  })
+
+  it('draws one column and one 3px rule for a danger band, at the §4 pixels', async () => {
+    const { calls } = await bands([{ index: 3, tone: 'danger' }])
+    const f = fills(calls)
+    expect(f).toHaveLength(2)
+    expect(f[0].args).toEqual([310, 20, 70, 200])
+    expect(norm(String(f[0].fillStyle))).toBe('#f9e1d8')
+    expect(f[1].args).toEqual([310, 20, 70, 3])
+    expect(norm(String(f[1].fillStyle))).toBe('#b23a1e')
+  })
+
+  it.each([
+    ['peak', '#f7edd3', '#a06a12'],
+    ['warning', '#f7eacb', '#a06a12'],
+    ['danger', '#f9e1d8', '#b23a1e'],
+  ] as const)('tone %s uses its fill and rule colours', async (tone, fill, rule) => {
+    const { calls } = await bands([{ index: 1, tone }])
+    const f = fills(calls)
+    expect(norm(String(f[0].fillStyle))).toBe(fill)
+    expect(norm(String(f[1].fillStyle))).toBe(rule)
+  })
+
+  it('draws bands in list order, each column then its rule', async () => {
+    const { calls } = await bands([
+      { index: 5, tone: 'warning' },
+      { index: 1, tone: 'danger' },
+      { index: 3, tone: 'peak' },
+    ])
+    const f = fills(calls)
+    expect(f.map((c) => c.args[0])).toEqual([450, 450, 170, 170, 310, 310])
+    expect(f.map((c) => c.args[3])).toEqual([200, 3, 200, 3, 200, 3])
+  })
+
+  it('draws nothing for an index outside the axis, or for an empty list', async () => {
+    expect(fills((await bands([{ index: 7, tone: 'peak' }, { index: -1, tone: 'danger' }])).calls)).toHaveLength(0)
+    expect(fills((await bands([])).calls)).toHaveLength(0)
+    expect(fills((await bands(undefined)).calls)).toHaveLength(0)
+  })
+
+  it('clamps a column to the plot area and draws nothing when the clamped span is empty', async () => {
+    const { setup } = await fresh()
+    const { chart, calls, x } = kitChart()
+    x.getPixelForValue = (v: number) => (v === 0 ? 100 : v === 1 ? 700 : 590)
+    hookOf(setup.eventBandsPlugin, 'beforeDatasetsDraw')(chart, {}, { bands: [{ index: 0, tone: 'peak' }, { index: 6, tone: 'peak' }, { index: 1, tone: 'peak' }] })
+    const f = fills(calls)
+    expect(f[0].args).toEqual([100, 20, 35, 200])
+    expect(f[2].args).toEqual([555, 20, 35, 200])
+    // index 1 sits at 700: its column [665, 735] lies wholly right of the plot, so it draws nothing.
+    expect(f).toHaveLength(4)
+  })
+
+  it('saves and restores the context around its drawing', async () => {
+    const { calls } = await bands([{ index: 2, tone: 'peak' }])
+    const names = calls.map((c) => c.fn)
+    expect(names[0]).toBe('save')
+    expect(names[names.length - 1]).toBe('restore')
+  })
+
+  it('falls back to the chart option, and draws nothing without an x scale', async () => {
+    const { setup } = await fresh()
+    const a = kitChart({ plugins: { eventBands: { bands: [{ index: 2, tone: 'peak' }] } } })
+    hookOf(setup.eventBandsPlugin, 'beforeDatasetsDraw')(a.chart, {}, undefined)
+    expect(fills(a.calls)).toHaveLength(2)
+    const b = kitChart()
+    ;(b.chart as { scales: object }).scales = {}
+    hookOf(setup.eventBandsPlugin, 'beforeDatasetsDraw')(b.chart, {}, { bands: [{ index: 2, tone: 'peak' }] })
+    expect(fills(b.calls)).toHaveLength(0)
+  })
+
+  it('peakShading { days: [3] } draws the same pixels as the peak band, in the peak colours (§4)', async () => {
+    const { setup } = await fresh()
+    const { chart, calls } = kitChart({ plugins: { peakShading: { days: [3] } } })
+    hookOf(setup.peakShadingPlugin, 'beforeDatasetsDraw')(chart, {}, { days: [3] })
+    const f = fills(calls)
+    expect(f.map((c) => c.args)).toEqual([[310, 20, 70, 200], [310, 20, 70, 3]])
+    expect(norm(String(f[0].fillStyle))).toBe('#f7edd3')
+    expect(norm(String(f[1].fillStyle))).toBe('#a06a12')
+    expect(setup.peakShadingPlugin.id).toBe('peakShading')
+  })
+
+  // Failure mode 1: peakShading reads eventBands.bands, or nothing, instead of peakShading.days.
+  it('peakShading reads plugins.peakShading.days from the chart options when no plugin options arrive, with no eventBands option', async () => {
+    const { setup } = await fresh()
+    const { chart, calls } = kitChart({ plugins: { peakShading: { days: [2, 4] } } })
+    hookOf(setup.peakShadingPlugin, 'beforeDatasetsDraw')(chart, {}, undefined)
+    const columns = fills(calls).filter((c) => norm(String(c.fillStyle)) === '#f7edd3')
+    expect(columns.map((c) => c.args[0])).toEqual([240, 380])
+    const rules = fills(calls).filter((c) => norm(String(c.fillStyle)) === '#a06a12')
+    expect(rules).toHaveLength(2)
+  })
+
+  it('peakShading reads the days of its own plugin options', async () => {
+    const { setup } = await fresh()
+    const { chart, calls } = kitChart({ plugins: {} })
+    hookOf(setup.peakShadingPlugin, 'beforeDatasetsDraw')(chart, {}, { days: [2, 4] })
+    expect(fills(calls).filter((c) => norm(String(c.fillStyle)) === '#f7edd3')).toHaveLength(2)
+  })
+
+  it('peakShading never shades eventBands.bands, and eventBands never shades peakShading.days', async () => {
+    const { setup } = await fresh()
+    const plugins = { peakShading: { days: [2, 4] }, eventBands: { bands: [{ index: 5, tone: 'danger' }] } }
+
+    const p = kitChart({ plugins })
+    hookOf(setup.peakShadingPlugin, 'beforeDatasetsDraw')(p.chart, {}, undefined)
+    expect(fills(p.calls).map((c) => c.args[0])).toEqual([240, 240, 380, 380])
+
+    const e = kitChart({ plugins })
+    hookOf(setup.eventBandsPlugin, 'beforeDatasetsDraw')(e.chart, {}, undefined)
+    expect(fills(e.calls).map((c) => c.args[0])).toEqual([450, 450])
+    expect(fills(e.calls).every((c) => norm(String(c.fillStyle)) !== '#f7edd3')).toBe(true)
+  })
+})
+
+describe('emphasisOf and pulqueriaLine (section 33, design.md §9.6)', () => {
+  const ALIASES = Array.from({ length: 12 }, (_, i) => `P${i + 1}`)
+
+  it('emphasisOf: null focus is none, the focused alias is focus, every other is context', async () => {
+    const { setup } = await fresh()
+    expect(setup.emphasisOf('P2', null)).toBe('none')
+    expect(setup.emphasisOf('P2', 'P2')).toBe('focus')
+    expect(setup.emphasisOf('P3', 'P2')).toBe('context')
+  })
+
+  it('matches the §4 worked examples exactly', async () => {
+    const { setup } = await fresh()
+    const lower = (o: Record<string, unknown>) => JSON.parse(JSON.stringify(o).toLowerCase())
+    expect(lower(setup.pulqueriaLine('P2', 'none') as never)).toEqual(
+      lower({ borderColor: '#D9622B', backgroundColor: '#D9622B', borderWidth: 2.5, borderDash: [], pointStyle: 'rect', pointRadius: 4, pointHoverRadius: 5, pointBackgroundColor: '#D9622B', pointBorderColor: '#D9622B', pointBorderWidth: 1, order: 1 }),
+    )
+    expect(lower(setup.pulqueriaLine('P8', 'focus') as never)).toEqual(
+      lower({ borderColor: '#D9622B', backgroundColor: '#D9622B', borderWidth: 3, borderDash: [6, 4], pointStyle: 'rect', pointRadius: 4, pointHoverRadius: 5, pointBackgroundColor: '#FFFDF8', pointBorderColor: '#D9622B', pointBorderWidth: 2, order: 0 }),
+    )
+    expect(lower(setup.pulqueriaLine('P9', 'context') as never)).toEqual(
+      lower({ borderColor: '#C9BEA6', backgroundColor: '#C9BEA6', borderWidth: 1.5, borderDash: [6, 4], pointStyle: 'triangle', pointRadius: 0, pointHoverRadius: 3, pointBackgroundColor: '#C9BEA6', pointBorderColor: '#C9BEA6', pointBorderWidth: 1, order: 2 }),
+    )
+  })
+
+  // Failure mode 7: a context line still in its colour.
+  it.each(ALIASES)('%s: a context line is border-strong in every colour field', async (alias) => {
+    const { setup } = await fresh()
+    const line = setup.pulqueriaLine(alias, 'context')
+    expect(norm(line.borderColor)).toBe('#c9bea6')
+    expect(norm(line.backgroundColor)).toBe('#c9bea6')
+    expect(norm(line.pointBackgroundColor)).toBe('#c9bea6')
+    expect(norm(line.pointBorderColor)).toBe('#c9bea6')
+  })
+
+  it.each(ALIASES)('%s follows the §3.5 table in all three states', async (alias) => {
+    const { setup } = await fresh()
+    const s = setup.pulqueriaStyle(alias)
+    const dash = s.dashed ? [6, 4] : []
+    const own = (e: 'none' | 'focus') => ({
+      borderColor: s.color,
+      backgroundColor: s.color,
+      borderWidth: e === 'focus' ? 3 : 2.5,
+      borderDash: dash,
+      pointStyle: s.pointStyle,
+      pointRadius: 4,
+      pointHoverRadius: 5,
+      pointBackgroundColor: s.dashed ? setup.CHART_COLORS['card'] : s.color,
+      pointBorderColor: s.color,
+      pointBorderWidth: s.dashed ? 2 : 1,
+      order: e === 'focus' ? 0 : 1,
+    })
+    expect(setup.pulqueriaLine(alias, 'none')).toEqual(own('none'))
+    expect(setup.pulqueriaLine(alias, 'focus')).toEqual(own('focus'))
+    const strong = setup.CHART_COLORS['border-strong']
+    expect(setup.pulqueriaLine(alias, 'context')).toEqual({
+      borderColor: strong,
+      backgroundColor: strong,
+      borderWidth: 1.5,
+      borderDash: dash,
+      pointStyle: s.pointStyle,
+      pointRadius: 0,
+      pointHoverRadius: 3,
+      pointBackgroundColor: strong,
+      pointBorderColor: strong,
+      pointBorderWidth: 1,
+      order: 2,
+    })
+  })
+
+  it('orders the focused line last-drawn: focus < none < context', async () => {
+    const { setup } = await fresh()
+    expect(setup.pulqueriaLine('P1', 'focus').order).toBeLessThan(setup.pulqueriaLine('P1', 'none').order)
+    expect(setup.pulqueriaLine('P1', 'none').order).toBeLessThan(setup.pulqueriaLine('P1', 'context').order)
+  })
+})
+
+describe('crosshair store (section 33, design.md §9.5)', () => {
+  it('getCrosshair is null for a group never set; setCrosshair stores and notifies only that group', async () => {
+    const { setup } = await fresh()
+    const a = vi.fn()
+    const b = vi.fn()
+    setup.subscribeCrosshair('A', a)
+    setup.subscribeCrosshair('B', b)
+    expect(setup.getCrosshair('A')).toBeNull()
+    setup.setCrosshair('A', 3)
+    expect(setup.getCrosshair('A')).toBe(3)
+    expect(a).toHaveBeenCalledTimes(1)
+    expect(a).toHaveBeenCalledWith(3)
+    // Failure mode 5: a crosshair leaking across groups.
+    expect(b).not.toHaveBeenCalled()
+    expect(setup.getCrosshair('B')).toBeNull()
+  })
+
+  it('does nothing when the index is unchanged, and notifies on null', async () => {
+    const { setup } = await fresh()
+    const l = vi.fn()
+    setup.subscribeCrosshair('A', l)
+    setup.setCrosshair('A', 2)
+    setup.setCrosshair('A', 2)
+    expect(l).toHaveBeenCalledTimes(1)
+    setup.setCrosshair('A', null)
+    expect(l).toHaveBeenLastCalledWith(null)
+    expect(l).toHaveBeenCalledTimes(2)
+    setup.setCrosshair('A', null)
+    expect(l).toHaveBeenCalledTimes(2)
+  })
+
+  it('unsubscribe removes only that listener', async () => {
+    const { setup } = await fresh()
+    const one = vi.fn()
+    const two = vi.fn()
+    const off = setup.subscribeCrosshair('A', one)
+    setup.subscribeCrosshair('A', two)
+    off()
+    setup.setCrosshair('A', 1)
+    expect(one).not.toHaveBeenCalled()
+    expect(two).toHaveBeenCalledWith(1)
+  })
+
+  it('withCrosshair returns the options itself for a null group, else a new object with the group, other plugins kept', async () => {
+    const { setup } = await fresh()
+    const opts = { plugins: { peakShading: { days: [3] } } } as unknown as import('chart.js').ChartOptions
+    expect(setup.withCrosshair(opts, null)).toBe(opts)
+    const frozen = JSON.stringify(opts)
+    const out = setup.withCrosshair(opts, 'g1')
+    expect(out).toEqual({ plugins: { peakShading: { days: [3] }, crosshairSync: { group: 'g1' } } })
+    expect(out).not.toBe(opts)
+    expect(JSON.stringify(opts)).toBe(frozen)
+    expect(setup.withCrosshair({}, 'g2')).toEqual({ plugins: { crosshairSync: { group: 'g2' } } })
+  })
+})
+
+describe('crosshairSyncPlugin (section 33, design.md §9.5)', () => {
+  let n = 0
+  const group = () => `grp-${++n}`
+
+  async function grouped(g: string | undefined, opts: KitChartOptions = {}) {
+    const { setup } = await fresh()
+    const k = kitChart({ ...opts, plugins: g === undefined ? {} : { crosshairSync: { group: g } } })
+    const call = (name: string, args: unknown = {}) => hookOf(setup.crosshairSyncPlugin, name)(k.chart, args, g === undefined ? undefined : { group: g })
+    return { setup, ...k, call }
+  }
+
+  it('is a plugin named crosshairSync', async () => {
+    const { setup } = await fresh()
+    expect(setup.crosshairSyncPlugin.id).toBe('crosshairSync')
+  })
+
+  it('sets the active elements of every visible dataset with a value at the new index, plus the tooltip, then redraws', async () => {
+    const g = group()
+    const { setup, chart, call } = await grouped(g, {
+      datasets: [{ data: [1, 2, 3, 4, 5, 6, 7] }, { data: [1, 2, 3, null, 5, 6, 7] }, { data: [1, 2, 3, 4, 5, 6, 7] }, { data: [1, 2, 3, undefined, 5, 6, 7] }],
+      hidden: [2],
+    })
+    call('afterInit')
+    setup.setCrosshair(g, 3)
+    const expected = [{ datasetIndex: 0, index: 3 }]
+    expect(chart.setActiveElements).toHaveBeenLastCalledWith(expected)
+    expect(chart.tooltip.setActiveElements).toHaveBeenLastCalledWith(expected, { x: 310 + 35, y: 20 })
+    expect(chart.update).toHaveBeenCalled()
+  })
+
+  it('clears the active elements when the index becomes null or falls out of range', async () => {
+    const g = group()
+    const { setup, chart, call } = await grouped(g)
+    call('afterInit')
+    setup.setCrosshair(g, 2)
+    setup.setCrosshair(g, null)
+    expect(chart.setActiveElements).toHaveBeenLastCalledWith([])
+    expect(chart.tooltip.setActiveElements).toHaveBeenLastCalledWith([], expect.anything())
+    setup.setCrosshair(g, 99)
+    expect(chart.setActiveElements).toHaveBeenLastCalledWith([])
+  })
+
+  it('afterEvent: a mousemove in the chart area sets the group index from the pixel, clamped to the labels', async () => {
+    const g = group()
+    const { setup, call } = await grouped(g)
+    call('afterEvent', { event: { type: 'mousemove', x: 310 + 35 }, inChartArea: true })
+    expect(setup.getCrosshair(g)).toBe(3)
+    call('afterEvent', { event: { type: 'mousemove', x: 10000 }, inChartArea: true })
+    expect(setup.getCrosshair(g)).toBe(6)
+    call('afterEvent', { event: { type: 'mousemove', x: -500 }, inChartArea: true })
+    expect(setup.getCrosshair(g)).toBe(0)
+  })
+
+  it('afterEvent: a mouseout, or a mousemove outside the chart area, clears the group index', async () => {
+    const g = group()
+    const { setup, call } = await grouped(g)
+    call('afterEvent', { event: { type: 'mousemove', x: 345 }, inChartArea: true })
+    expect(setup.getCrosshair(g)).toBe(3)
+    call('afterEvent', { event: { type: 'mousemove', x: 345 }, inChartArea: false })
+    expect(setup.getCrosshair(g)).toBeNull()
+    call('afterEvent', { event: { type: 'mousemove', x: 345 }, inChartArea: true })
+    call('afterEvent', { event: { type: 'mouseout', x: 345 }, inChartArea: false })
+    expect(setup.getCrosshair(g)).toBeNull()
+  })
+
+  it('afterDestroy unsubscribes the chart', async () => {
+    const g = group()
+    const { setup, chart, call } = await grouped(g)
+    call('afterInit')
+    call('afterDestroy')
+    setup.setCrosshair(g, 2)
+    expect(chart.setActiveElements).not.toHaveBeenCalled()
+    expect(chart.update).not.toHaveBeenCalled()
+  })
+
+  // Failure mode 5: a chart in group B must not get active elements from group A.
+  it('a chart of another group, or of no group, is untouched by a group index and ignores events', async () => {
+    const a = group()
+    const b = group()
+    const inB = await grouped(b)
+    inB.call('afterInit')
+    const none = await grouped(undefined)
+    none.call('afterInit')
+    inB.setup.setCrosshair(a, 3)
+    expect(inB.chart.setActiveElements).not.toHaveBeenCalled()
+    expect(inB.chart.tooltip.setActiveElements).not.toHaveBeenCalled()
+    expect(none.chart.setActiveElements).not.toHaveBeenCalled()
+    none.call('afterEvent', { event: { type: 'mousemove', x: 345 }, inChartArea: true })
+    expect(inB.setup.getCrosshair(a)).toBe(3)
+    expect(inB.setup.getCrosshair(b)).toBeNull()
+    none.call('afterDatasetsDraw')
+    expect(none.calls).toHaveLength(0)
+  })
+
+  it('treats an empty or missing group as no group', async () => {
+    const { setup, chart, call } = await grouped('')
+    call('afterInit')
+    call('afterEvent', { event: { type: 'mousemove', x: 345 }, inChartArea: true })
+    setup.setCrosshair('', 2)
+    expect(chart.setActiveElements).not.toHaveBeenCalled()
+  })
+
+  it('afterDatasetsDraw strokes one 1px ink-subtle vertical rule through the index, inside save/restore', async () => {
+    const g = group()
+    const { setup, calls, call } = await grouped(g)
+    call('afterDatasetsDraw')
+    expect(calls.filter((c) => c.fn === 'stroke')).toHaveLength(0)
+    setup.setCrosshair(g, 3)
+    call('afterDatasetsDraw')
+    const names = calls.map((c) => c.fn)
+    expect(names[0]).toBe('save')
+    expect(names[names.length - 1]).toBe('restore')
+    const stroke = calls.filter((c) => c.fn === 'stroke')
+    expect(stroke).toHaveLength(1)
+    expect(stroke[0].lineWidth).toBe(1)
+    expect(norm(String(stroke[0].strokeStyle))).toBe('#6b6354')
+    expect(calls.find((c) => c.fn === 'moveTo')?.args).toEqual([345, 20])
+    expect(calls.find((c) => c.fn === 'lineTo')?.args).toEqual([345, 220])
+  })
+
+  it('draws no rule for an index outside the x scale', async () => {
+    const g = group()
+    const { setup, calls, call } = await grouped(g)
+    setup.setCrosshair(g, 40)
+    call('afterDatasetsDraw')
+    expect(calls.filter((c) => c.fn === 'stroke')).toHaveLength(0)
+  })
+})
+
+describe('registerCharts registers the section 33 plugins (criterion 5)', () => {
+  it('registers eventBands and crosshairSync and still no extra controller, scale or built-in plugin', async () => {
+    const { setup, chartjs } = await fresh()
+    setup.registerCharts()
+    const { registry } = chartjs.Chart
+    for (const id of ['eventBands', 'crosshairSync', 'peakShading']) expect(() => registry.getPlugin(id), id).not.toThrow()
+    for (const id of ['radar', 'polarArea', 'scatter', 'bubble']) expect(() => registry.getController(id), id).toThrow()
+    for (const id of ['time', 'logarithmic', 'radialLinear']) expect(() => registry.getScale(id), id).toThrow()
+    for (const id of ['legend', 'title', 'subtitle']) expect(() => registry.getPlugin(id), id).toThrow()
+  })
+})
+
+describe('section 35: INSURANCE_TIER_COLORS (criterion 10, failure mode 7)', () => {
+  it('holds the four solid steps of one hue, light to dark', async () => {
+    const { setup } = await fresh()
+    expect(setup.INSURANCE_TIER_COLORS).toEqual({ exw: '#86B6EF', cip: '#5598E7', dap: '#2A78D6', ddp: '#1C5CAB' })
+  })
+
+  it('has no alpha suffix on any tier (six-digit hex)', async () => {
+    const { setup } = await fresh()
+    for (const colour of Object.values(setup.INSURANCE_TIER_COLORS)) expect(colour).toMatch(/^#[0-9A-Fa-f]{6}$/)
+  })
+
+  it('is not part of CHART_COLORS: no key is named after a tier', async () => {
+    const { setup } = await fresh()
+    for (const tier of ['exw', 'cip', 'dap', 'ddp']) expect(Object.keys(setup.CHART_COLORS)).not.toContain(tier)
+  })
+})
+
+describe('section 35: registerCharts (criterion 11)', () => {
+  it('registers the Sankey controller and the Flow element, and the two new plugins', async () => {
+    const { setup, chartjs } = await fresh()
+    setup.registerCharts()
+    const { registry } = chartjs.Chart
+    expect(() => registry.getController('sankey')).not.toThrow()
+    expect(() => registry.getElement('flow')).not.toThrow()
+    for (const id of ['lineEndLabels', 'quadrantLabels']) expect(() => registry.getPlugin(id), id).not.toThrow()
+  })
+
+  it('still registers no bubble or scatter controller', async () => {
+    const { setup, chartjs } = await fresh()
+    setup.registerCharts()
+    for (const id of ['bubble', 'scatter']) expect(() => chartjs.Chart.registry.getController(id), id).toThrow()
+  })
+
+  it('names the plugins lineEndLabels and quadrantLabels', async () => {
+    const { setup } = await fresh()
+    expect(setup.lineEndLabelsPlugin.id).toBe('lineEndLabels')
+    expect(setup.quadrantLabelsPlugin.id).toBe('quadrantLabels')
+  })
+})
+
+describe('section 35: canvas plugins with a recording context', () => {
+  interface Rec {
+    fn: string
+    args: unknown[]
+    fillStyle: unknown
+    textAlign: unknown
+    textBaseline: unknown
+    font: unknown
+  }
+  function recorder() {
+    const calls: Rec[] = []
+    const state: Record<string, unknown> = { fillStyle: '', textAlign: 'start', textBaseline: 'alphabetic', font: '' }
+    const ctx = new Proxy(
+      {},
+      {
+        get(_t, prop: string) {
+          if (prop in state) return state[prop]
+          return (...args: unknown[]) => {
+            calls.push({ fn: prop, args, fillStyle: state.fillStyle, textAlign: state.textAlign, textBaseline: state.textBaseline, font: state.font })
+          }
+        },
+        set(_t, prop: string, value: unknown) {
+          state[prop] = value
+          return true
+        },
+      },
+    )
+    return { ctx, calls, texts: () => calls.filter((c) => c.fn === 'fillText') }
+  }
+  type Hook = (chart: unknown, args: unknown, options: unknown) => void
+
+  /** Datasets of `{ label, values, hidden }`; element i of a dataset sits at x = 100 + 50 i, y = 400 - value. */
+  function lineChart(
+    ctx: unknown,
+    datasets: Array<{ label: string; values: Array<number | null>; hidden?: boolean }>,
+    display: boolean | undefined,
+    bottom = 300,
+  ) {
+    const options = { plugins: { lineEndLabels: display === undefined ? {} : { display } } }
+    return {
+      ctx,
+      chartArea: { left: 100, right: 400, top: 20, bottom, width: 300, height: bottom - 20 },
+      scales: {
+        x: { getPixelForValue: (v: number) => 100 + 50 * v, getPixelForTick: (i: number) => 100 + 50 * i },
+        y: { getPixelForValue: (v: number) => 400 - v },
+      },
+      data: { datasets: datasets.map((d) => ({ label: d.label, data: d.values })) },
+      options,
+      width: 500,
+      height: 400,
+      isDatasetVisible: (i: number) => !datasets[i].hidden,
+      getDatasetMeta: (i: number) => ({
+        hidden: datasets[i].hidden ?? false,
+        data: datasets[i].values.map((v, k) => ({ x: 100 + 50 * k, y: v === null ? NaN : 400 - v, skip: v === null })),
+      }),
+    }
+  }
+  const runEndLabels = async (chart: ReturnType<typeof lineChart>) => {
+    const { setup } = await fresh()
+    const hook = setup.lineEndLabelsPlugin.afterDatasetsDraw as unknown as Hook
+    expect(hook).toBeTypeOf('function')
+    hook.call(setup.lineEndLabelsPlugin, chart, {}, chart.options.plugins.lineEndLabels)
+  }
+
+  it('lineEndLabels draws nothing unless display is true', async () => {
+    for (const display of [false, undefined]) {
+      const r = recorder()
+      await runEndLabels(lineChart(r.ctx, [{ label: 'A', values: [100, 150] }], display))
+      expect(r.texts(), String(display)).toHaveLength(0)
+    }
+  })
+
+  it('lineEndLabels writes each visible dataset\'s label 8px right of its last point, left/middle, 12px, ink-muted, inside save/restore', async () => {
+    const { setup } = await fresh()
+    const r = recorder()
+    await runEndLabels(lineChart(r.ctx, [
+      { label: 'A', values: [100, 150] },
+      { label: 'B', values: [50, 200], hidden: true },
+      { label: 'C', values: [10, 60] },
+    ], true, 380))
+    const texts = r.texts()
+    expect(texts.map((t) => t.args[0])).toEqual(['A', 'C'])
+    for (const t of texts) {
+      expect(t.args[1]).toBe(150 + 8)
+      expect(t.textAlign).toBe('left')
+      expect(t.textBaseline).toBe('middle')
+      expect(String(t.font)).toMatch(/12px/)
+      expect(norm(String(t.fillStyle))).toBe(norm(setup.CHART_COLORS['ink-muted']))
+    }
+    expect(texts[0].args[2]).toBe(400 - 150)
+    expect(texts[1].args[2]).toBe(400 - 60)
+    const names = r.calls.map((c) => c.fn)
+    expect(names[0]).toBe('save')
+    expect(names[names.length - 1]).toBe('restore')
+  })
+
+  it('lineEndLabels uses the last non-null point of a dataset', async () => {
+    const r = recorder()
+    await runEndLabels(lineChart(r.ctx, [{ label: 'A', values: [100, 130, null] }], true))
+    const t = r.texts()[0]
+    expect(t.args[1]).toBe(150 + 8)
+    expect(t.args[2]).toBe(400 - 130)
+  })
+
+  it('lineEndLabels pushes crowded labels apart by at least 14px, top to bottom by their points\' y', async () => {
+    const r = recorder()
+    // end points at y 150, 145, 140 (the highest value is the highest on screen)
+    await runEndLabels(lineChart(r.ctx, [
+      { label: 'low', values: [0, 250] },
+      { label: 'mid', values: [0, 255] },
+      { label: 'high', values: [0, 260] },
+    ], true))
+    const ys = Object.fromEntries(r.texts().map((t) => [t.args[0] as string, t.args[2] as number]))
+    expect(ys.mid - ys.high).toBeGreaterThanOrEqual(14 - 1e-9)
+    expect(ys.low - ys.mid).toBeGreaterThanOrEqual(14 - 1e-9)
+    expect(ys.high).toBeLessThanOrEqual(ys.mid)
+  })
+
+  it('lineEndLabels leaves an uncrowded label at its point', async () => {
+    const r = recorder()
+    await runEndLabels(lineChart(r.ctx, [
+      { label: 'A', values: [0, 200] },
+      { label: 'B', values: [0, 100] },
+    ], true))
+    const ys = Object.fromEntries(r.texts().map((t) => [t.args[0] as string, t.args[2] as number]))
+    expect(ys).toEqual({ A: 200, B: 300 })
+  })
+
+  it('lineEndLabels keeps every label inside the plot\'s bottom edge, pushing the lowest ones up with the 14px gaps kept', async () => {
+    const r = recorder()
+    await runEndLabels(lineChart(r.ctx, [
+      { label: 'a', values: [0, 105] }, // y 295
+      { label: 'b', values: [0, 102] }, // y 298
+      { label: 'c', values: [0, 100] }, // y 300 (the bottom edge)
+    ], true, 300))
+    const ys = Object.fromEntries(r.texts().map((t) => [t.args[0] as string, t.args[2] as number]))
+    for (const y of Object.values(ys)) expect(y).toBeLessThanOrEqual(300 + 1e-9)
+    expect(ys.b - ys.a).toBeGreaterThanOrEqual(14 - 1e-9)
+    expect(ys.c - ys.b).toBeGreaterThanOrEqual(14 - 1e-9)
+  })
+
+  describe('quadrantLabels', () => {
+    const labels = { topLeft: 'TL', topRight: 'TR', bottomLeft: 'BL', bottomRight: 'BR' }
+    async function runQuadrants(q: Record<string, string>) {
+      const { setup } = await fresh()
+      const r = recorder()
+      const chart = {
+        ctx: r.ctx,
+        chartArea: { left: 50, right: 450, top: 20, bottom: 220, width: 400, height: 200 },
+        options: { plugins: { quadrantLabels: q } },
+        width: 500,
+        height: 260,
+      }
+      const hook = setup.quadrantLabelsPlugin.afterDraw as unknown as Hook
+      expect(hook).toBeTypeOf('function')
+      hook.call(setup.quadrantLabelsPlugin, chart, {}, q)
+      return { r, setup }
+    }
+
+    it('writes each string 8px inside its corner with the right alignment, 12px ink-subtle, inside save/restore', async () => {
+      const { r, setup } = await runQuadrants(labels)
+      const by = Object.fromEntries(r.texts().map((t) => [t.args[0] as string, t]))
+      expect(by.TL).toMatchObject({ args: ['TL', 58, 28], textAlign: 'left', textBaseline: 'top' })
+      expect(by.TR).toMatchObject({ args: ['TR', 442, 28], textAlign: 'right', textBaseline: 'top' })
+      expect(by.BL).toMatchObject({ args: ['BL', 58, 212], textAlign: 'left', textBaseline: 'bottom' })
+      expect(by.BR).toMatchObject({ args: ['BR', 442, 212], textAlign: 'right', textBaseline: 'bottom' })
+      for (const t of r.texts()) {
+        expect(String(t.font)).toMatch(/12px/)
+        expect(norm(String(t.fillStyle))).toBe(norm(setup.CHART_COLORS['ink-subtle']))
+      }
+      const names = r.calls.map((c) => c.fn)
+      expect(names[0]).toBe('save')
+      expect(names[names.length - 1]).toBe('restore')
+    })
+
+    it('skips a missing string', async () => {
+      const { r } = await runQuadrants({ topLeft: 'TL', bottomRight: 'BR' })
+      expect(r.texts().map((t) => t.args[0])).toEqual(['TL', 'BR'])
+    })
+  })
 })

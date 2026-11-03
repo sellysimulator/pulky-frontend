@@ -78,8 +78,8 @@ function brief(): Brief {
     weekday_multipliers: { mon: 0.25, tue: 0.5, wed: 0.75, thu: 1, fri: 1, sat: 1, sun: 0.75 },
     expected_demand: 100,
     supplier: { disrupted: false, disruption_message: null, spot_price: 13.4, base_price: 12, lead_time_days: 1 },
-    spot: { open: true, arrives_day: 6 },
-    futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, last_day_to_buy: 7, days_left_to_buy: 3 },
+    spot: { open: true, arrives_day: 6, arrives_weekday: 'sat' },
+    futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, delivery_weekday: 'fri', last_day_to_buy: 7, days_left_to_buy: 3 },
     transport: { shared: false },
     reputation: { P1: 0.62, P2: 0.55, P3: 0.5 },
   } as unknown as Brief

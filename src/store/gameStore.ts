@@ -1,6 +1,7 @@
 /**
  * The single source of truth. Written only by the socket handlers
- * (src/api/socketHandlers.ts) and the REST loaders that call `setConfig`.
+ * (src/api/socketHandlers.ts) and the REST loaders that call `setConfig` and
+ * `setLimits` (src/api/config.ts).
  */
 import { create } from 'zustand'
 import { v4 as uuidv4 } from 'uuid'
@@ -22,6 +23,7 @@ import type {
   JoinedPayload,
   JoinErrorPayload,
   LeaveAckPayload,
+  Limits,
   LobbyUpdatePayload,
   MarketDay,
   Participant,
@@ -69,12 +71,18 @@ export interface GameState {
   ownHistory: DayRecord[]
   publicHistory: PublicDayResults[]
   hostHistories: Record<string, DayRecord[]>
+  /** Each player's profit so far after each day, as the server sent it (spec §12.5): the host's profit race. */
+  hostRace: Record<string, number[]>
   marketHistory: MarketDay[]
   finished: GameFinishedPayload | null
   gamePublicId: string | null
   alerts: Alert[]
+  /** The day chosen under Your profit per day; board UI state, written only by the board through selectDay. */
+  selectedDay: number | null
   connectionError: string | null
   lastError: ServerError | null
+  /** The backend's hard limits (spec §9.2), loaded once per page by `loadLimits`; null until then. */
+  limits: Limits | null
 }
 
 export interface GameActions {
@@ -103,9 +111,11 @@ export interface GameActions {
   applyError(p: ServerError): void
   clearLastError(): void
   setConfig(config: GameConfig | PublicConfig): void
+  setLimits(limits: Limits): void
   setConnectionError(message: string | null): void
   addAlert(a: Omit<Alert, 'id'>): string
   dismissAlert(id: string): void
+  selectDay(day: number | null): void
 }
 
 export const INITIAL_STATE: GameState = {
@@ -134,12 +144,15 @@ export const INITIAL_STATE: GameState = {
   ownHistory: [],
   publicHistory: [],
   hostHistories: {},
+  hostRace: {},
   marketHistory: [],
   finished: null,
   gamePublicId: null,
   alerts: [],
+  selectedDay: null,
   connectionError: null,
   lastError: null,
+  limits: null,
 }
 
 /** Spec §12.6 append rule: an entry is added only when its `day` is later than the last one held. */
@@ -172,12 +185,13 @@ export const useGameStore = create<GameState & GameActions>()((set, get) => {
   return {
     ...INITIAL_STATE,
 
+    // The limits belong to the server, not to a room: leaving a room keeps them.
     setRoom: (roomCode, isHost) => {
-      if (get().roomCode !== roomCode) set({ ...INITIAL_STATE, roomCode, isHost })
+      if (get().roomCode !== roomCode) set({ ...INITIAL_STATE, roomCode, isHost, limits: get().limits })
       else set({ isHost })
     },
 
-    reset: () => set({ ...INITIAL_STATE }),
+    reset: () => set({ ...INITIAL_STATE, limits: get().limits }),
 
     applyJoined: (p) => set({ myAlias: p.alias, joinError: null }),
 
@@ -239,20 +253,28 @@ export const useGameStore = create<GameState & GameActions>()((set, get) => {
         }
         if (p.full) {
           const histories: Record<string, DayRecord[]> = {}
+          const race: Record<string, number[]> = {}
           for (const [alias, row] of Object.entries(p.players)) {
             histories[alias] = row.own_history ?? []
+            race[alias] = row.cumulative_profit_by_day ?? []
           }
           next.hostHistories = histories
+          next.hostRace = race
           next.publicHistory = p.public_history ?? []
           next.marketHistory = p.market_history ?? []
         } else {
           const histories = { ...state.hostHistories }
+          const race = { ...state.hostRace }
           for (const [alias, row] of Object.entries(p.players)) {
             if (row.last_record) {
               histories[alias] = appendByDay(histories[alias] ?? [], row.last_record)
+              // The day's point is the server's cumulative profit; a gap waits for the next full state.
+              const points = race[alias] ?? []
+              if (points.length === row.last_record.day - 1) race[alias] = [...points, row.cumulative_profit]
             }
           }
           next.hostHistories = histories
+          next.hostRace = race
           if (p.last_market_day) {
             next.marketHistory = appendByDay(state.marketHistory, p.last_market_day)
           }
@@ -305,12 +327,15 @@ export const useGameStore = create<GameState & GameActions>()((set, get) => {
 
     applyError: (p) => {
       set({ lastError: p })
-      if (p.code !== 'GAME_FINISHED') get().addAlert({ kind: 'error', message: p.message })
+      if (p.code === 'GAME_FINISHED') return
+      get().addAlert({ kind: p.code === 'STALE_DAY' ? 'success' : 'error', message: p.message })
     },
 
     clearLastError: () => set({ lastError: null }),
 
     setConfig: (config) => set({ config }),
+
+    setLimits: (limits) => set({ limits }),
 
     setConnectionError: (message) => set({ connectionError: message }),
 
@@ -322,5 +347,7 @@ export const useGameStore = create<GameState & GameActions>()((set, get) => {
 
     dismissAlert: (id) =>
       set((state) => ({ alerts: state.alerts.filter((a) => a.id !== id) })),
+
+    selectDay: (day) => set({ selectedDay: day }),
   }
 })

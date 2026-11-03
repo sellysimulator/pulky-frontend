@@ -45,9 +45,11 @@ export function cellarLot(id: string, qty: number, quality: number, conserved = 
     initial_quality: 90,
     conserved,
     quality,
+    days_left: 5,
     last_day: 9,
     risk_tonight: Math.min(1, (100 - quality + 0.57) / 100),
     expected_loss_tonight: 0,
+    conservation_cost: conserved ? null : qty,
   } as unknown as CellarLot
 }
 

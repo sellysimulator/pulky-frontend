@@ -25,7 +25,9 @@ vi.mock('react-chartjs-2', () => {
         'data-chart': JSON.stringify({ type, data: props.data, options: props.options }),
       })
     }
-  return { Bar: make('bar'), Line: make('line'), Pie: make('pie'), Doughnut: make('doughnut') }
+  // The generic `Chart` (section 35: the Sankey) reads its type from its `type` prop.
+  const Chart = (props: Props & { type?: string }) => make(props.type ?? 'chart')(props)
+  return { Bar: make('bar'), Line: make('line'), Pie: make('pie'), Doughnut: make('doughnut'), Chart }
 })
 
 vi.mock('../../firebase', () => ({ auth: { currentUser: null }, googleProvider: {}, app: {} }))
@@ -50,10 +52,14 @@ import ResultsSummary from '../components/results/ResultsSummary'
 import { DEMAND_SUPPLY_LEGEND_ORDER } from '../components/results/demandSupplyConfig'
 import type { ResultsView } from '../components/results/resultsView'
 import { INITIAL_STATE, useGameStore } from '../store/gameStore'
-import { formatMoney } from '../utils/format'
+import { INSURANCE_TIER_COLORS } from '../components/charts/chartSetup'
+import { formatMoney, formatPercent } from '../utils/format'
 import { getHostSecret, getOrCreateGuestId, markGamePlayed, setSessionToken } from '../utils/storage'
 import { GAME_ID, NAMES, PEAK_DAYS, ROOM, makeView, withoutPeer } from './fixtures/results'
+import { DEFAULTS_RESPONSE, HIDDEN_DEFAULTS, withTypedRisks } from './fixtures/serverConfig'
+import { FLOWS_BY_ALIAS, expectedBands, makeFlowView } from './fixtures/resultsFlow'
 import {
+  allCharts,
   chartWithDataset,
   figureTitled,
   hasClassAncestor,
@@ -81,12 +87,12 @@ const FULL_CONFIG = {
   transport: { unit_cost: 1 },
 }
 
-const HOST = { isHost: true, myAlias: null }
-const PLAYER = { isHost: false, myAlias: 'P1' }
+const HOST = { isHost: true, canExport: true, myAlias: null }
+const PLAYER = { isHost: false, canExport: false, myAlias: 'P1' }
 
 interface Opts {
   view?: ResultsView
-  viewer?: { isHost: boolean; myAlias: string | null }
+  viewer?: { isHost: boolean; canExport: boolean; myAlias: string | null }
   showActions?: boolean
   hostSecret?: string | null
 }
@@ -299,6 +305,19 @@ describe('block 3: where the pulque went (criterion 12, failure mode 10)', () =>
     expect(chart.data.datasets[1].data).toEqual([0, 0, 4])
   })
 
+  it('titles the Compare all chart and its table caption by what it plots, never as the card is titled', async () => {
+    renderSummary()
+    const title = 'Sold, spoiled, lost and liquidated, per pulquería'
+    const figure = chartWithDataset('Sold to pulquerías')!.element.closest('figure') as HTMLElement
+    expect(within(figure).getByText(title)).toBeInTheDocument()
+    await userEvent.click(within(figure).getByRole('button', { name: /Show table/ }))
+    expect(within(figure).getByRole('table', { name: title })).toBeInTheDocument()
+    const card = figure.closest('section') as HTMLElement
+    for (const f of Array.from(card.querySelectorAll('figure'))) {
+      expect(within(f as HTMLElement).queryByText(/^Where the pulque went$/)).not.toBeInTheDocument()
+    }
+  })
+
   it('shows Bought from pulquerías, Peak backlog and Days with backlog beside each bar, in rank order', () => {
     renderSummary()
     expect(numbersAfter('Bought from pulquerías')).toEqual(['2', '0', '16'])
@@ -412,6 +431,16 @@ describe('block 6: host actions', () => {
     ).toBeInTheDocument()
   })
 
+  it('offers a signed-in host without the secret the export only, with the leaderboard shown', () => {
+    useGameStore.setState({ roomCode: ROOM, gamePublicId: GAME_ID, isHost: true, config: FULL_CONFIG as never })
+    renderSummary({ viewer: { isHost: false, canExport: true, myAlias: null }, hostSecret: null })
+    expect(screen.getByRole('button', { name: 'Export CSV' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export JSON' })).toBeInTheDocument()
+    expect(screen.queryByText('Debrief notes')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Play again' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reveal' })).not.toBeInTheDocument()
+  })
+
   it('offers a player none of the host actions', () => {
     renderSummary({ viewer: PLAYER, hostSecret: null })
     expect(screen.queryByRole('button', { name: 'Export CSV' })).not.toBeInTheDocument()
@@ -433,17 +462,46 @@ describe('block 6: host actions', () => {
 })
 
 describe('Debrief notes', () => {
-  const POINTS = [
+  const COMMON = [
     'Who made the most profit, and who wasted the most? Were they the same players?',
-    'Look at the chart: did deliveries rise before Thursday or after? Lead time and futures exist so you can be early.',
     'Every spoiled unit was paid for twice: its price, and the reputation it cost.',
-    'Backlog lost reputation, and reputation is tomorrow\'s share of demand. Rivals gained what you lost.',
+    "Backlog lowered the day's score, so reputation ended below where a clean day would have left it, and reputation is tomorrow's share of demand. Rivals gained what you gave up.",
     'Futures never beat spot on price on average; they win on availability on short days.',
     'Insurance: did refunds outweigh fees? Was sharing on, and what did that do to its value?',
     'Cooperation: on how many days did everyone agree, and who got served on short days?',
     'Peer market: who sold to whom on short days, and at what price? Did selling old units beat letting them spoil, and did any seller create its own backlog?',
-    'Nobody was careless: lead time, perishability and scarce supply produced these outcomes.',
   ]
+  /** Spec §13.8: points 2 and 9 follow the game's lead time; the rest never change. */
+  function points(chart: string, careless: string): string[] {
+    return [COMMON[0], chart, ...COMMON.slice(1), careless]
+  }
+  const WITH_LEAD = points(
+    'Look at the chart: did deliveries rise before Thursday or after? Lead time and futures exist so you can be early.',
+    'Nobody was careless: lead time, perishability and scarce supply produced these outcomes.',
+  )
+  const SAME_DAY = points(
+    'Look at the chart: did deliveries rise before Thursday or after? Deliveries arrived the day they shipped, but futures had to be bought days ahead.',
+    'Nobody was careless: perishability, uncertain demand and scarce supply produced these outcomes.',
+  )
+  const UNKNOWN = points(
+    'Look at the chart: did deliveries rise before Thursday or after? Futures exist so you can be early.',
+    'Nobody was careless: perishability, uncertain demand and scarce supply produced these outcomes.',
+  )
+
+  async function openNotes(view: ResultsView): Promise<string[]> {
+    renderSummary({ view, viewer: HOST })
+    await userEvent.click(screen.getByText('Debrief notes'))
+    const details = screen.getByText('Debrief notes').closest('details')!
+    expect(details.open).toBe(true)
+    const list = details.querySelector('ol')!
+    expect(list).not.toBeNull()
+    return Array.from(list.querySelectorAll(':scope > li')).map((li) => li.textContent?.trim() ?? '')
+  }
+
+  function withLeadTime(days: number): ResultsView {
+    const config = withTypedRisks(structuredClone(DEFAULTS_RESPONSE.config))
+    return { ...makeView(), config: { ...config, supplier: { ...config.supplier, lead_time_days: days } } }
+  }
 
   it('is a collapsible, closed by default', () => {
     renderSummary({ viewer: HOST })
@@ -452,16 +510,41 @@ describe('Debrief notes', () => {
     expect(details.open).toBe(false)
   })
 
-  it('opens on click and holds the nine talking points, verbatim, as a numbered list', async () => {
-    renderSummary({ viewer: HOST })
-    await userEvent.click(screen.getByText('Debrief notes'))
-    const details = screen.getByText('Debrief notes').closest('details')!
-    expect(details.open).toBe(true)
-    const list = details.querySelector('ol')!
-    expect(list).not.toBeNull()
-    const items = Array.from(list.querySelectorAll(':scope > li')).map((li) => li.textContent?.trim())
-    expect(items).toEqual(POINTS)
+  it('with a lead time, names it as a cause: nine talking points, verbatim, as a numbered list', async () => {
+    const items = await openNotes(withLeadTime(2))
+    expect(items).toEqual(WITH_LEAD)
     expect(items).toHaveLength(9)
+  })
+
+  it('with a lead time of 0, never names the lead time as a cause', async () => {
+    const items = await openNotes(withLeadTime(0))
+    expect(items).toEqual(SAME_DAY)
+    expect(items.join(' ')).not.toMatch(/lead time/i)
+  })
+
+  it('without a config (an older payload), names neither case', async () => {
+    const items = await openNotes(makeView())
+    expect(items).toEqual(UNKNOWN)
+    expect(items.join(' ')).not.toMatch(/lead time/i)
+  })
+})
+
+describe('the risks, revealed (spec §9.3, §13.8 block 5)', () => {
+  it('shows everyone the four hidden-default risks the game ran with', () => {
+    const config = withTypedRisks(structuredClone(DEFAULTS_RESPONSE.config))
+    renderSummary({ view: { ...makeView(), config }, viewer: PLAYER })
+    const table = screen.getByRole('table', { name: 'The risks, revealed' })
+    const text = (table.textContent ?? '').replace(/\s+/g, ' ')
+    const pct = (v: number): string => `${Math.round(v * 100)}%`
+    expect(text).toContain(`Refrigeration failure chance per day${pct(HIDDEN_DEFAULTS['transport.failure_probability'])}`)
+    expect(text).toContain(`Share of a shipment lost in a failure${pct(HIDDEN_DEFAULTS['transport.loss_fraction'])}`)
+    expect(text).toContain(`Disruption chance per day${pct(HIDDEN_DEFAULTS['supplier.disruption_probability'])}`)
+    expect(text).toContain(`Capacity per player (sd)${HIDDEN_DEFAULTS['supplier.capacity_sd_per_player']} units`)
+  })
+
+  it('is not rendered when the payload carries no config', () => {
+    renderSummary({ viewer: PLAYER })
+    expect(screen.queryByText('The risks, revealed')).toBeNull()
   })
 })
 
@@ -609,5 +692,198 @@ describe('nothing is computed in the client (criterion 3)', () => {
     renderSummary({ view, viewer: PLAYER, hostSecret: null })
     expect(onScreen(formatMoney(99999.99)).length).toBeGreaterThan(0)
     expect(onScreen(formatMoney(5123.45))).toHaveLength(0)
+  })
+})
+
+describe('section 35: the profit race inside block 1 (criterion 2, failure mode 3)', () => {
+  const raceChart = () => allCharts().find((c) => c.type === 'line' && JSON.stringify(c.data.labels?.at(-1)) === '["End"]')
+  const raceOnScreen = () =>
+    Boolean(raceChart()) || screen.queryAllByText('Profit race').length > 0 || screen.queryAllByRole('img', { name: /running profit/ }).length > 0
+
+  it('failure mode 3: with the host\'s leaderboard hidden, no element of the race is in the DOM', () => {
+    renderSummary({ viewer: HOST })
+    expect(screen.getByRole('button', { name: 'Reveal' })).toBeInTheDocument()
+    expect(raceChart()).toBeUndefined()
+    expect(screen.queryByText('Profit race')).not.toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /running profit/ })).not.toBeInTheDocument()
+    expect(screen.queryByText("Running total of each pulquería's daily profit. End adds the final settlement.")).not.toBeInTheDocument()
+    expect(raceOnScreen()).toBe(false)
+  })
+
+  it('appears with the figures when Reveal is pressed, plotting the End point of every pulquería', () => {
+    renderSummary({ viewer: HOST })
+    fireEvent.click(screen.getByRole('button', { name: 'Reveal' }))
+    const chart = raceChart()!
+    expect(chart.type).toBe('line')
+    expect(screen.getByText('Profit race')).toBeInTheDocument()
+    expect(chart.data.datasets.map((d) => d.label)).toEqual([NAMES.P2, NAMES.P3, NAMES.P1])
+    expect(chart.data.datasets.map((d) => d.data.at(-1))).toEqual([5123.45, 3000.5, -250.75])
+    expect(chart.data.labels!.at(-1)).toEqual(['End'])
+  })
+
+  it('shows the race at once to a viewer whose leaderboard is revealed by default, and hides it in print', () => {
+    renderSummary({ viewer: PLAYER, hostSecret: null })
+    const chart = raceChart()!
+    expect(chart).toBeDefined()
+    expect(hasClassAncestor(chart.element, 'print:hidden')).toBe(true)
+  })
+
+  it('emphasises the viewer\'s own line and no other when a player looks (criterion 3)', () => {
+    renderSummary({ viewer: PLAYER, hostSecret: null })
+    const byLabel = Object.fromEntries(raceChart()!.data.datasets.map((d) => [d.label, d]))
+    expect(byLabel[NAMES.P1].borderWidth).toBe(3)
+    expect(byLabel[NAMES.P2].borderColor).toBe('#C9BEA6')
+    expect(byLabel[NAMES.P3].borderColor).toBe('#C9BEA6')
+  })
+
+  it('draws every line plain for the host until a legend item is pointed at (criterion 3)', async () => {
+    renderSummary({ viewer: HOST })
+    fireEvent.click(screen.getByRole('button', { name: 'Reveal' }))
+    for (const d of raceChart()!.data.datasets) expect(d.borderWidth).toBe(2.5)
+    const item = screen
+      .getAllByText(NAMES.P3)
+      .map((e) => e.closest<HTMLElement>('[tabindex="0"]'))
+      .find(Boolean)!
+    fireEvent.focus(item)
+    const byLabel = Object.fromEntries(raceChart()!.data.datasets.map((d) => [d.label, d]))
+    expect(byLabel[NAMES.P3].borderWidth).toBe(3)
+    expect(byLabel[NAMES.P2].borderColor).toBe('#C9BEA6')
+  })
+
+  it('sits in block 1, before the demand chart', () => {
+    renderSummary({ viewer: PLAYER, hostSecret: null })
+    expect(before(raceChart()!.element, screen.getByText(CHART_TITLE))).toBe(true)
+  })
+})
+
+describe('section 35: fill vs waste above the ratio table (criteria 4 and 9)', () => {
+  it('puts the chart above the ratio table, hidden in print, and leaves the table', () => {
+    renderSummary()
+    const chart = chartWithDataset('Average fill rate')!
+    expect(chart.type).toBe('line')
+    expect(before(chart.element, screen.getByRole('table', { name: 'Ratios' }))).toBe(true)
+    expect(hasClassAncestor(chart.element, 'print:hidden')).toBe(true)
+    expect(hasClassAncestor(screen.getByRole('table', { name: 'Ratios' }), 'print:hidden')).toBe(false)
+  })
+
+  it('plots only the pulquerías with both ratios and names the others in the caption', () => {
+    renderSummary()
+    const chart = chartWithDataset('Average fill rate')!
+    expect(chart.data.datasets.map((d) => d.label)).toEqual([NAMES.P2, NAMES.P1, 'Average waste rate', 'Average fill rate'])
+    // P3 has a null fill rate and a null waste rate in the fixture
+    expect(
+      screen.getByText(`Size is total profit. Not plotted: ${NAMES.P3} (no demand was owed, and nothing was sold or spoiled).`),
+    ).toBeInTheDocument()
+  })
+
+  it('shows the no-plot line instead of the chart when no pulquería has both ratios', () => {
+    const v = makeView((s) => {
+      for (const p of Object.values(s.players)) p.fill_rate = null
+    })
+    renderSummary({ view: v })
+    expect(chartWithDataset('Average fill rate')).toBeUndefined()
+    expect(screen.getByText('No pulquería has both a fill rate and a waste rate to plot.')).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: 'Ratios' })).toBeInTheDocument()
+  })
+})
+
+describe('section 35: block 3 View control (criterion 6, failure mode 6)', () => {
+  const viewGroup = () => screen.getByRole('group', { name: 'View' })
+  const showGroup = () => screen.getByRole('group', { name: 'Show' })
+  const sankey = () => allSankeys()
+  const allSankeys = () => Array.from(document.querySelectorAll('[data-testid="chart-sankey"]'))
+
+  it('offers Flow first when every pulquería has flow, and shows the Sankey of the first chip', () => {
+    renderSummary({ view: makeFlowView() })
+    const buttons = within(viewGroup()).getAllByRole('button')
+    expect(buttons.map((b) => b.textContent)).toEqual(['Flow', 'Compare all'])
+    expect(buttons[0]).toHaveAttribute('aria-pressed', 'true')
+    expect(sankey()).toHaveLength(1)
+    expect(chartWithDataset('Sold to pulquerías')).toBeUndefined()
+    const data = JSON.parse(sankey()[0].getAttribute('data-chart')!).data.datasets[0].data
+    expect(data).toEqual(expectedBands(FLOWS_BY_ALIAS.P1))
+    expect(screen.getByText(`${NAMES.P1}: from shipments to sold, spoiled and left at the end`)).toBeInTheDocument()
+  })
+
+  it('passes the viewer\'s alias on: their chip comes first', () => {
+    renderSummary({ view: makeFlowView(), viewer: { isHost: false, canExport: false, myAlias: 'P3' }, hostSecret: null })
+    expect(screen.getByText(`${NAMES.P3}: from shipments to sold, spoiled and left at the end`)).toBeInTheDocument()
+  })
+
+  it('Compare all shows section 29\'s chart with a Show control on Units first', () => {
+    renderSummary({ view: makeFlowView() })
+    fireEvent.click(within(viewGroup()).getByRole('button', { name: 'Compare all' }))
+    expect(allSankeys()).toHaveLength(0)
+    const chart = chartWithDataset('Sold to pulquerías')!
+    expect(chart.type).toBe('bar')
+    expect(chart.data.datasets[0].data).toEqual([520, 300, 410])
+    expect(within(showGroup()).getAllByRole('button').map((b) => b.textContent)).toEqual(['Units', 'Percent'])
+    expect(within(showGroup()).getByRole('button', { name: 'Units' })).toHaveAttribute('aria-pressed', 'true')
+    expect(numbersAfter('Peak backlog')).toEqual(['3', '11', '7'])
+  })
+
+  it('Percent re-plots the same datasets in percent and shows percents in the table (criterion 7)', async () => {
+    renderSummary({ view: makeFlowView() })
+    fireEvent.click(within(viewGroup()).getByRole('button', { name: 'Compare all' }))
+    fireEvent.click(within(showGroup()).getByRole('button', { name: 'Percent' }))
+    const chart = chartWithDataset('Sold to pulquerías')!
+    expect(chart.options.scales.x.max).toBe(100)
+    const totals = [0, 1, 2].map((i) => chart.data.datasets.reduce((s, d) => s + (d.data[i] as number), 0))
+    for (const t of totals) expect(Math.abs(t - 100)).toBeLessThan(1e-9)
+    const figure = chart.element.closest('figure') as HTMLElement
+    await userEvent.click(within(figure).getByRole('button', { name: /Show table/ }))
+    expect(figure).toHaveTextContent(formatPercent(520 / 543))
+    await userEvent.click(within(figure).getByRole('button', { name: /Show chart/ }))
+    fireEvent.click(within(showGroup()).getByRole('button', { name: 'Units' }))
+    expect(chartWithDataset('Sold to pulquerías')!.data.datasets[0].data).toEqual([520, 300, 410])
+  })
+
+  it('failure mode 6: without flow there is no View control and no Sankey; Compare all stands as in section 29, with Units / Percent', () => {
+    renderSummary()
+    expect(screen.queryByRole('group', { name: 'View' })).not.toBeInTheDocument()
+    expect(allSankeys()).toHaveLength(0)
+    expect(chartWithDataset('Sold to pulquerías')!.type).toBe('bar')
+    expect(within(showGroup()).getAllByRole('button').map((b) => b.textContent)).toEqual(['Units', 'Percent'])
+  })
+
+  it('failure mode 6: flow on only some pulquerías offers no Flow view either', () => {
+    renderSummary({ view: makeFlowView(['P1', 'P2']) })
+    expect(screen.queryByRole('group', { name: 'View' })).not.toBeInTheDocument()
+    expect(allSankeys()).toHaveLength(0)
+    expect(chartWithDataset('Sold to pulquerías')).toBeDefined()
+  })
+
+  it('hides block 3 in print, Sankey included', () => {
+    renderSummary({ view: makeFlowView() })
+    expect(hasClassAncestor(allSankeys()[0], 'print:hidden')).toBe(true)
+  })
+})
+
+describe('section 35: Insurance used in solid tier colours (criterion 10, failure mode 7)', () => {
+  const figure = () => figureTitled('Insurance used')
+
+  it('fills the four datasets with the four INSURANCE_TIER_COLORS', () => {
+    renderSummary()
+    const chart = Array.from(figure().querySelectorAll('[data-testid^="chart-"]')).map((e) => JSON.parse(e.getAttribute('data-chart')!))[0]
+    const fills = chart.data.datasets.map((d: { backgroundColor: string }) => String(d.backgroundColor).toLowerCase())
+    expect([...fills].sort()).toEqual(Object.values(INSURANCE_TIER_COLORS).map((c) => c.toLowerCase()).sort())
+  })
+
+  it('failure mode 7: no colour in the chart or its legend is an eight-digit hex', () => {
+    renderSummary()
+    const chartEl = figure().querySelector('[data-testid^="chart-"]')!
+    const chart = JSON.parse(chartEl.getAttribute('data-chart')!)
+    for (const d of chart.data.datasets) {
+      for (const c of [d.backgroundColor, d.borderColor]) {
+        if (typeof c === 'string') expect(c, `${d.label}`).not.toMatch(/^#[0-9a-f]{8}$/i)
+      }
+    }
+    expect(figure().innerHTML).not.toMatch(/#[0-9a-f]{8}(?![0-9a-f])/i)
+  })
+
+  it('draws the legend swatches in the same four colours', () => {
+    renderSummary()
+    const html = figure().innerHTML.toLowerCase()
+    for (const c of Object.values(INSURANCE_TIER_COLORS)) expect(html, c).toContain(c.toLowerCase())
   })
 })

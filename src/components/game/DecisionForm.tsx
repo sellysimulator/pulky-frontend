@@ -1,13 +1,13 @@
 import { ClipboardList, Lock } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
-import { canAfford, isWholeCents, outlayEstimate, type DecisionDraft } from '../../game/estimates'
-import { LIMITS, type Decision, type DecidingView, type IncotermTier, type PlayerView, type PublicConfig } from '../../types/game'
-import { formatMoney, formatQty } from '../../utils/format'
+import { useDecisionPreview } from '../../game/useDecisionPreview'
+import { useGameStore } from '../../store/gameStore'
+import type { Decision, DecidingView, DecisionDraft, FieldIssue, IncotermTier, PlayerView, PublicConfig } from '../../types/game'
 import Badge from '../shared/Badge'
 import SectionCard from '../shared/SectionCard'
 import ConserveSection from './ConserveSection'
 import CooperateToggle from './CooperateToggle'
-import OrderSection, { ORDER_ERROR } from './OrderSection'
+import OrderSection from './OrderSection'
 import OutlayBar from './OutlayBar'
 import PeerBuySection from './PeerBuySection'
 import PeerSellSection from './PeerSellSection'
@@ -41,28 +41,33 @@ interface FormState {
 /** The fields whose messages wait for the player: a field is touched once its input has lost focus. */
 type FieldKey = 'spot' | 'futures' | 'buyPrice' | 'buyQuality' | 'sellPrice' | 'sellQuality' | 'sellUnits'
 
-const PRICE_ERROR = `Peer prices must be from $0.01 to ${formatMoney(LIMITS.MAX_PEER_PRICE)}, in whole cents.`
-const QUALITY_ERROR = 'Quality limits must be whole numbers from 0 to 100.'
+/** The server's field path (spec §4.3) for each form field. */
+const SERVER_FIELD: Record<FieldKey, string> = {
+  spot: 'order_spot',
+  futures: 'order_futures',
+  buyPrice: 'peer_buy.max_price',
+  buyQuality: 'peer_buy.min_quality',
+  sellPrice: 'peer_sell.price',
+  sellQuality: 'peer_sell.max_quality',
+  sellUnits: 'peer_sell.max_units',
+}
+
+/** Spec §13.7: the form's own rule; the server accepts any whole number from 0 to 100 (§4.3). */
 const STEP_ERROR = 'Quality steps by 5: choose 0, 5, 10, … 100.'
-const UNITS_ERROR = `You can offer from 1 to ${formatQty(LIMITS.MAX_ORDER)} units.`
 
-function isValidQuantity(value: number | null): boolean {
-  return value !== null && Number.isInteger(value) && value >= 0 && value <= LIMITS.MAX_ORDER
+function serverErrors(errors: FieldIssue[] | undefined): Partial<Record<FieldKey, string>> {
+  const out: Partial<Record<FieldKey, string>> = {}
+  for (const key of Object.keys(SERVER_FIELD) as FieldKey[]) {
+    const issue = errors?.find((e) => e.field === SERVER_FIELD[key])
+    if (issue) out[key] = issue.message
+  }
+  return out
 }
 
-function priceError(value: number | null): string | undefined {
-  const ok = value !== null && Number.isFinite(value) && isWholeCents(value) && value >= 0.01 && value <= LIMITS.MAX_PEER_PRICE
-  return ok ? undefined : PRICE_ERROR
-}
-
-function qualityError(value: number | null): string | undefined {
-  if (value === null || !Number.isInteger(value) || value < 0 || value > 100) return QUALITY_ERROR
+/** A quality limit the server accepts but the guide has no row for (spec §13.7). */
+function stepError(value: number | null, serverError: string | undefined): string | undefined {
+  if (serverError !== undefined || value === null) return serverError
   return value % 5 === 0 ? undefined : STEP_ERROR
-}
-
-function unitsError(value: number | null): string | undefined {
-  const ok = value !== null && Number.isInteger(value) && value >= 1 && value <= LIMITS.MAX_ORDER
-  return ok ? undefined : UNITS_ERROR
 }
 
 function initialState(initial: Decision, view: PlayerView, config: PublicConfig): FormState {
@@ -89,6 +94,7 @@ function initialState(initial: Decision, view: PlayerView, config: PublicConfig)
 type DecisionFormBodyProps = Omit<DecisionFormProps, 'view' | 'initialDecision'> & { view: DecidingView; initialDecision: Decision }
 
 function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, lockedFooter }: DecisionFormBodyProps): ReactElement {
+  const roomCode = useGameStore((s) => s.roomCode)
   const [state, setState] = useState<FormState>(() => initialState(initialDecision, view, config))
   const patch = (changes: Partial<FormState>): void => setState((s) => ({ ...s, ...changes }))
   const [touched, setTouched] = useState<ReadonlySet<FieldKey>>(() => new Set())
@@ -112,34 +118,32 @@ function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, loc
 
   const buyActive = peers && state.buyOn
   const sellActive = peers && state.sellOn
-  const buyValidated = buyActive && spotOpen
-  const buyPriceError = buyValidated ? priceError(state.buyPrice) : undefined
-  const buyQualityError = buyValidated ? qualityError(state.buyQuality) : undefined
-  const sellPriceError = sellActive ? priceError(state.sellPrice) : undefined
-  const sellQualityError = sellActive ? qualityError(state.sellQuality) : undefined
-  const sellUnitsError = sellActive ? unitsError(state.sellUnits) : undefined
 
-  const spotError = spotOpen && !isValidQuantity(state.spot) ? ORDER_ERROR : undefined
-  const futuresError = futuresOpen && !isValidQuantity(state.futures) ? ORDER_ERROR : undefined
-  const formValid = !spotError && !futuresError && !buyPriceError && !buyQualityError && !sellPriceError && !sellQualityError && !sellUnitsError
-
+  // The draft as typed: the server checks it and computes every figure the form shows (spec §12.4).
   const draft: DecisionDraft = {
-    order_spot: spotOpen ? (state.spot ?? 0) : 0,
-    order_futures: futuresOpen ? (state.futures ?? 0) : 0,
+    day: view.day,
+    order_spot: spotOpen ? state.spot : 0,
+    order_futures: futuresOpen ? state.futures : 0,
     incoterm_tier,
     conserve_lots: conserveLots,
     cooperate: state.cooperate,
-    peer_buy:
-      buyActive && state.buyPrice !== null && state.buyQuality !== null
-        ? { max_price: state.buyPrice, min_quality: state.buyQuality }
-        : null,
-    peer_sell:
-      sellActive && state.sellPrice !== null && state.sellQuality !== null && state.sellUnits !== null
-        ? { price: state.sellPrice, max_quality: state.sellQuality, max_units: state.sellUnits }
-        : null,
+    peer_buy: buyActive ? { max_price: state.buyPrice, min_quality: state.buyQuality } : null,
+    peer_sell: sellActive ? { price: state.sellPrice, max_quality: state.sellQuality, max_units: state.sellUnits } : null,
   }
-  const outlay = outlayEstimate(draft, view, config)
-  const over = !canAfford(outlay.total, view.cash)
+  const { preview, pending } = useDecisionPreview(roomCode, draft)
+  const server = serverErrors(preview?.errors)
+
+  // A spot-closed day cannot leave a shortfall, so the buy limits are not checked then (spec §13.7).
+  const spotError = spotOpen ? server.spot : undefined
+  const futuresError = futuresOpen ? server.futures : undefined
+  const buyPriceError = buyActive && spotOpen ? server.buyPrice : undefined
+  const buyQualityError = buyActive && spotOpen ? stepError(state.buyQuality, server.buyQuality) : undefined
+  const sellPriceError = sellActive ? server.sellPrice : undefined
+  const sellQualityError = sellActive ? stepError(state.sellQuality, server.sellQuality) : undefined
+  const sellUnitsError = sellActive ? server.sellUnits : undefined
+  const formValid = !spotError && !futuresError && !buyPriceError && !buyQualityError && !sellPriceError && !sellQualityError && !sellUnitsError
+
+  const over = preview?.affordable === false
   const canSubmit = !locked && !over
 
   const handleSubmit = (): void => {
@@ -149,7 +153,21 @@ function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, loc
       setFocusRequest((n) => n + 1)
       return
     }
-    onSubmit({ day: view.day, ...draft })
+    const buy = draft.peer_buy
+    const sell = draft.peer_sell
+    onSubmit({
+      day: view.day,
+      order_spot: draft.order_spot ?? 0,
+      order_futures: draft.order_futures ?? 0,
+      incoterm_tier,
+      conserve_lots: conserveLots,
+      cooperate: state.cooperate,
+      peer_buy: buy && buy.max_price !== null && buy.min_quality !== null ? { max_price: buy.max_price, min_quality: buy.min_quality } : null,
+      peer_sell:
+        sell && sell.price !== null && sell.max_quality !== null && sell.max_units !== null
+          ? { price: sell.price, max_quality: sell.max_quality, max_units: sell.max_units }
+          : null,
+    })
   }
 
   const toggleLot = (lotId: string, checked: boolean): void =>
@@ -203,13 +221,21 @@ function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, loc
           onFieldBlur={() => touch('futures')}
           locked={locked}
         />
-        <ShipSection view={view} incoterm_tier={incoterm_tier} onChange={(next) => patch({ incoterm_tier: next })} shipmentMax={outlay.shipmentMax} locked={locked} />
+        <ShipSection
+          view={view}
+          plans={preview?.tier_plans ?? null}
+          pending={pending}
+          incoterm_tier={incoterm_tier}
+          onChange={(next) => patch({ incoterm_tier: next })}
+          locked={locked}
+        />
         <ConserveSection view={view} config={config} selected={conserveLots} onToggle={toggleLot} locked={locked} />
         {peers ? (
           <PeerSellSection
             view={view}
             config={config}
-            conserveLots={conserveLots}
+            offer={preview?.offer ?? null}
+            pending={pending}
             ticked={state.sellOn}
             onTick={(sellOn) => patch({ sellOn })}
             price={state.sellPrice}
@@ -229,7 +255,14 @@ function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, loc
         {locked ? (
           lockedFooter
         ) : (
-          <OutlayBar total={outlay.total} cash={view.cash} over={over} canSubmit={canSubmit} onSubmit={handleSubmit} />
+          <OutlayBar
+            total={preview?.outlay?.total ?? null}
+            pending={pending}
+            cash={view.cash}
+            unaffordable={preview?.unaffordable_message ?? null}
+            canSubmit={canSubmit}
+            onSubmit={handleSubmit}
+          />
         )}
       </div>
     </SectionCard>

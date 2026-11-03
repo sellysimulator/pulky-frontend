@@ -104,7 +104,7 @@ const BODY: ManualPageSpec[] = [
           items={[
             'The lots you chose to conserve are conserved.',
             "Today's new futures are paid at the base price.",
-            'The supplier ships the futures due today first, then splits what is left between the spot orders.',
+            'The supplier ships the futures due today first, then fills the spot orders from what is left, the largest order first (an equal share of every order only if everyone voted for Equal Supply).',
             "You pay for the spot units you were given, plus transport and your insurance fee.",
             'The refrigeration may fail and destroy part of every shipment.',
             'Shipments arriving today become new lots in your cellar; insurance refunds are paid.',
@@ -139,8 +139,10 @@ const BODY: ManualPageSpec[] = [
               costs a penalty every night it waits, and it never expires.
             </>,
             <>
-              <strong>Reputation</strong> (0 to 1) drops when customers wait and when pulque spoils in your cellar, and
-              recovers on clean days. Rivals gain the share you lose.
+              <strong>Reputation</strong> (0 to 1) moves each night part of the way toward the day's score: how much of what
+              you owed you served, and how little of your pulque spoiled. Customers who wait and pulque that spoils lower
+              that score, and a clean day sets it at the top, so reputation can still rise after a day with some backlog.
+              Rivals gain the share you lose.
             </>,
           ]}
         />
@@ -158,8 +160,9 @@ const BODY: ManualPageSpec[] = [
         </p>
         <p>
           <strong>Quality is the chance that a unit survives tonight.</strong> A unit at 80% has a 20% spoil risk tonight. A lot
-          keeps its arrival quality through its fresh period, then loses the same number of points every night until it
-          reaches 0% and surely spoils.
+          keeps its arrival quality only through the fresh nights the host gives it, if any; every night after them takes the
+          same number of points off, until it reaches 0% and surely spoils. Quality counts tonight, so a lot with no fresh
+          nights reads below its arrival quality on the very day it arrives.
         </p>
         <Table
           caption="Spoil risk words"
@@ -192,7 +195,8 @@ const BODY: ManualPageSpec[] = [
               They also count as waste, which lowers your reputation.
             </>,
             <>
-              <strong>Holding cost.</strong> Every unit still in the cellar at night costs a little, even if it survives.
+              <strong>Holding cost.</strong> Every unit still in your cellar after the night's spoilage costs a little. Units
+              that spoiled overnight pay none.
             </>,
             <>
               <strong>Conserve.</strong> Tick a lot under Conserve to pay, for every unit in it, to keep its arrival quality for
@@ -241,8 +245,8 @@ const BODY: ManualPageSpec[] = [
           pulquería the supplier board reads <strong>Disrupted today</strong>.
         </p>
         <p>
-          <strong>What it does.</strong> With less to go round, the futures due that day are filled first and the spot orders
-          share whatever is left, so your spot order is likely to come up short. Even futures can come up short: the units the
+          <strong>What it does.</strong> With less to go round, the futures due that day are filled first and what is left
+          goes to the spot orders, the largest first, so your spot order is likely to come up short. Even futures can come up short: the units the
           supplier cannot ship are cancelled and refunded at the base price.
         </p>
         <p>
@@ -304,8 +308,8 @@ const BODY: ManualPageSpec[] = [
             </>,
             <>
               <strong>Where you see it.</strong> <strong>Refrigeration</strong> in Yesterday says whether it failed, and your
-              recap gives your loss: <em>"Refrigeration failed: you lost 6 units (shipping alone)."</em> In transit lists the
-              units lost per shipment, and in 3D a second sign over the truck shows them.
+              recap gives your loss: <em>"Refrigeration failed: you lost 6 units (shipping alone)."</em> When the host sets a
+              lead time, In transit lists the units lost per shipment, and in 3D a second sign over the truck shows them.
             </>,
           ]}
         />
@@ -349,7 +353,7 @@ const BODY: ManualPageSpec[] = [
           head={['Insurance', 'A lost unit is refunded at']}
           rows={[
             ['No insurance — you carry the risk', 'Nothing'],
-            ['Paid-price insurance — refund what you paid', 'What you paid'],
+            ['Paid-price insurance — refund what you paid', 'What you paid, averaged over the shipment'],
             ['Market-price insurance — refund at the arrival-day spot price', 'The spot price on the arrival day'],
             ['Retail-price insurance — refund at the retail price', 'The retail price'],
           ]}
@@ -386,12 +390,14 @@ const BODY: ManualPageSpec[] = [
             arrives.
           </>,
           <>
-            <strong>Paid-price insurance</strong> refunds what you paid: today's spot price for spot units, the base price for
-            futures units. <strong>Market-price insurance</strong> refunds the spot price on the arrival day, so it swings with
-            the market. <strong>Retail-price insurance</strong> refunds the retail price, which also covers the sale you lost.
+            <strong>Paid-price insurance</strong> refunds what you paid, averaged over the shipment: when spot units and futures
+            units ship together, every lost unit is refunded at their average price, not at its own.{' '}
+            <strong>Market-price insurance</strong> refunds the spot price on the arrival day, so it swings with the market;
+            with no lead time the shipment arrives the day it ships, so that is today's price.{' '}
+            <strong>Retail-price insurance</strong> refunds the retail price, which also covers the sale you lost.
           </>,
           'The host can switch off Paid-price, Market-price or Retail-price insurance. No insurance is always there.',
-          "The info button on each card shows today's refund value and the fee for today's shipment. A shipment in transit keeps its insurance's details.",
+          "The info button on each card shows the refund for a lost unit of today's shipment, as the game will pay it, and the fee for today's shipment. A shipment in transit keeps its insurance's details.",
         ]}
       />
     ),
@@ -439,8 +445,8 @@ const BODY: ManualPageSpec[] = [
             </>,
             <>
               <strong>A fair bet on price.</strong> The base price is the middle of the spot range, so on the day your futures
-              ship, spot is as likely to be dearer as cheaper. Your recap says which:{' '}
-              <em>"Futures shipped 25 units at $12.00 — spot was $13.40, you saved $35."</em>
+              ship, spot is as likely to be dearer as cheaper. Your recap says which, for example (made-up numbers):{' '}
+              <em>"Futures shipped 25 units at $11.00 — spot was $12.40, you saved $35."</em>
             </>,
             <>
               <strong>A real edge on supply.</strong> On a short day, futures are filled before any spot order.
@@ -458,16 +464,18 @@ const BODY: ManualPageSpec[] = [
         items={[
           <>
             <strong>Unfilled futures are refunded.</strong> If the supplier cannot ship all the futures due, the missing units
-            are cancelled and refunded at the base price that day:{' '}
-            <em>"The supplier was short: your futures filled 80%; 5 units cancelled and refunded ($60)."</em>
+            are cancelled and refunded at the base price that day, for example (made-up numbers):{' '}
+            <em>"The supplier was short: your futures filled 80%; 5 units cancelled and refunded ($55)."</em>
           </>,
           <>
-            <strong>They travel like any order.</strong> Futures leave the supplier one lead time before their delivery day,
-            under the shipping insurance you choose that day, and pay transport and that insurance's fee then.
+            <strong>They travel like any order.</strong> Futures leave the supplier on their delivery day, or one lead time
+            before it when the host sets a lead time, under the shipping insurance you choose that day, and pay transport and
+            that insurance's fee then.
           </>,
           <>
             <strong>The window closes.</strong> The countdown runs down to <em>"Last day to buy futures"</em>, then reads{' '}
-            <em>"Futures closed: deliveries would arrive after the game ends"</em>. Spot orders close the same way near the end.
+            <em>"Futures closed: deliveries would arrive after the game ends"</em>. Spot orders close near the end only when the
+            host sets a lead time; with none, a spot order arrives the day you place it and spot stays open to the last day.
           </>,
           <>
             <strong>Futures book.</strong> Your cellar lists every open contract with the days it was bought, ships and is
@@ -607,7 +615,8 @@ const BODY: ManualPageSpec[] = [
           </>,
           <>
             <strong>In transit</strong>: each shipment on its way, with the days it shipped and arrives, its units, the units lost
-            and its insurance.
+            and its insurance. It is there only when the host sets a lead time: without one, every shipment arrives the day it
+            ships.
           </>,
           <>
             <strong>Futures book</strong>: your open contracts.
@@ -635,9 +644,10 @@ const BODY: ManualPageSpec[] = [
             <strong>After you submit</strong>, the form locks and shows who has submitted and who you are waiting for.
           </>,
           <>
-            <strong>After the day closes</strong>, open the Recap in Yesterday. It tells the day's story, for example{' '}
-            <em>"6 units spoiled overnight → salvaged for $12."</em> or{' '}
-            <em>"3 units of demand went into backlog (−$4.50 penalty; reputation ▼)."</em>
+            <strong>After the day closes</strong>, open the Recap in Yesterday. It tells the day's story, for example (made-up
+            numbers) <em>"6 units spoiled overnight → salvaged for $7.50."</em> or{' '}
+            <em>"4 units of demand went into backlog (−$4.40 penalty; reputation ▲)."</em> The arrow says whether your
+            reputation rose or fell that day, and is left out when it did not move.
           </>,
         ]}
       />
@@ -750,8 +760,8 @@ const BODY: ManualPageSpec[] = [
         <Bullets
           items={[
             <>
-              <strong>Order for the day it arrives.</strong> A spot order lands after the lead time and a futures contract days
-              later: look that day up on the weekday strip, not today.
+              <strong>Order for the day it arrives.</strong> A spot order arrives the same day, or after the lead time when the
+              host sets one, and a futures contract days later: look the arrival day up on the weekday strip.
             </>,
             <>
               <strong>Pulque does not wait.</strong> Overstock spoils, pays holding cost every night and lowers your reputation.

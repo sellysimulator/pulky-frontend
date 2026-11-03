@@ -69,7 +69,7 @@ function view(peer: boolean, players: Record<string, Row>): HostView {
 }
 
 function histories(players: Record<string, Array<Record<string, unknown>>> = {}): HostHistories {
-  return { players: players as unknown as Record<string, DayRecord[]>, publicHistory: [], marketHistory: [] }
+  return { players: players as unknown as Record<string, DayRecord[]>, race: {}, publicHistory: [], marketHistory: [] }
 }
 
 const DEFAULT_PLAYERS = {

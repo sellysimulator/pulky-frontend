@@ -4,6 +4,7 @@ import { formatMoney } from '../../utils/format'
 import Badge from '../shared/Badge'
 import Button from '../shared/Button'
 import SectionCard from '../shared/SectionCard'
+import ProfitRaceChart from './ProfitRaceChart'
 import type { ResultsView } from './resultsView'
 
 interface LeaderboardProps {
@@ -54,6 +55,11 @@ export default function Leaderboard({ view, revealedByDefault, myAlias }: Leader
           )
         })}
       </ol>
+      {revealed ? (
+        <div className="mt-4 print:hidden">
+          <ProfitRaceChart view={view} myAlias={myAlias} />
+        </div>
+      ) : null}
       <ul className="hidden columns-3 gap-x-4 print:block">
         {view.players.map((p) => (
           <li key={p.alias} className="flex gap-2 text-sm break-inside-avoid">

@@ -19,6 +19,8 @@ import {
   makeView,
   withoutPeer,
 } from './fixtures/results'
+import { FLOWS_BY_ALIAS, withFlowInStats } from './fixtures/resultsFlow'
+import { DEFAULTS_RESPONSE, withTypedRisks } from './fixtures/serverConfig'
 
 type Dict = Record<string, unknown>
 
@@ -42,6 +44,17 @@ describe('the same game from the two sources (criterion 2)', () => {
   it('matches the field-by-field oracle on both paths', () => {
     const expected = asDict(makeView())
     for (const view of [live(), stored()]) expect(withoutDates(view)).toEqual(expected)
+  })
+
+  it('carries the revealed config from both sources alike, and none when the payload has none (spec §9.3)', () => {
+    const config = withTypedRisks(structuredClone(DEFAULTS_RESPONSE.config))
+    const a = live({ ...makeFinished(), config })
+    const b = stored({ ...makeResponse(), config })
+    expect(a.config).toEqual(config)
+    expect(b.config).toEqual(config)
+    expect(withoutDates(a)).toEqual(withoutDates(b))
+    expect('config' in live()).toBe(false)
+    expect('config' in stored()).toBe(false)
   })
 
   it('sets started_at and finished_at only from a response', () => {
@@ -199,5 +212,87 @@ describe('inputs are left alone', () => {
     stored(response)
     expect(payload).toEqual(payloadBefore)
     expect(response).toEqual(responseBefore)
+  })
+})
+
+describe('section 35: flow (criteria 6 and 8, failure mode 6)', () => {
+  type Stats = ReturnType<typeof makeStats>
+  const finishedWith = (mutate: (s: Stats) => void) => makeFinished(mutate)
+  const responseWith = (mutate: (s: Stats) => void) => makeResponse(mutate)
+  const paths: Array<[string, (m: (s: Stats) => void) => ReturnType<typeof live>]> = [
+    ['live', (m) => live(finishedWith(m))],
+    ['stored', (m) => stored(responseWith(m))],
+  ]
+  const flowOf = (view: ReturnType<typeof live>, alias: string) =>
+    asDict(view.players.find((p) => p.alias === alias)).flow
+
+  it('copies each pulquería\'s flow, on both paths', () => {
+    for (const [name, build] of paths) {
+      const view = build((s) => withFlowInStats(s))
+      for (const alias of RANK_ORDER) expect(flowOf(view, alias), `${name} ${alias}`).toEqual(FLOWS_BY_ALIAS[alias])
+    }
+  })
+
+  it('gives the same flow, and the same view, live and by URL', () => {
+    const a = live(finishedWith((s) => withFlowInStats(s)))
+    const b = stored(responseWith((s) => withFlowInStats(s)))
+    expect(withoutDates(a)).toEqual(withoutDates(b))
+  })
+
+  it('leaves flow out when the payload has none (never faked)', () => {
+    for (const [name, build] of paths) {
+      const view = build(() => undefined)
+      for (const p of view.players) expect('flow' in p, `${name} ${p.alias}`).toBe(false)
+    }
+  })
+
+  it('leaves flow out when it is not an object', () => {
+    for (const bad of [null, 5, 'flow', [1, 2, 3]]) {
+      for (const [name, build] of paths) {
+        const view = build((s) => {
+          s.players.P1.flow = bad
+        })
+        expect('flow' in asDict(view.players.find((p) => p.alias === 'P1')), `${name} ${JSON.stringify(bad)}`).toBe(false)
+      }
+    }
+  })
+
+  it('leaves flow out when any of the twelve keys is missing (never partly copied)', () => {
+    for (const key of Object.keys(FLOWS_BY_ALIAS.P1)) {
+      for (const [name, build] of paths) {
+        const view = build((s) => {
+          const flow = { ...FLOWS_BY_ALIAS.P1 } as Record<string, unknown>
+          delete flow[key]
+          s.players.P1.flow = flow
+        })
+        expect('flow' in asDict(view.players.find((p) => p.alias === 'P1')), `${name} without ${key}`).toBe(false)
+      }
+    }
+  })
+
+  it('leaves flow out when any of the twelve keys is not a number', () => {
+    for (const bad of ['5', null, undefined, true]) {
+      for (const [name, build] of paths) {
+        const view = build((s) => {
+          s.players.P2.flow = { ...FLOWS_BY_ALIAS.P2, sold: bad }
+        })
+        expect('flow' in asDict(view.players.find((p) => p.alias === 'P2')), `${name} sold=${String(bad)}`).toBe(false)
+      }
+    }
+  })
+
+  it('decides per pulquería: one with a valid flow keeps it while another without is left out', () => {
+    for (const [name, build] of paths) {
+      const view = build((s) => withFlowInStats(s, { P1: FLOWS_BY_ALIAS.P1 }))
+      expect(flowOf(view, 'P1'), name).toEqual(FLOWS_BY_ALIAS.P1)
+      expect('flow' in asDict(view.players.find((p) => p.alias === 'P2')), name).toBe(false)
+    }
+  })
+
+  it('does not alter any other field of the view', () => {
+    const plain = withoutDates(live())
+    const withFlow = withoutDates(live(finishedWith((s) => withFlowInStats(s))))
+    for (const p of asDict(withFlow).players as Dict[]) delete p.flow
+    expect(withFlow).toEqual(plain)
   })
 })

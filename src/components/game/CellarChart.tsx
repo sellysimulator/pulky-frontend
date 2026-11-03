@@ -90,7 +90,7 @@ function percentBars(lots: CellarLot[], percent: (lot: CellarLot) => number): Un
 
 /** One bar per day left to sell, 1 (today is the last day) up to the longest-lasting lot, from each lot's last day. */
 function dayBars(lots: CellarLot[], today: number): UnitBar[] {
-  const left = (lot: CellarLot): number => lot.last_day - today + 1
+  const left = (lot: CellarLot): number => lot.days_left
   const most = lots.reduce((max, lot) => Math.max(max, left(lot)), 0)
   const bars = Array.from({ length: most }, (_, i): UnitBar => {
     const n = i + 1

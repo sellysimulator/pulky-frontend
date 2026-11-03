@@ -4,10 +4,23 @@
  */
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// Spec §12.4: field messages and the offer line are the server's answer to preview_decision; a double stands in.
+const server = vi.hoisted(() => ({ preview: vi.fn() }))
+vi.mock('../api/games', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/games')>()),
+  previewDecision: server.preview,
+}))
+
 import DecisionForm from '../components/game/DecisionForm'
+import { serveDecisionPreviews } from './fixtures/fakeDecisionServer'
 import { formatQualityGuide, QUALITY_GUIDE_NOTE } from '../utils/format'
 import type { Decision, PlayerView, PublicConfig, QualityGuideRow } from '../types/game'
+import { seedServerLimits } from './fixtures/serverConfig'
+
+// Spec §13.6: the form's upper bounds are the server's, loaded once the backend is awake.
+beforeEach(seedServerLimits)
 
 type Props = React.ComponentProps<typeof DecisionForm>
 
@@ -20,9 +33,11 @@ function lot(id: string, qty: number, quality: number, extra: Record<string, unk
     initial_quality: 100,
     conserved: false,
     quality,
+    days_left: 3, // through day 7, from day 5
     last_day: 7,
     risk_tonight: (100 - quality) / 100,
     expected_loss_tonight: (qty * (100 - quality)) / 100,
+    conservation_cost: extra.conserved === true ? null : qty, // $1.00 a unit
     ...extra,
   }
 }
@@ -31,11 +46,12 @@ function lot(id: string, qty: number, quality: number, extra: Record<string, unk
 function makeGuide(): QualityGuideRow[] {
   const rows: QualityGuideRow[] = []
   for (let q = 100; q >= 0; q -= 5) {
-    rows.push({ quality: q, half_spoiled_day: q === 0 ? 5 : 6, last_day: q === 0 ? 5 : 30 + q / 5 })
+    rows.push({ quality: q, half_spoiled_day: q === 0 ? 5 : 6, days_left: q === 0 ? 1 : 26 + q / 5, last_day: q === 0 ? 5 : 30 + q / 5 })
   }
   const r90 = rows.find((r) => r.quality === 90)!
   r90.half_spoiled_day = 7
   r90.last_day = 8
+  r90.days_left = 4
   return rows
 }
 
@@ -50,10 +66,10 @@ interface ViewOverrides {
 
 function makePlans(disabled: string[] = []) {
   const all = [
-    { tier: 'exw', label: 'No insurance — you carry the risk', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
-    { tier: 'cip', label: 'Paid-price insurance — refund what you paid', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
-    { tier: 'dap', label: 'Market-price insurance — refund at the arrival-day spot price', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.55 },
-    { tier: 'ddp', label: 'Retail-price insurance — refund at the retail price', enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 1.39 },
+    { tier: 'exw', label: 'No insurance — you carry the risk', enabled: true, refund_basis: 'none', refund_value_today: null, refund_shipment: null, fee_per_unit: 0 },
+    { tier: 'cip', label: 'Paid-price insurance — refund what you paid', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, refund_shipment: null, fee_per_unit: 0.55 },
+    { tier: 'dap', label: 'Market-price insurance — refund at the arrival-day spot price', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, refund_shipment: null, fee_per_unit: 0.55 },
+    { tier: 'ddp', label: 'Retail-price insurance — refund at the retail price', enabled: true, refund_basis: 'retail', refund_value_today: 30, refund_shipment: null, fee_per_unit: 1.39 },
   ]
   return all.map((p) => (disabled.includes(p.tier) ? { ...p, enabled: false } : p))
 }
@@ -78,8 +94,8 @@ function makeView(o: ViewOverrides = {}): PlayerView {
       weekday_multipliers: { mon: 0.25, tue: 0.5, wed: 0.75, thu: 1, fri: 1, sat: 1, sun: 0.75 },
       expected_demand: 100,
       supplier: { disrupted: false, disruption_message: null, spot_price: 13.4, base_price: 12, lead_time_days: 1 },
-      spot: { open: true, arrives_day: 6 },
-      futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, last_day_to_buy: 7, days_left_to_buy: 3 },
+      spot: { open: true, arrives_day: 6, arrives_weekday: 'sat' },
+      futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, delivery_weekday: 'fri', last_day_to_buy: 7, days_left_to_buy: 3 },
       transport: { shared: false },
       reputation: { P1: 0.62 },
     },
@@ -146,13 +162,20 @@ function renderForm(over: Partial<Props> = {}) {
     onSubmit,
     ...over,
   }
+  serveDecisionPreviews(server.preview, props.view, props.config)
   const utils = render(<DecisionForm {...props} />)
   return {
     ...utils,
     onSubmit: props.onSubmit as ReturnType<typeof vi.fn>,
-    rerenderForm: (next: Partial<Props>) => utils.rerender(<DecisionForm {...props} {...next} />),
+    rerenderForm: (next: Partial<Props>) => {
+      serveDecisionPreviews(server.preview, next.view ?? props.view, next.config ?? props.config)
+      utils.rerender(<DecisionForm {...props} {...next} />)
+    },
   }
 }
+
+/** Lets the debounce run out and the double answer the draft on screen. */
+const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 300)))
 
 const card = () => screen.getByRole('region', { name: "Today's decision" })
 const squash = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, '')
@@ -216,10 +239,12 @@ describe('ticking and unticking (failure mode 10)', () => {
     expect(buyPrice()).not.toHaveAttribute('aria-invalid')
     expect(screen.queryByText(MSG_PRICE)).toBeNull()
     expect(screen.queryByText(MSG_QUALITY)).toBeNull()
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit).not.toHaveBeenCalled()
     setField(buyPrice(), 16)
     setField(buyQuality(), 90)
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit).toHaveBeenCalledTimes(1)
     await user.click(sellBox())
@@ -239,6 +264,7 @@ describe('ticking and unticking (failure mode 10)', () => {
     expect(sellPrice()).not.toHaveAttribute('aria-invalid')
     act(() => sellPrice().focus())
     act(() => sellPrice().blur())
+    await settle()
     expect(described(sellPrice())).toContain(MSG_PRICE)
     expect(screen.queryByText(MSG_QUALITY)).toBeNull()
     expect(screen.queryByText(MSG_UNITS)).toBeNull()
@@ -251,6 +277,7 @@ describe('ticking and unticking (failure mode 10)', () => {
     expect(screen.queryByText(MSG_PRICE)).toBeNull()
     expect(screen.queryByText(MSG_QUALITY)).toBeNull()
     blur(buyQuality())
+    await settle()
     expect(described(buyQuality())).toContain(MSG_QUALITY)
     expect(screen.queryByText(MSG_PRICE)).toBeNull()
   })
@@ -259,6 +286,7 @@ describe('ticking and unticking (failure mode 10)', () => {
     const user = userEvent.setup()
     const { onSubmit } = renderForm()
     await user.click(sellBox())
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit).not.toHaveBeenCalled()
     expect(described(sellPrice())).toContain(MSG_PRICE)
@@ -273,6 +301,7 @@ describe('ticking and unticking (failure mode 10)', () => {
     await user.click(buyBox())
     await user.click(sellBox())
     setField(buyPrice(), 16)
+    await settle()
     await user.click(submitBtn())
     expect(buyQuality()).toHaveFocus()
   })
@@ -287,6 +316,7 @@ describe('ticking and unticking (failure mode 10)', () => {
     expect(Number(sellPrice().value)).toBe(15)
     expect(Number(sellQuality().value)).toBe(60)
     expect(Number(sellUnits().value)).toBe(10)
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit).toHaveBeenCalledTimes(1)
     expect(onSubmit.mock.calls[0][0]).toHaveProperty('peer_sell', null)
@@ -299,6 +329,7 @@ describe('ticking and unticking (failure mode 10)', () => {
     await user.click(buyBox())
     expect(Number(buyPrice().value)).toBe(16)
     expect(Number(buyQuality().value)).toBe(90)
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit.mock.calls[0][0]).toHaveProperty('peer_buy', null)
   })
@@ -313,12 +344,14 @@ describe('ticking and unticking (failure mode 10)', () => {
     })
     await user.click(buyBox())
     await user.click(sellBox())
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ peer_buy: null, peer_sell: null })
 
     onSubmit.mockClear()
     await user.click(buyBox())
     await user.click(sellBox())
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit.mock.calls[0][0]).toMatchObject({
       peer_buy: { max_price: 16, min_quality: 90 },
@@ -331,6 +364,7 @@ describe('ticking and unticking (failure mode 10)', () => {
     const { onSubmit } = renderForm()
     await tickBuy(user, 16.25, 85)
     await tickSell(user, 14.5, 55, 7)
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit.mock.calls[0][0]).toMatchObject({
       peer_buy: { max_price: 16.25, min_quality: 85 },
@@ -346,6 +380,18 @@ describe('ticking and unticking (failure mode 10)', () => {
     expect(sellQuality()).toHaveAttribute('max', '100')
     expect(sellUnits()).toHaveAttribute('min', '1')
     expect(sellUnits()).toHaveAttribute('max', '9999')
+  })
+
+  it('refuses a negative price or unit count: a minus sign never reaches the peer fields', () => {
+    renderForm()
+    for (const box of [buyBox(), sellBox()]) if (!(box as HTMLInputElement).checked) fireEvent.click(box)
+    for (const field of [buyPrice(), sellPrice(), sellUnits()]) {
+      expect(field).toBeEnabled()
+      setField(field, '-15')
+      expect(field).not.toHaveValue('-15')
+      setField(field, '15')
+      expect(field).toHaveValue('15') // the field is live: only the minus was refused
+    }
   })
 })
 
@@ -364,6 +410,7 @@ describe('peer market off (acceptance criterion 12, failure mode 11)', () => {
     expect(screen.queryByLabelText(/^up to$/i)).toBeNull()
     expect(screen.queryByLabelText(/^max$/i)).toBeNull()
     expect(submitBtn()).toBeEnabled()
+    await settle()
     await user.click(submitBtn())
     const sent = onSubmit.mock.calls[0][0]
     expect(sent).toHaveProperty('peer_buy', null)
@@ -397,6 +444,7 @@ describe('If short with spot closed (acceptance criterion 12)', () => {
     })
     expect(buyBox()).toBeChecked()
     expect(Number(buyPrice().value)).toBe(16)
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit.mock.calls[0][0].peer_buy).toEqual({ max_price: 16, min_quality: 90 })
   })
@@ -407,6 +455,7 @@ describe('If short with spot closed (acceptance criterion 12)', () => {
     expect(buyBox()).not.toBeChecked()
     await user.click(buyBox())
     expect(buyBox()).not.toBeChecked()
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit.mock.calls[0][0].peer_buy).toBeNull()
   })
@@ -471,8 +520,10 @@ describe('the "now in your cellar" estimate (acceptance criterion 13, failure mo
     const user = userEvent.setup()
     renderForm()
     await tickSell(user, 15, 60, 10)
+    await settle()
     expect(cardHas('now in your cellar: 10 units at 60% or less (Lot #3, Lot #4)')).toBe(true)
     setField(sellUnits(), 99)
+    await settle()
     expect(cardHas('now in your cellar: 42 units at 60% or less (Lot #3, Lot #4)')).toBe(true)
   })
 
@@ -480,6 +531,7 @@ describe('the "now in your cellar" estimate (acceptance criterion 13, failure mo
     const user = userEvent.setup()
     renderForm()
     await tickSell(user, 15, 35, 99)
+    await settle()
     expect(cardHas('now in your cellar: 12 units at 35% or less (Lot #3)')).toBe(true)
   })
 
@@ -487,6 +539,7 @@ describe('the "now in your cellar" estimate (acceptance criterion 13, failure mo
     const user = userEvent.setup()
     renderForm()
     await tickSell(user, 15, 30, 10)
+    await settle()
     expect(cardHas('now in your cellar: no lots at 30% or less')).toBe(true)
   })
 
@@ -494,14 +547,18 @@ describe('the "now in your cellar" estimate (acceptance criterion 13, failure mo
     const user = userEvent.setup()
     renderForm()
     await tickSell(user, 15, 60, 99)
+    await settle()
     expect(cardHas('now in your cellar: 42 units at 60% or less (Lot #3, Lot #4)')).toBe(true)
     await user.click(lotBox('L4'))
+    await settle()
     expect(cardHas('now in your cellar: 12 units at 60% or less (Lot #3)')).toBe(true)
     expect(cardHas('(Lot #3, Lot #4)')).toBe(false)
     await user.click(lotBox('L3'))
+    await settle()
     expect(cardHas('now in your cellar: no lots at 60% or less')).toBe(true)
     await user.click(lotBox('L4'))
     // unticking L4 brings it back (L3 stays conserved)
+    await settle()
     expect(cardHas('now in your cellar: 30 units at 60% or less (Lot #4)')).toBe(true)
     expect(cardHas('(Lot #3')).toBe(false)
   })
@@ -519,6 +576,7 @@ describe('the "now in your cellar" estimate (acceptance criterion 13, failure mo
     renderForm()
     await user.click(lotBox('L3'))
     await tickSell(user, 15, 60, 10)
+    await settle()
     expect(cardHas('now in your cellar: 10 units at 60% or less (Lot #4)')).toBe(true)
   })
 })
@@ -543,6 +601,7 @@ describe('peer-field validation (acceptance criterion 15)', () => {
     await ticked()
     setField(buyPrice(), value)
     blur(buyPrice())
+    await settle()
     expect(described(buyPrice())).toContain(MSG_PRICE)
     expect(buyPrice()).toHaveAttribute('aria-invalid', 'true')
     expect(described(buyQuality())).not.toContain(MSG_PRICE)
@@ -559,6 +618,7 @@ describe('peer-field validation (acceptance criterion 15)', () => {
     await ticked()
     setField(sellPrice(), value)
     blur(sellPrice())
+    await settle()
     expect(described(sellPrice())).toContain(MSG_PRICE)
     expect(described(buyPrice())).not.toContain(MSG_PRICE)
     expect(submitBtn()).toBeEnabled()
@@ -576,15 +636,19 @@ describe('peer-field validation (acceptance criterion 15)', () => {
     const { user, onSubmit } = await ticked()
     setField(buyPrice(), '15.005')
     blur(buyPrice())
+    await settle()
     expect(screen.getByText(MSG_PRICE)).toBeInTheDocument()
     expect(submitBtn()).toBeEnabled()
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit).not.toHaveBeenCalled()
     // the same for the sell price
     setField(buyPrice(), '16')
     setField(sellPrice(), '15.005')
     blur(sellPrice())
+    await settle()
     expect(screen.getByText(MSG_PRICE)).toBeInTheDocument()
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit).not.toHaveBeenCalled()
   })
@@ -598,6 +662,7 @@ describe('peer-field validation (acceptance criterion 15)', () => {
     await ticked()
     setField(buyQuality(), value)
     blur(buyQuality())
+    await settle()
     expect(described(buyQuality())).toContain(message)
     expect(described(buyPrice())).not.toContain(message)
     expect(submitBtn()).toBeEnabled()
@@ -611,6 +676,7 @@ describe('peer-field validation (acceptance criterion 15)', () => {
     await ticked()
     setField(sellQuality(), value)
     blur(sellQuality())
+    await settle()
     expect(described(sellQuality())).toContain(message)
     expect(described(sellPrice())).not.toContain(message)
     expect(submitBtn()).toBeEnabled()
@@ -633,6 +699,7 @@ describe('peer-field validation (acceptance criterion 15)', () => {
     await ticked()
     setField(sellUnits(), value)
     blur(sellUnits())
+    await settle()
     expect(described(sellUnits())).toContain(MSG_UNITS)
     expect(submitBtn()).toBeEnabled()
   })
@@ -651,7 +718,9 @@ describe('peer-field validation (acceptance criterion 15)', () => {
     setField(sellPrice(), '')
     setField(sellUnits(), '0')
     blur(buyPrice())
+    await settle()
     expect(described(buyPrice())).toContain(MSG_PRICE)
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit).not.toHaveBeenCalled()
     await user.click(buyBox())
@@ -660,6 +729,7 @@ describe('peer-field validation (acceptance criterion 15)', () => {
     expect(screen.queryByText(MSG_STEP)).toBeNull()
     expect(screen.queryByText(MSG_UNITS)).toBeNull()
     expect(submitBtn()).toBeEnabled()
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ peer_buy: null, peer_sell: null })
   })
@@ -669,6 +739,7 @@ describe('peer-field validation (acceptance criterion 15)', () => {
     setField(sellPrice(), '15.005')
     await user.click(sellBox())
     await user.click(sellBox())
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit).not.toHaveBeenCalled()
     expect(described(sellPrice())).toContain(MSG_PRICE)

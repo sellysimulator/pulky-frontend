@@ -7,6 +7,7 @@ import Badge from '../shared/Badge'
 import Button from '../shared/Button'
 import DataTable, { type Column } from '../shared/DataTable'
 import StatTile from '../shared/StatTile'
+import PresentationCharts from './PresentationCharts'
 import type { PresentationData } from './presentationData'
 
 interface PresentationModeProps {
@@ -158,6 +159,8 @@ export default function PresentationMode({ data, onExit }: PresentationModeProps
           {latest?.cooperation ? <InlineAlert tone="info">Everyone cooperated yesterday.</InlineAlert> : null}
         </section>
       </div>
+
+      <PresentationCharts history={data.history} />
     </div>
   )
 }

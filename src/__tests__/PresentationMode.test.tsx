@@ -25,8 +25,8 @@ function brief(over: Record<string, unknown> = {}): Brief {
     weekday_multipliers: { mon: 0.25, tue: 0.5, wed: 0.75, thu: 1, fri: 1, sat: 1, sun: 0.75 },
     expected_demand: 100,
     supplier: { disrupted: false, disruption_message: null, spot_price: 13.4, base_price: 12, lead_time_days: 1 },
-    spot: { open: true, arrives_day: 6 },
-    futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, last_day_to_buy: 7, days_left_to_buy: 3 },
+    spot: { open: true, arrives_day: 6, arrives_weekday: 'sat' },
+    futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, delivery_weekday: 'fri', last_day_to_buy: 7, days_left_to_buy: 3 },
     transport: { shared: false },
     reputation: { P1: 0.62, P2: 0.55, P3: 0.5 },
     ...over,
@@ -68,6 +68,7 @@ function data(over: Partial<PresentationData> = {}): PresentationData {
       futures: b.futures,
       transport: b.transport,
     },
+    history: [],
     latest: pub(),
     peerMarket: true,
     submitted: [
@@ -171,7 +172,7 @@ describe('PresentationMode header and brief tiles', () => {
     [1, 'Last day to buy futures'],
     [0, 'Futures closed'],
   ])('futures with %i days left reads "%s"', (left, copy) => {
-    const futures = { open: left > 0, price: 12, horizon_days: 7, delivery_day: 12, last_day_to_buy: 7, days_left_to_buy: left }
+    const futures = { open: left > 0, price: 12, horizon_days: 7, delivery_day: 12, delivery_weekday: 'fri', last_day_to_buy: 7, days_left_to_buy: left }
     render(<PresentationMode data={data({ brief: setBrief({ futures }) })} onExit={() => {}} />)
     expect(screen.getByText(copy)).toBeInTheDocument()
   })
@@ -370,5 +371,61 @@ describe('PresentationMode leaks nothing private (failure modes 1, 2, 3, 8)', ()
     expect(text).not.toContain('6,120.55')
     expect(text).not.toContain('1,120.55')
     expect(text).not.toContain('6120.55')
+  })
+})
+
+describe('PresentationMode charts (plan 37 §3.2, acceptance 4)', () => {
+  const HISTORY = [
+    {
+      day: 1,
+      weekday: 'mon',
+      demand_total: 50,
+      units_sold_total: 44,
+      shares: { P1: { display_name: 'Don Agave', market_share: 0.5 }, P2: { display_name: 'La Chula', market_share: 0.5 } },
+    },
+    {
+      day: 2,
+      weekday: 'tue',
+      demand_total: 70,
+      units_sold_total: 60,
+      shares: { P1: { display_name: 'Don Agave', market_share: 0.4 }, P2: { display_name: 'La Chula', market_share: 0.6 } },
+    },
+  ] as PresentationData['history']
+
+  it('with no closed day still renders the brief, the empty results and the charts empty state', () => {
+    render(
+      <PresentationMode data={data({ latest: null, history: [], day: 1, weekday: 'mon', isPeak: false })} onExit={() => {}} />,
+    )
+    expect(screen.getByText('Expected demand')).toBeInTheDocument()
+    expect(screen.getByText('No results yet.')).toBeInTheDocument()
+    expect(screen.getByText('No days closed yet')).toBeInTheDocument()
+    expect(screen.getByText('Charts fill in as days close.')).toBeInTheDocument()
+    expect(screen.queryAllByRole('figure')).toHaveLength(0)
+  })
+
+  it('renders the two projector charts from data.history, after the main area', () => {
+    render(<PresentationMode data={data({ history: HISTORY })} onExit={() => {}} />)
+    const figures = screen.getAllByRole('figure')
+    expect(figures).toHaveLength(2)
+    expect(figures[0].textContent).toContain('Market share by day')
+    expect(figures[1].textContent).toContain('Market demand vs units sold')
+    const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(follows(screen.getByRole('table'), figures[0])).toBe(true)
+    expect(follows(screen.getByText('Submissions'), figures[0])).toBe(true)
+    expect(screen.queryByText('No days closed yet')).toBeNull()
+  })
+
+  it('the chart tables show the public history', () => {
+    render(<PresentationMode data={data({ history: HISTORY })} onExit={() => {}} />)
+    const fig = screen.getAllByRole('figure')[1]
+    fireEvent.click(within(fig).getByRole('button', { name: 'Show table' }))
+    const table = within(fig).getByRole('table', { name: 'Market demand vs units sold' })
+    expect(table).toHaveTextContent('70')
+    expect(table).toHaveTextContent('44')
+  })
+
+  it('the Yesterday table is still the only table until a chart table is shown', () => {
+    render(<PresentationMode data={data({ history: HISTORY })} onExit={() => {}} />)
+    expect(screen.getAllByRole('table')).toHaveLength(1)
   })
 })

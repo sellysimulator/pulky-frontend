@@ -1,0 +1,6 @@
+{
+  "supplier.capacity_sd_per_player": 5.0,
+  "supplier.disruption_probability": 0.05,
+  "transport.failure_probability": 0.14,
+  "transport.loss_fraction": 0.3
+}

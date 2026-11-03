@@ -117,7 +117,7 @@ export function riskFromQuality(quality: number): number {
 export function formatQualityGuide(row: QualityGuideRow, day: number): string {
   const q = row.quality
   if (q === 0) return '0%: spoils tonight · sell it today'
-  const n = row.last_day - day + 1
+  const n = row.days_left
   const lasts = `lasts at most ${n} ${n === 1 ? 'day' : 'days'} (through day ${row.last_day})`
   const half =
     row.half_spoiled_day === day
@@ -125,6 +125,9 @@ export function formatQualityGuide(row: QualityGuideRow, day: number): string {
       : `half spoiled by day ${row.half_spoiled_day}`
   return `${q}%: ${100 - q}% risk tonight · ${half} · ${lasts}`
 }
+
+/** Shown where a figure the server computes is still on its way (spec §12.4, §13.10). */
+export const PREVIEW_PLACEHOLDER = '…'
 
 export const QUALITY_GUIDE_NOTE =
   'Better units last longer. Conserved pulque keeps its quality for extra nights.'

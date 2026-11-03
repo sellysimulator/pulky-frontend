@@ -26,7 +26,7 @@ vi.mock('../auth/AuthContext', () => ({
 
 import http from '../api/http'
 import HomePage, { route } from '../pages/HomePage'
-import { LIMITS } from '../types/game'
+import { SERVER_LIMITS, seedServerLimits } from './fixtures/serverConfig'
 import { getHostSecret, setSessionToken } from '../utils/storage'
 
 const originalAdapter = http.defaults.adapter
@@ -241,11 +241,12 @@ describe('Join a room (criterion 8)', () => {
 describe('Create a room (criterion 9)', () => {
   const created = { room_code: 'KQ7M2P', host_secret: 'secret-xyz', state: 'lobby', config: {} }
 
-  it('the name field is optional and limited to LIMITS.MAX_DISPLAY_NAME', () => {
+  it("the name field is optional and limited to the server's MAX_DISPLAY_NAME", () => {
+    seedServerLimits()
     renderHome()
     const name = screen.getByLabelText('Your name')
     expect(name).not.toBeRequired()
-    expect(name).toHaveAttribute('maxlength', String(LIMITS.MAX_DISPLAY_NAME))
+    expect(name).toHaveAttribute('maxlength', String(SERVER_LIMITS.MAX_DISPLAY_NAME))
   })
 
   it('posts the name, stores the host secret for the returned code and goes to /host/:code', async () => {

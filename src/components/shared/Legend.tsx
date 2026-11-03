@@ -1,9 +1,10 @@
+import { Check } from 'lucide-react'
 import { useId, type ReactElement } from 'react'
 
 interface LegendItem {
   key: string
   label: string
-  swatch: { kind: 'line' | 'fill'; color: string; dash?: number[]; pointStyle?: string; hatched?: boolean }
+  swatch: { kind: 'line' | 'fill'; color: string; dash?: number[]; pointStyle?: string; hatched?: boolean; width?: number }
 }
 
 function Marker({ style, color }: { style: string; color: string }): ReactElement {
@@ -48,7 +49,7 @@ function Swatch({ swatch }: { swatch: LegendItem['swatch'] }): ReactElement {
           x2="24"
           y2="6"
           stroke={swatch.color}
-          strokeWidth="2.5"
+          strokeWidth={swatch.width ?? 2.5}
           strokeLinecap="round"
           strokeDasharray={swatch.dash && swatch.dash.length > 0 ? swatch.dash.join(' ') : undefined}
         />
@@ -71,12 +72,73 @@ function Swatch({ swatch }: { swatch: LegendItem['swatch'] }): ReactElement {
   )
 }
 
-/** Static legend: plain list items, each a swatch and a label (design.md §7.18). */
-export default function Legend({ items }: { items: LegendItem[] }): ReactElement {
+interface LegendProps {
+  items: LegendItem[]
+  hidden?: ReadonlySet<string>
+  onToggle?(key: string): void
+  onFocusItem?(key: string | null): void
+}
+
+/** Static list, switches or emphasis, by the props given (design.md §7.18, §9.2). The chart owns the state. */
+export default function Legend({ items, hidden, onToggle, onFocusItem }: LegendProps): ReactElement {
+  const switches = hidden !== undefined && onToggle !== undefined
+  const focusProps = (key: string) =>
+    onFocusItem
+      ? {
+          onPointerEnter: () => onFocusItem(key),
+          onPointerLeave: () => onFocusItem(null),
+          onFocus: () => onFocusItem(key),
+          onBlur: () => onFocusItem(null),
+        }
+      : {}
+
+  if (switches) {
+    return (
+      <ul className="flex flex-wrap gap-x-4 gap-y-2 print:hidden">
+        {items.map((item) => {
+          const on = !hidden.has(item.key)
+          return (
+            <li key={item.key}>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={on}
+                onClick={() => onToggle(item.key)}
+                className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-sm border border-border-control px-3 text-sm"
+                {...focusProps(item.key)}
+              >
+                <span
+                  aria-hidden="true"
+                  className={[
+                    'grid size-4 shrink-0 place-items-center rounded-xs border border-border-control',
+                    on ? 'bg-accent text-on-accent' : 'bg-card',
+                  ].join(' ')}
+                >
+                  {on ? <Check size={12} /> : null}
+                </span>
+                <span className={on ? '' : 'opacity-30'}>
+                  <Swatch swatch={item.swatch} />
+                </span>
+                <span className={on ? 'text-ink' : 'text-ink-subtle'}>{item.label}</span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    )
+  }
+
   return (
     <ul className="flex flex-wrap gap-x-4 gap-y-2">
       {items.map((item) => (
-        <li key={item.key} className="flex items-center gap-2 text-sm text-ink-muted">
+        <li
+          key={item.key}
+          className={[
+            'flex items-center gap-2 text-sm text-ink-muted',
+            onFocusItem ? 'rounded-xs focus-visible:ring-2 focus-visible:ring-ring' : '',
+          ].join(' ')}
+          {...(onFocusItem ? { tabIndex: 0, ...focusProps(item.key) } : {})}
+        >
           <Swatch swatch={item.swatch} />
           <span>{item.label}</span>
         </li>

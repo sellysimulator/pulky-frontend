@@ -2,7 +2,6 @@ import { ChevronDown, Snowflake } from 'lucide-react'
 import { useId, useState, type ReactElement } from 'react'
 import type { PlayerView, PublicConfig } from '../../types/game'
 import { formatMoney, formatQuality, formatUnits, lotLabel, riskFromQuality } from '../../utils/format'
-import { roundCents } from '../../utils/money'
 import Badge from '../shared/Badge'
 import Checkbox from '../shared/Checkbox'
 import InfoTip from '../shared/InfoTip'
@@ -62,7 +61,7 @@ export default function ConserveSection({ view, config, selected, onToggle, lock
                   ) : null}
                 </span>
               }
-              trailing={formatMoney(roundCents(lot.qty * config.stock.conservation_cost_per_unit))}
+              trailing={lot.conservation_cost === null ? undefined : formatMoney(lot.conservation_cost)}
             />
           ))}
           {more ? (

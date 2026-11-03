@@ -16,13 +16,14 @@ vi.mock('../api/config', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/config')>()),
   getConfigDefaults: vi.fn(),
   validateConfig: vi.fn(),
+  previewConfig: vi.fn(),
 }))
 vi.mock('../api/rooms', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/rooms')>()),
   getRoomConfig: vi.fn(),
 }))
 
-import { getConfigDefaults, validateConfig } from '../api/config'
+import { getConfigDefaults, previewConfig, validateConfig } from '../api/config'
 import { errorMessage } from '../api/http'
 import { getRoomConfig } from '../api/rooms'
 import { socket } from '../api/socket'
@@ -31,6 +32,7 @@ import ShownToPlayersBadge from '../components/config/ShownToPlayersBadge'
 import { DOCS } from '../components/config/docs/entries'
 import { INITIAL_STATE, useGameStore } from '../store/gameStore'
 import type { ConfigDefaultsResponse, GameConfig, ServerError } from '../types/game'
+import { CONFIG_PREVIEWS, withTypedRisks } from './fixtures/serverConfig'
 
 const defaults = JSON.parse(
   readFileSync(resolve(process.cwd(), 'src/__tests__/fixtures/config_defaults.json'), 'utf8'),
@@ -87,6 +89,25 @@ function cfg(mut: (c: GameConfig) => void = () => {}): GameConfig {
   return c
 }
 
+/** The JSON of a config with its keys sorted, to find the server answer recorded for it. */
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
+  if (value !== null && typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    return `{${Object.keys(obj)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canonical(obj[k])}`)
+      .join(',')}}`
+  }
+  return JSON.stringify(value)
+}
+
+/** POST /config/preview as the backend answered it for the configs in `config_preview.json`; null for any other draft. */
+function recordedPreview(config: GameConfig) {
+  const hit = Object.values(CONFIG_PREVIEWS).find((v) => canonical(v.config) === canonical(config))
+  return Promise.resolve({ preview: hit?.preview ?? null })
+}
+
 let emit: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
@@ -96,6 +117,7 @@ beforeEach(() => {
   vi.mocked(getConfigDefaults).mockResolvedValue(structuredClone(defaults))
   vi.mocked(validateConfig).mockResolvedValue({ ok: true, errors: [], warnings: [] })
   vi.mocked(getRoomConfig).mockResolvedValue(cfg())
+  vi.mocked(previewConfig).mockImplementation(recordedPreview)
 })
 
 afterEach(() => {
@@ -107,6 +129,12 @@ async function advance(ms: number): Promise<void> {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms)
   })
+}
+
+/** Lets the preview's pause run out and the server's answer arrive. */
+async function previewed(): Promise<void> {
+  await advance(400)
+  await advance(0)
 }
 
 interface MountOptions {
@@ -337,17 +365,20 @@ describe('sections and fields (acceptance 1, failure mode 10)', () => {
     }
   })
 
-  it('renders the peak window as native selects with Mon to Sun', async () => {
+  it('renders the peak window as custom comboboxes with Mon to Sun', async () => {
     await mount()
     for (const k of ['demand.weekday_peak.from', 'demand.weekday_peak.to']) {
-      const select = control(k) as HTMLSelectElement
-      expect(select.tagName).toBe('SELECT')
-      const options = within(select).getAllByRole('option') as HTMLOptionElement[]
+      const box = control(k)
+      expect(box).toHaveAttribute('role', 'combobox')
+      expect(box.tagName).toBe('BUTTON')
+      fireEvent.click(box)
+      const options = screen.getAllByRole('option')
       expect(options.map((o) => o.textContent)).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
-      expect(options.map((o) => o.value)).toEqual(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])
+      expect(options.map((o) => o.getAttribute('data-value'))).toEqual(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])
+      fireEvent.click(box)
     }
-    expect((control('demand.weekday_peak.from') as HTMLSelectElement).value).toBe('thu')
-    expect((control('demand.weekday_peak.to') as HTMLSelectElement).value).toBe('sat')
+    expect(control('demand.weekday_peak.from')).toHaveTextContent('Thu')
+    expect(control('demand.weekday_peak.to')).toHaveTextContent('Sat')
   })
 
   it('shows the helper line Between {min} and {max} for bounded numeric fields', async () => {
@@ -454,7 +485,8 @@ describe('sending (acceptance 5, failure modes 4 and 5)', () => {
 
   it('sends a weekday edit as a three-level leaf', async () => {
     await mount()
-    fireEvent.change(control('demand.weekday_peak.to'), { target: { value: 'sun' } })
+    fireEvent.click(control('demand.weekday_peak.to'))
+    fireEvent.click(screen.getByRole('option', { name: 'Sun' }))
     await advance(400)
     await advance(0)
     expect((configUpdateCalls()[0][1] as { config: object }).config).toEqual({ demand: { weekday_peak: { to: 'sun' } } })
@@ -745,7 +777,10 @@ describe('Reset to defaults (acceptance 7)', () => {
 
 describe('calculator inside the panel (acceptance 9)', () => {
   it('Set fees from margin updates the draft and sends only the changed fee', async () => {
-    await mount({ config: cfg((c) => (c.insurance.tiers.cip.fee = 0.2)) })
+    // a host who typed the risks in: the calculator can then compute break-even
+    const typed = withTypedRisks(cfg((c) => (c.insurance.tiers.cip.fee = 0.2)))
+    await mount({ config: typed })
+    await previewed()
     fireEvent.click(screen.getByRole('button', { name: 'Set fees from margin' }))
     await advance(400)
     await advance(0)
@@ -766,9 +801,65 @@ describe('calculator inside the panel (acceptance 9)', () => {
   })
 })
 
+describe('hidden defaults (spec §9.3, §13.9)', () => {
+  const HIDDEN_KEYS = Object.entries(defaults.fields)
+    .filter(([, f]) => f.hidden_default)
+    .map(([k]) => k)
+
+  it('shows each hidden default as Default (hidden), with no value, and says what a blank means', async () => {
+    await mount()
+    expect(HIDDEN_KEYS).toHaveLength(4)
+    for (const key of HIDDEN_KEYS) {
+      const field = control(key) as HTMLInputElement
+      expect(field).toHaveValue('')
+      expect(field).toHaveAttribute('placeholder', 'Default (hidden)')
+    }
+    expect(screen.getAllByText('Blank keeps the default, revealed when the game ends.')).toHaveLength(4)
+  })
+
+  it('a typed risk is sent; clearing it sends null, the default again', async () => {
+    await mount()
+    edit('transport.failure_probability', '0.2')
+    await advance(400)
+    await advance(0)
+    expect((configUpdateCalls()[0][1] as { config: object }).config).toEqual({ transport: { failure_probability: 0.2 } })
+    useGameStore.getState().applyConfigUpdated({ seq: 2, config: cfg((c) => (c.transport.failure_probability = 0.2)) })
+    await advance(0)
+    edit('transport.failure_probability', '')
+    await advance(400)
+    await advance(0)
+    expect((configUpdateCalls()[1][1] as { config: object }).config).toEqual({ transport: { failure_probability: null } })
+  })
+
+  it('Reset to defaults puts the hidden defaults back to null, never a value', async () => {
+    await mount({ config: withTypedRisks(cfg()) })
+    fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }))
+    await advance(0)
+    await advance(0)
+    const sent = (configUpdateCalls()[0][1] as { config: GameConfig }).config
+    expect(sent.transport.failure_probability).toBeNull()
+    expect(sent.supplier.capacity_sd_per_player).toBeNull()
+  })
+
+  it('disables the initial pipeline with a hint while the lead time is 0, and enables it with a lead time', async () => {
+    const hint = 'No effect with a lead time of 0: nothing is on its way at the start.'
+    const { unmount } = await mount({ config: cfg((c) => (c.supplier.lead_time_days = 0)) })
+    await previewed()
+    // the server says the pipeline is not used at a lead time of 0
+    expect(control('supplier.initial_pipeline_qty')).toBeDisabled()
+    expect(screen.getByText(hint)).toBeInTheDocument()
+    unmount()
+    useGameStore.setState({ ...INITIAL_STATE })
+    await mount({ config: cfg((c) => (c.supplier.lead_time_days = 2)) })
+    await previewed()
+    expect(control('supplier.initial_pipeline_qty')).toBeEnabled()
+    expect(screen.queryByText(hint)).toBeNull()
+  })
+})
+
 describe('locked (acceptance 10)', () => {
   function expectAllLocked(container: HTMLElement): void {
-    const controls = container.querySelectorAll<HTMLInputElement>('input,select,textarea,[role="switch"]')
+    const controls = container.querySelectorAll<HTMLInputElement>('input,select,textarea,[role="switch"],[role="combobox"]')
     expect(controls.length).toBeGreaterThan(10)
     for (const el of Array.from(controls)) {
       const locked =
@@ -822,6 +913,7 @@ describe('previews follow the draft (acceptance 11)', () => {
 
   it('shows the spoil risk table for the defaults inside Stock', async () => {
     await mount()
+    await previewed()
     openPreviews()
     expect(within(sectionOf('Stock')).getAllByRole('table').length).toBeGreaterThan(0)
     expect(risk().rows[0]).toEqual(['1', '53%', '33%', '20%', '0%'])
@@ -829,11 +921,12 @@ describe('previews follow the draft (acceptance 11)', () => {
 
   it('changing fresh_days changes the risk table', async () => {
     await mount()
+    await previewed()
     openPreviews()
     const before = risk().rows
     edit('stock.max_days', 4)
     edit('stock.fresh_days', 2)
-    await advance(0)
+    await previewed()
     const after = risk().rows
     expect(after).not.toEqual(before)
     expect(after[2].slice(0, 3)).toEqual(['3', '70%', '50%'])
@@ -841,9 +934,10 @@ describe('previews follow the draft (acceptance 11)', () => {
 
   it('changing quality_min changes the headings and values', async () => {
     await mount()
+    await previewed()
     openPreviews()
     edit('supplier.quality_min', 70)
-    await advance(0)
+    await previewed()
     const { headers, rows } = risk()
     expect(headers).toContain('Plain lot at 70%')
     expect(headers).toContain('Conserved lot at 70%')
@@ -852,6 +946,7 @@ describe('previews follow the draft (acceptance 11)', () => {
 
   it('changing lambda changes the demand values', async () => {
     const { container } = await mount()
+    await previewed()
     openPreviews()
     const openTables = (): void => {
       for (const b of screen.queryAllByRole('button', { name: /table/i })) {
@@ -863,7 +958,7 @@ describe('previews follow the draft (acceptance 11)', () => {
     openTables()
     expect(has200()).toBe(false)
     edit('demand.per_player_peak', 50)
-    await advance(0)
+    await previewed()
     openTables()
     expect(has200()).toBe(true)
     expect(container.textContent).toBeTruthy()
@@ -871,10 +966,11 @@ describe('previews follow the draft (acceptance 11)', () => {
 
   it('shows the spot range preview in Supplier & futures', async () => {
     await mount()
+    await previewed()
     openPreviews()
     expect(sectionOf('Supplier & futures').textContent).toMatch(/Spot price ranges from \$?9(\.00)? to \$?15(\.00)?/)
     edit('supplier.base_price', 20)
-    await advance(0)
+    await previewed()
     expect(sectionOf('Supplier & futures').textContent).toMatch(/Spot price ranges from \$?15(\.00)? to \$?25(\.00)?/)
   })
 })
@@ -910,6 +1006,7 @@ describe('Preview collapsibles (acceptance 13, failure mode 11)', () => {
 
   it.each(WITH_PREVIEW)('%s: clicking Preview opens it and shows the preview', async (title) => {
     await mount()
+    await previewed()
     const [d] = previewsOf(title)
     fireEvent.click(d.querySelector('summary')!)
     expect(d).toHaveAttribute('open')
@@ -938,5 +1035,28 @@ describe('Preview collapsibles (acceptance 13, failure mode 11)', () => {
   it('has no xl:grid-cols- class in the panel', async () => {
     const { container } = await mount()
     expect(container.querySelector('[class*="xl:grid-cols-"]')).toBeNull()
+  })
+})
+
+describe('figures come from the server (spec §13.4, §13.10)', () => {
+  it('asks POST /config/preview for the draft once the edits pause, never computing a figure itself', async () => {
+    await mount()
+    await previewed()
+    expect(vi.mocked(previewConfig)).toHaveBeenCalledWith(cfg())
+    vi.mocked(previewConfig).mockClear()
+    edit('demand.per_player_peak', 3)
+    edit('demand.per_player_peak', 30)
+    edit('demand.per_player_peak', 50)
+    await previewed()
+    expect(vi.mocked(previewConfig)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(previewConfig).mock.calls[0][0]).toEqual(cfg((c) => (c.demand.per_player_peak = 50)))
+  })
+
+  it('shows the loading line while the answer is on its way', async () => {
+    vi.mocked(previewConfig).mockImplementation(() => new Promise(() => {}))
+    await mount()
+    openPreviews(['Supplier & futures'])
+    expect(sectionOf('Supplier & futures').textContent).toContain('Working out the figures…')
+    expect(sectionOf('Supplier & futures').textContent).not.toMatch(/Spot price ranges from/)
   })
 })

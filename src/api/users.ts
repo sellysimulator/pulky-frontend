@@ -26,3 +26,18 @@ export async function getMyGame(gameId: string): Promise<MyGameResponse> {
   const res = await http.get<MyGameResponse>(`/users/me/games/${gameId}`)
   return res.data
 }
+
+/**
+ * Whether the signed-in caller's account hosted this game: `true` on 204, `false` on 404 (which
+ * is also the answer for an unknown id). The server's rule is the one its export applies to a
+ * bearer; any other failure is thrown.
+ */
+export async function isMyHostedGame(gameId: string): Promise<boolean> {
+  try {
+    await http.get(`/users/me/hosted-games/${gameId}`)
+    return true
+  } catch (err) {
+    if ((err as { response?: { status?: number } } | null)?.response?.status === 404) return false
+    throw err
+  }
+}

@@ -5,7 +5,16 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+
+// Spec §12.4: the card's figures for the draft are the server's answer to preview_decision; a double stands in.
+const server = vi.hoisted(() => ({ preview: vi.fn() }))
+vi.mock('../api/games', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/games')>()),
+  previewDecision: server.preview,
+}))
+
 import DecisionForm from '../components/game/DecisionForm'
+import { serveDecisionPreviews } from './fixtures/fakeDecisionServer'
 import InTransit from '../components/game/InTransit'
 import type { Decision, IncotermTierPlan, PlayerView, PublicConfig, QualityGuideRow } from '../types/game'
 
@@ -20,9 +29,11 @@ function lot(id: string, qty: number, quality: number, extra: Record<string, unk
     initial_quality: 100,
     conserved: false,
     quality,
+    days_left: 3, // through day 7, from day 5
     last_day: 7,
     risk_tonight: (100 - quality) / 100,
     expected_loss_tonight: (qty * (100 - quality)) / 100,
+    conservation_cost: extra.conserved === true ? null : qty, // $1.00 a unit
     ...extra,
   }
 }
@@ -31,11 +42,12 @@ function lot(id: string, qty: number, quality: number, extra: Record<string, unk
 function makeGuide(): QualityGuideRow[] {
   const rows: QualityGuideRow[] = []
   for (let q = 100; q >= 0; q -= 5) {
-    rows.push({ quality: q, half_spoiled_day: q === 0 ? 5 : 6, last_day: q === 0 ? 5 : 30 + q / 5 })
+    rows.push({ quality: q, half_spoiled_day: q === 0 ? 5 : 6, days_left: q === 0 ? 1 : 26 + q / 5, last_day: q === 0 ? 5 : 30 + q / 5 })
   }
   const r90 = rows.find((r) => r.quality === 90)!
   r90.half_spoiled_day = 7
   r90.last_day = 8
+  r90.days_left = 4
   return rows
 }
 
@@ -58,10 +70,10 @@ const LABEL = {
 
 function makePlans(disabled: string[] = []) {
   const all = [
-    { tier: 'exw', label: LABEL.exw, enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
-    { tier: 'cip', label: LABEL.cip, enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
-    { tier: 'dap', label: LABEL.dap, enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.55 },
-    { tier: 'ddp', label: LABEL.ddp, enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 1.39 },
+    { tier: 'exw', label: LABEL.exw, enabled: true, refund_basis: 'none', refund_value_today: null, refund_shipment: null, fee_per_unit: 0 },
+    { tier: 'cip', label: LABEL.cip, enabled: true, refund_basis: 'paid', refund_value_today: 13.4, refund_shipment: null, fee_per_unit: 0.55 },
+    { tier: 'dap', label: LABEL.dap, enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, refund_shipment: null, fee_per_unit: 0.55 },
+    { tier: 'ddp', label: LABEL.ddp, enabled: true, refund_basis: 'retail', refund_value_today: 30, refund_shipment: null, fee_per_unit: 1.39 },
   ]
   return all.map((p) => (disabled.includes(p.tier) ? { ...p, enabled: false } : p))
 }
@@ -86,8 +98,8 @@ function makeView(o: ViewOverrides = {}): PlayerView {
       weekday_multipliers: { mon: 0.25, tue: 0.5, wed: 0.75, thu: 1, fri: 1, sat: 1, sun: 0.75 },
       expected_demand: 100,
       supplier: { disrupted: false, disruption_message: null, spot_price: 13.4, base_price: 12, lead_time_days: 1 },
-      spot: { open: true, arrives_day: 6 },
-      futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, last_day_to_buy: 7, days_left_to_buy: 3 },
+      spot: { open: true, arrives_day: 6, arrives_weekday: 'sat' },
+      futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, delivery_weekday: 'fri', last_day_to_buy: 7, days_left_to_buy: 3 },
       transport: { shared: false },
       reputation: { P1: 0.62 },
     },
@@ -154,6 +166,7 @@ function renderForm(over: Partial<Props> = {}) {
     onSubmit,
     ...over,
   }
+  serveDecisionPreviews(server.preview, props.view, props.config)
   const utils = render(<DecisionForm {...props} />)
   return {
     ...utils,
@@ -162,6 +175,8 @@ function renderForm(over: Partial<Props> = {}) {
   }
 }
 
+/** Lets the debounce run out and the double answer the draft on screen. */
+const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 300)))
 const card = () => screen.getByRole('region', { name: "Today's decision" })
 const squash = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, '')
 const cardHas = (text: string) => squash(card().textContent).includes(squash(text))
@@ -285,14 +300,19 @@ describe('tier details tooltip (acceptance criterion 8)', () => {
     expect(list.className).not.toMatch(/grid-cols/)
   })
 
-  it('names what each tier refunds, the refund per lost unit, the fee and the shipment estimate', () => {
+  it("names what each tier refunds, the refund per lost unit, the fee and the server's shipment estimate", async () => {
     renderForm()
+    await settle()
     const exw = tipText(`${LABEL.exw} details`)
     expect(exw).toContain(squash('Refunds: Nothing: you carry the risk'))
     expect(exw).toContain(squash('Refund per lost unit: $0.00'))
     expect(exw).toContain(squash("Fee: $0.00/unit · ~$0.00 for today's shipment"))
     const cip = tipText(`${LABEL.cip} details`)
-    expect(cip).toContain(squash("Refunds: What you paid: today's spot price for spot units, the base price for futures units"))
+    expect(cip).toContain(
+      squash(
+        "Refunds: What you paid, averaged over the shipment: spot units at today's spot price and futures units at the base price give one average price, and every lost unit is refunded at it",
+      ),
+    )
     expect(cip).toContain(squash('Refund per lost unit: $13.40'))
     expect(cip).toContain(squash("Fee: $0.55/unit · ~$22.00 for today's shipment"))
     const dap = tipText(`${LABEL.dap} details`)
@@ -304,17 +324,41 @@ describe('tier details tooltip (acceptance criterion 8)', () => {
     expect(ddp).toContain(squash("Fee: $1.39/unit · ~$55.60 for today's shipment"))
   })
 
-  it("the shipment estimate follows the form's quantities and the futures due today, not new futures", () => {
+  it("the shipment estimate is the server's for the form's quantities, with a placeholder while it loads", async () => {
     renderForm({
       view: makeView({ futures_book: [{ contract_day: 0, ships_day: 5, delivery_day: 6, qty: 10 }] }),
       initialDecision: makePrefill({ order_futures: 500 }),
     })
-    // 0.55 x (40 + 10); 500 new futures do not ship today
+    expect(tipText(`${LABEL.cip} details`)).toContain(squash("… for today's shipment"))
+    await settle()
+    // the server's fee_for_shipment: 0.55 x (40 + 10); 500 new futures do not ship today
     expect(tipText(`${LABEL.cip} details`)).toContain(squash("~$27.50 for today's shipment"))
     expect(tipText(`${LABEL.ddp} details`)).toContain(squash("~$69.50 for today's shipment"))
     setField(spot(), 0)
-    // shipmentMax = 10
+    await settle()
     expect(tipText(`${LABEL.cip} details`)).toContain(squash("~$5.50 for today's shipment"))
+    expect(server.preview.mock.lastCall?.[1]).toMatchObject({ order_spot: 0, order_futures: 500 })
+  })
+
+  it("spec §6.3 example: the Paid-price card shows the server's blended refund and the shipment it assumed, not today's spot price", async () => {
+    // 20 spot units at $14.50 and 20 futures units at $12 average $13.25: 12 lost units are refunded $159, not $174.
+    const plans = makePlans().map((p) =>
+      p.tier === 'cip' ? { ...p, refund_value_today: 13.25, refund_shipment: { spot_units: 20, futures_units: 20 } } : p,
+    )
+    renderForm({ view: makeView({ plans }) })
+    await settle()
+    const cip = tipText(`${LABEL.cip} details`)
+    expect(cip).toContain(
+      squash("Refund per lost unit: $13.25, the average price of today's shipment: 20 spot and 20 futures units"),
+    )
+    expect(cip).not.toContain(squash('$14.50'))
+  })
+
+  it('the Market-price card shows a refund value whenever the server knows it (lead time 0), and words otherwise', () => {
+    const known = makePlans().map((p) => (p.tier === 'dap' ? { ...p, refund_value_today: 13.4 } : p))
+    renderForm({ view: makeView({ plans: known }) })
+    expect(tipText(`${LABEL.dap} details`)).toContain(squash('Refund per lost unit: $13.40'))
+    expect(tipText(`${LABEL.dap} details`)).not.toContain(squash('Set on the arrival day'))
   })
 
   it("the Ship row's tooltip says Market-price insurance's refund swings with the market and Paid-price insurance's is fixed", () => {

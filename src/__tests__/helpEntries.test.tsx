@@ -4,11 +4,13 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import type { ComponentProps } from 'react'
+import { ConfigPreviewContext, type ConfigPreviewState } from '../components/config/configPreview'
 import { DOCS } from '../components/config/docs/entries'
 import HelpDialog from '../components/config/docs/HelpDialog'
 import { Note, P, Formula, Table } from '../components/config/docs/primitives'
 import { PLAYER_CONFIG_KEYS, SECRET_CONFIG_KEYS } from '../types/game'
-import type { ConfigDefaultsResponse, GameConfig } from '../types/game'
+import type { ConfigDefaultsResponse } from '../types/game'
+import { CONFIG_PREVIEWS, previewState } from './fixtures/serverConfig'
 
 // jsdom has no canvas: the chart wrapper is replaced by a plain canvas. The table fallback is real.
 vi.mock('react-chartjs-2', () => ({
@@ -20,11 +22,6 @@ const defaults = JSON.parse(
   readFileSync(resolve(process.cwd(), 'src/__tests__/fixtures/config_defaults.json'), 'utf8'),
 ) as ConfigDefaultsResponse
 
-function makeConfig(patch: (c: GameConfig) => void = () => {}): GameConfig {
-  const c = structuredClone(defaults.config)
-  patch(c)
-  return c
-}
 
 const TOPICS = ['topic.allocation', 'topic.what_players_see']
 
@@ -63,7 +60,7 @@ const COPY: Record<string, [string, string]> = {
   'reputation.smoothing': ['Smoothing (ρ)', 'A higher value makes reputation react faster to a good or bad day.'],
   'reputation.waste_weight': [
     'Waste weight (w)',
-    'A higher weight makes spoiled pulque hurt reputation more than backlog does.',
+    "The share of the day's score that spoiled pulque decides; the rest is decided by serving what is owed. Above 0.5, spoilage hurts reputation more than backlog; below 0.5, backlog hurts it more.",
   ],
   'supplier.base_price': [
     'Base price',
@@ -91,11 +88,11 @@ const COPY: Record<string, [string, string]> = {
   ],
   'supplier.lead_time_days': [
     'Lead time (days)',
-    'Longer lead times force players to order further ahead of demand.',
+    'At 0 an order arrives the day it is placed and spot orders never close. Longer lead times force players to order further ahead of demand, and close spot orders for the last days of the game.',
   ],
   'supplier.initial_pipeline_qty': [
     'Initial pipeline (units per slot)',
-    'Free units already on their way at the start, so day 1 is not empty.',
+    'Free units already on their way at the start, so the first days are not empty. No effect with a lead time of 0.',
   ],
   'supplier.quality_min': [
     'Lowest initial quality',
@@ -188,8 +185,16 @@ function readable(effect: string): string {
 
 const expectedKeys = [...Object.keys(defaults.fields).filter((k) => k !== 'random_seed'), ...TOPICS]
 
-function renderDialog(key: string, config: GameConfig = makeConfig()): HTMLElement {
-  render(<HelpDialog entryKey={key} config={config} open onClose={() => {}} />)
+/**
+ * Renders a help dialog with the server's answer for a named config (`config_preview.json`): `typed` is the
+ * defaults with the risk odds typed in, so every live example has its numbers.
+ */
+function renderDialog(key: string, variant = 'typed', state: ConfigPreviewState = previewState(variant)): HTMLElement {
+  render(
+    <ConfigPreviewContext.Provider value={state}>
+      <HelpDialog entryKey={key} config={CONFIG_PREVIEWS[variant].config} open onClose={() => {}} />
+    </ConfigPreviewContext.Provider>,
+  )
   return screen.getByRole('dialog')
 }
 
@@ -206,8 +211,8 @@ function spaced(el: Element): string {
   return parts.join(' ')
 }
 
-function textOf(key: string, config: GameConfig = makeConfig()): string {
-  const dialog = renderDialog(key, config)
+function textOf(key: string, variant = 'typed'): string {
+  const dialog = renderDialog(key, variant)
   showTables()
   return spaced(dialog)
 }
@@ -268,8 +273,9 @@ describe('DOCS coverage (AC 1, failure mode 6)', () => {
       expect(entry.label, key).toBe(COPY[key][0])
       expect(typeof entry.formula, key).toBe('function')
       expect(typeof entry.example, key).toBe('function')
-      expect(entry.formula(makeConfig()), key).toBeTruthy()
-      expect(entry.example(makeConfig()), key).toBeTruthy()
+      const { config, preview } = CONFIG_PREVIEWS.typed
+      expect(entry.formula(config, preview), key).toBeTruthy()
+      expect(entry.example(config, previewState('typed')), key).toBeTruthy()
     }
   })
 })
@@ -292,7 +298,7 @@ describe('every entry renders in the dialog (AC 2)', () => {
   it('shows nothing for an unknown key, without logging', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const { container } = render(
-      <HelpDialog entryKey="not.a.key" config={makeConfig()} open onClose={() => {}} />,
+      <HelpDialog entryKey="not.a.key" config={CONFIG_PREVIEWS.typed.config} open onClose={() => {}} />,
     )
     expect(container).toBeEmptyDOMElement()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -301,19 +307,19 @@ describe('every entry renders in the dialog (AC 2)', () => {
   })
 
   it('is not visible while closed', () => {
-    render(<HelpDialog entryKey="max_players" config={makeConfig()} open={false} onClose={() => {}} />)
+    render(<HelpDialog entryKey="max_players" config={CONFIG_PREVIEWS.typed.config} open={false} onClose={() => {}} />)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('Escape asks to close', () => {
     const onClose = vi.fn()
-    render(<HelpDialog entryKey="max_players" config={makeConfig()} open onClose={onClose} />)
+    render(<HelpDialog entryKey="max_players" config={CONFIG_PREVIEWS.typed.config} open onClose={onClose} />)
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 })
 
-describe('examples follow the config (AC 3, failure mode 7)', () => {
+describe("examples show the server's figures for the config (AC 3, failure mode 7)", () => {
   function thursdayRow(): string {
     const dialog = screen.getByRole('dialog')
     showTables()
@@ -323,18 +329,12 @@ describe('examples follow the config (AC 3, failure mode 7)', () => {
   }
 
   it('lambda 25 -> 30 moves Thursday market demand for 4 seats from 100 to 120', () => {
-    renderDialog('demand.per_player_peak', makeConfig())
+    renderDialog('demand.per_player_peak')
     const before = thursdayRow()
     expect(before).toMatch(/\b100\b/)
     expect(before).not.toMatch(/\b120\b/)
     cleanup()
-
-    renderDialog(
-      'demand.per_player_peak',
-      makeConfig((c) => {
-        c.demand.per_player_peak = 30
-      }),
-    )
+    renderDialog('demand.per_player_peak', 'lambda30')
     const after = thursdayRow()
     expect(after).toMatch(/\b120\b/)
     expect(after).not.toMatch(/\b100\b/)
@@ -345,92 +345,45 @@ describe('examples follow the config (AC 3, failure mode 7)', () => {
     expect(at80).toMatch(/\b53%/)
     expect(at80).not.toMatch(/\b73%/)
     cleanup()
-
-    const at60 = textOf(
-      'supplier.quality_min',
-      makeConfig((c) => {
-        c.supplier.quality_min = 60
-      }),
-    )
-    expect(at60).toMatch(/\b73%/)
+    expect(textOf('supplier.quality_min', 'qmin60')).toMatch(/\b73%/)
   })
 
   it('the quality_max entry shows the same table, so it follows quality_min too', () => {
     const base = textOf('supplier.quality_max')
     cleanup()
-    const low = textOf(
-      'supplier.quality_max',
-      makeConfig((c) => {
-        c.supplier.quality_min = 60
-      }),
-    )
-    expect(low).toMatch(/\b73%/)
+    expect(textOf('supplier.quality_max', 'qmin60')).toMatch(/\b73%/)
     expect(base).not.toMatch(/\b73%/)
   })
 
   it('duration_days: weeks covered and the weekday of the last day (day 1 is a Monday)', () => {
-    const t14 = textOf('duration_days')
-    expect(t14).toMatch(/Sun/)
+    expect(textOf('duration_days')).toMatch(/Sun/)
     cleanup()
-    const t10 = textOf(
-      'duration_days',
-      makeConfig((c) => {
-        c.duration_days = 10
-      }),
-    )
+    const t10 = textOf('duration_days', 'days10')
     expect(t10).toMatch(/Wed/)
     expect(t10).not.toMatch(/Sunday/)
   })
 
   it('max_players: market demand on a peak day for 2, 4 and max_players seats', () => {
-    const t = textOf(
-      'max_players',
-      makeConfig((c) => {
-        c.max_players = 8
-      }),
-    )
+    const t = textOf('max_players', 'seats8')
     expect(t).toMatch(/\b50\b/)
     expect(t).toMatch(/\b100\b/)
     expect(t).toMatch(/\b200\b/)
   })
 
-  it('holding_cost: 50 units for one night', () => {
-    expect(textOf('stock.holding_cost')).toContain('$10.00')
+  it.each([
+    ['stock.holding_cost', 'holding05', '$10.00', '$25.00'],
+    ['transport.unit_cost', 'transport15', '$40.00', '$60.00'],
+    ['stock.conservation_cost_per_unit', 'conserve2', '$30.00', '$60.00'],
+  ])('%s: the sample cost follows the setting', (key, variant, before, after) => {
+    expect(textOf(key)).toContain(before)
     cleanup()
-    expect(
-      textOf(
-        'stock.holding_cost',
-        makeConfig((c) => {
-          c.stock.holding_cost = 0.5
-        }),
-      ),
-    ).toContain('$25.00')
-  })
-
-  it('transport.unit_cost: a 40-unit shipment', () => {
-    expect(textOf('transport.unit_cost')).toContain('$40.00')
-    cleanup()
-    expect(
-      textOf(
-        'transport.unit_cost',
-        makeConfig((c) => {
-          c.transport.unit_cost = 1.5
-        }),
-      ),
-    ).toContain('$60.00')
+    expect(textOf(key, variant)).toContain(after)
   })
 
   it('salvage_value: 10 spoiled units', () => {
     expect(textOf('stock.salvage_value')).toContain('$20.00')
     cleanup()
-    expect(
-      textOf(
-        'stock.salvage_value',
-        makeConfig((c) => {
-          c.stock.salvage_value = 0
-        }),
-      ),
-    ).not.toContain('$20.00')
+    expect(textOf('stock.salvage_value', 'salvage0')).not.toContain('$20.00')
   })
 
   it('backlog_penalty: one unit waiting 1, 3 and 7 days', () => {
@@ -445,13 +398,7 @@ describe('examples follow the config (AC 3, failure mode 7)', () => {
     expect(t).toContain('$9.00')
     expect(t).toContain('$15.00')
     cleanup()
-    const t2 = textOf(
-      'supplier.spot_spread',
-      makeConfig((c) => {
-        c.supplier.base_price = 20
-        c.supplier.spot_spread = 0.5
-      }),
-    )
+    const t2 = textOf('supplier.spot_spread', 'spot20')
     expect(t2).toContain('$10.00')
     expect(t2).toContain('$30.00')
   })
@@ -460,31 +407,12 @@ describe('examples follow the config (AC 3, failure mode 7)', () => {
     expect(textOf('reputation.starting')).toMatch(/\b25%/)
   })
 
-  it('conservation cost: a 30-unit lot', () => {
-    expect(textOf('stock.conservation_cost_per_unit')).toContain('$30.00')
-    cleanup()
-    expect(
-      textOf(
-        'stock.conservation_cost_per_unit',
-        makeConfig((c) => {
-          c.stock.conservation_cost_per_unit = 2
-        }),
-      ),
-    ).toContain('$60.00')
-  })
-
   it('failure chance and expected failures over the game', () => {
     const t = textOf('transport.failure_probability')
     expect(t).toMatch(/88(\.\d)?%/)
     expect(t).toMatch(/\b2\.0\b/)
     cleanup()
-    const none = textOf(
-      'transport.failure_probability',
-      makeConfig((c) => {
-        c.transport.failure_probability = 0
-      }),
-    )
-    expect(none).not.toMatch(/88(\.\d)?%/)
+    expect(textOf('transport.failure_probability', 'failure0')).not.toMatch(/88(\.\d)?%/)
   })
 
   it('disruption chance over the game', () => {
@@ -492,31 +420,22 @@ describe('examples follow the config (AC 3, failure mode 7)', () => {
   })
 
   it('lead time: the arrival weekday of a Monday order', () => {
-    expect(textOf('supplier.lead_time_days')).toMatch(/Tue/)
+    // the default lead time is 0: the same day, and spot never closes
+    const sameDay = textOf('supplier.lead_time_days')
+    expect(sameDay).toMatch(/arrives the same day/)
+    expect(sameDay).toMatch(/spot orders stay open to the last day/)
     cleanup()
-    expect(
-      textOf(
-        'supplier.lead_time_days',
-        makeConfig((c) => {
-          c.supplier.lead_time_days = 3
-        }),
-      ),
-    ).toMatch(/Thu/)
+    expect(textOf('supplier.lead_time_days', 'lead1')).toMatch(/Tue/)
+    cleanup()
+    expect(textOf('supplier.lead_time_days', 'lead3')).toMatch(/Thu/)
   })
 
   it('insurance rows: break-even fee per tier, solo and shared', () => {
-    const cip = textOf('insurance.tiers.cip.fee')
-    expect(cip).toContain('$0.50')
+    expect(textOf('insurance.tiers.cip.fee')).toContain('$0.50')
     cleanup()
     expect(textOf('insurance.tiers.ddp.fee')).toContain('$1.26')
     cleanup()
-    const shared = textOf(
-      'insurance.tiers.ddp.enabled',
-      makeConfig((c) => {
-        c.transport.shared = true
-      }),
-    )
-    expect(shared).toContain('$0.21')
+    expect(textOf('insurance.tiers.ddp.enabled', 'shared')).toContain('$0.21')
   })
 
   it('target_margin: fees from margin for the three tiers', () => {
@@ -524,12 +443,7 @@ describe('examples follow the config (AC 3, failure mode 7)', () => {
     expect(t).toContain('$0.55')
     expect(t).toContain('$1.39')
     cleanup()
-    const t2 = textOf(
-      'insurance.target_margin',
-      makeConfig((c) => {
-        c.insurance.target_margin = 0.5
-      }),
-    )
+    const t2 = textOf('insurance.target_margin', 'margin05')
     expect(t2).toContain('$0.76')
     expect(t2).toContain('$1.89')
   })
@@ -539,14 +453,32 @@ describe('examples follow the config (AC 3, failure mode 7)', () => {
     expect(base).toContain('90%: 10% risk tonight · half spoiled by day 3 · lasts at most 4 days (through day 4)')
     expect(base).toContain('50%: 50% risk tonight · half spoiled tonight · lasts at most 3 days (through day 3)')
     cleanup()
-    const longer = textOf(
-      'peer_market.enabled',
-      makeConfig((c) => {
-        c.stock.max_days = 6
-      }),
-    )
+    const longer = textOf('peer_market.enabled', 'maxdays6')
     expect(longer).toContain('lasts at most 6 days (through day 6)')
     expect(longer).not.toContain('90%: 10% risk tonight · half spoiled by day 3 · lasts at most 4 days')
+  })
+
+  it("the weekday formula names the server's reach", () => {
+    expect(textOf('demand.weekday_peak.from')).toContain(`= ${CONFIG_PREVIEWS.typed.preview.weekdays.reach}`)
+  })
+})
+
+describe('while the server works (spec §13.10)', () => {
+  it('an example reads the loading line until the figures arrive, and computes none meanwhile', () => {
+    const dialog = renderDialog('stock.holding_cost', 'typed', { preview: null, latest: null, pending: true })
+    expect(dialog).toHaveTextContent('Working out the figures…')
+    expect(dialog).not.toHaveTextContent('$10.00')
+  })
+
+  it('a draft the server refuses reads the fix-the-settings line', () => {
+    const dialog = renderDialog('stock.holding_cost', 'typed', { preview: null, latest: null, pending: false })
+    expect(dialog).toHaveTextContent('Fix the settings marked in red to see the figures.')
+  })
+
+  it('an example with no figures still shows its label, formula and effect', () => {
+    const dialog = renderDialog('stock.holding_cost', 'typed', { preview: null, latest: null, pending: true })
+    expect(dialog).toHaveTextContent('Holding cost')
+    expect(dialog).toHaveTextContent(readable(COPY['stock.holding_cost'][1]))
   })
 })
 
@@ -627,5 +559,29 @@ describe('primitives (spec 13.10)', () => {
     expect(screen.getByText('An aside')).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Night' })).toBeInTheDocument()
     expect(screen.getByRole('cell', { name: '20%' })).toBeInTheDocument()
+  })
+})
+
+describe('hidden defaults (spec §9.3, §13.10)', () => {
+  const HIDDEN = 'Hidden until the game ends. Type a value to see this example.'
+
+  it.each([
+    'supplier.capacity_sd_per_player',
+    'supplier.disruption_probability',
+    'transport.failure_probability',
+    'transport.loss_fraction',
+    'transport.shared',
+    'insurance.tiers.cip.fee',
+    'insurance.target_margin',
+    'insurance.reference_shipment',
+  ])('%s: with the risks at their hidden defaults, the example says so and shows no figure that needs them', (key) => {
+    // the server sends null for every figure that needs a blank risk
+    const text = textOf(key, 'hidden')
+    expect(text).toContain(HIDDEN)
+    expect(text).not.toMatch(/NaN|Infinity/)
+  })
+
+  it('the lead time example names the closing spot window with a lead time of 2', () => {
+    expect(textOf('supplier.lead_time_days', 'lead2')).toMatch(/Spot orders close after day 12/)
   })
 })

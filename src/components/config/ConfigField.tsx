@@ -4,10 +4,13 @@ import { WEEKDAYS, type ConfigFieldMeta, type GameConfig } from '../../types/gam
 import { weekdayShort } from '../../utils/format'
 import Collapsible from '../shared/Collapsible'
 import NumberField from '../shared/NumberField'
+import Select from '../shared/Select'
 import Switch from '../shared/Switch'
 import { DOCS } from './docs/entries'
 import InfoButton from './docs/InfoButton'
 import { getAt } from './configDraft'
+import { useConfigPreview } from './configPreview'
+import { HIDDEN_HELPER, HIDDEN_PLACEHOLDER, PIPELINE_WITHOUT_LEAD_TIME } from './hiddenDefaults'
 import ShownToPlayersBadge from './ShownToPlayersBadge'
 
 /** What every section body receives from the panel. */
@@ -33,6 +36,9 @@ const MONEY_PATHS = new Set([
   'stock.conservation_cost_per_unit',
   'transport.unit_cost',
 ])
+
+/** The peak-window weekday choices, Mon to Sun. */
+const WEEKDAY_OPTIONS = WEEKDAYS.map((d) => ({ value: d, label: weekdayShort(d) }))
 
 const PERCENT_PATHS = new Set(['supplier.quality_min', 'supplier.quality_max'])
 
@@ -81,6 +87,10 @@ export default function ConfigField({ path, config, meta, readOnly, error, warni
   const value = getAt(config, path)
   const type = meta?.type ?? (typeof value === 'boolean' ? 'bool' : typeof value === 'string' ? 'weekday' : 'float')
   const shown = meta?.players === 'shown'
+  const hidden = meta?.hidden_default === true
+  // Spec §13.9: the initial pipeline has no slot to fill without a lead time; the server says when it is used.
+  const { latest } = useConfigPreview()
+  const noEffect = path === 'supplier.initial_pipeline_qty' && latest?.supplier.initial_pipeline.used === false
   const helper =
     meta && meta.min !== null && meta.max !== null ? `Between ${bound(meta.min)} and ${bound(meta.max)}` : null
 
@@ -102,25 +112,16 @@ export default function ConfigField({ path, config, meta, readOnly, error, warni
   } else if (type === 'weekday') {
     const describedBy = [error ? `${id}-error` : null, warning ? `${id}-warning` : null].filter(Boolean).join(' ')
     control = (
-      <select
+      <Select
         id={id}
-        value={typeof value === 'string' ? value : ''}
+        value={typeof value === 'string' ? value : null}
+        options={WEEKDAY_OPTIONS}
         disabled={readOnly}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy || undefined}
-        onChange={(e) => onEdit(path, e.target.value)}
-        className={[
-          'h-11 rounded-md border px-3 text-base',
-          error ? 'border-danger' : warning ? 'border-warning' : 'border-border-control',
-          readOnly ? 'cursor-not-allowed bg-inset text-ink' : 'cursor-pointer bg-card text-ink',
-        ].join(' ')}
-      >
-        {WEEKDAYS.map((d) => (
-          <option key={d} value={d}>
-            {weekdayShort(d)}
-          </option>
-        ))}
-      </select>
+        onChange={(next) => onEdit(path, next)}
+        className={error ? '' : warning ? '[&>button]:border-warning' : ''}
+      />
     )
   } else {
     const kind = type === 'int' ? 'quantity' : MONEY_PATHS.has(path) ? 'money' : 'decimal'
@@ -134,6 +135,8 @@ export default function ConfigField({ path, config, meta, readOnly, error, warni
         min={meta?.min ?? undefined}
         max={meta?.max ?? undefined}
         suffix={PERCENT_PATHS.has(path) ? '%' : undefined}
+        placeholder={hidden ? HIDDEN_PLACEHOLDER : undefined}
+        disabled={noEffect}
         readOnly={readOnly}
         error={error}
         warning={warning}
@@ -157,6 +160,8 @@ export default function ConfigField({ path, config, meta, readOnly, error, warni
           heading
         )}
         {helper ? <p className="text-sm text-ink-muted">{helper}</p> : null}
+        {hidden ? <p className="text-sm text-ink-muted">{HIDDEN_HELPER}</p> : null}
+        {noEffect && warning === undefined ? <p className="text-sm text-ink-muted">{PIPELINE_WITHOUT_LEAD_TIME}</p> : null}
       </div>
       <div className="flex items-start">{control}</div>
       {ownMessages ? <Messages id={id} error={error} warning={warning} /> : null}

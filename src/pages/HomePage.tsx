@@ -1,6 +1,7 @@
 import { UserCog, UsersRound } from 'lucide-react'
 import { useState, type FormEvent, type ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useLimits } from '../api/config'
 import { errorMessage } from '../api/http'
 import { createRoom, getRoomStatus } from '../api/rooms'
 import { ManualLinks } from '../components/manual/ManualLink'
@@ -9,7 +10,6 @@ import { InlineAlert } from '../components/shared/AlertContainer'
 import Button from '../components/shared/Button'
 import SectionCard from '../components/shared/SectionCard'
 import type { PageRoute } from '../routes/registry'
-import { LIMITS } from '../types/game'
 import { getSessionToken, setHostSecret } from '../utils/storage'
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -83,6 +83,7 @@ function JoinCard(): ReactElement {
 
 function CreateCard(): ReactElement {
   const navigate = useNavigate()
+  const limits = useLimits()
   const [name, setName] = useState('')
   const [failure, setFailure] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
@@ -115,7 +116,7 @@ function CreateCard(): ReactElement {
             name="host_display_name"
             type="text"
             value={name}
-            maxLength={LIMITS.MAX_DISPLAY_NAME}
+            maxLength={limits?.MAX_DISPLAY_NAME}
             autoComplete="off"
             onChange={(e) => setName(e.target.value)}
             className={FIELD}

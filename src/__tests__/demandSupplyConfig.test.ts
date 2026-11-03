@@ -293,3 +293,70 @@ describe('buildPeerUnitsConfig (criterion 12, failure mode 12)', () => {
     expect(v).toEqual(before)
   })
 })
+
+describe('section 35: buildWherePulqueWentConfig scale (criterion 7, failure mode 5)', () => {
+  const sumsPerPulqueria = (cfg: Dict): number[] =>
+    cfg.data.labels.map((_: unknown, i: number) => cfg.data.datasets.reduce((s: number, d: Dict) => s + d.data[i], 0))
+
+  it('units, and no argument, are the same configuration', () => {
+    const v = view()
+    expect(JSON.stringify(buildWherePulqueWentConfig(v, 'units'))).toBe(JSON.stringify(buildWherePulqueWentConfig(v)))
+    expect(buildWherePulqueWentConfig(v, 'units').data.datasets[0].data).toEqual([520, 300, 410])
+  })
+
+  it('percent keeps the same datasets in the same order', () => {
+    const v = view()
+    expect(labelsOf(buildWherePulqueWentConfig(v, 'percent'))).toEqual(labelsOf(buildWherePulqueWentConfig(v)))
+    expect(buildWherePulqueWentConfig(v, 'percent').type).toBe('bar')
+  })
+
+  it('percent: each pulquería\'s values sum to 100 (within 1e-9)', () => {
+    const cfg = buildWherePulqueWentConfig(view(), 'percent') as Dict
+    for (const total of sumsPerPulqueria(cfg)) expect(Math.abs(total - 100)).toBeLessThan(1e-9)
+  })
+
+  it('failure mode 5: each value is 100 x value / the pulquería\'s own total over the datasets present', () => {
+    const v = view()
+    const units = buildWherePulqueWentConfig(v) as Dict
+    const pct = buildWherePulqueWentConfig(v, 'percent') as Dict
+    v.players.forEach((_, i) => {
+      const total = units.data.datasets.reduce((s: number, d: Dict) => s + d.data[i], 0)
+      pct.data.datasets.forEach((d: Dict, k: number) => {
+        expect(d.data[i]).toBeCloseTo((100 * units.data.datasets[k].data[i]) / total, 9)
+      })
+    })
+    // P2 sold 520 of 543 here; dividing by units_sold (520) or by the largest total would not give this
+    expect(pct.data.datasets[0].data[0]).toBeCloseTo((100 * 520) / 543, 9)
+  })
+
+  it('section 4: sold 60, sold to pulquerías 0, spoiled 20, lost 10, liquidated 10 gives [60, 0, 20, 10, 10]', () => {
+    const v = makeView()
+    Object.assign(v.players[0], { units_sold: 60, peer_units_sold: 0, units_spoiled: 20, units_lost_transport: 10, liquidated_units: 10 })
+    const cfg = buildWherePulqueWentConfig(v, 'percent') as Dict
+    expect(labelsOf(cfg as never)).toContain('Sold to pulquerías')
+    const first = cfg.data.datasets.map((d: Dict) => d.data[0])
+    expect(first.map((x: number) => Math.round(x * 1e9) / 1e9)).toEqual([60, 0, 20, 10, 10])
+  })
+
+  it('percent: a pulquería whose total is 0 gets 0 for every value, never NaN', () => {
+    const v = makeView()
+    Object.assign(v.players[0], { units_sold: 0, peer_units_sold: 0, units_spoiled: 0, units_lost_transport: 0, liquidated_units: 0 })
+    const cfg = buildWherePulqueWentConfig(v, 'percent') as Dict
+    expect(cfg.data.datasets.map((d: Dict) => d.data[0])).toEqual([0, 0, 0, 0, 0])
+    for (const total of sumsPerPulqueria(cfg).slice(1)) expect(total).toBeCloseTo(100, 9)
+  })
+
+  it('percent: without peer fields the sums are over the datasets present', () => {
+    const cfg = buildWherePulqueWentConfig(makeView(withoutPeer), 'percent') as Dict
+    expect(labelsOf(cfg as never)).not.toContain('Sold to pulquerías')
+    for (const total of sumsPerPulqueria(cfg)) expect(Math.abs(total - 100)).toBeLessThan(1e-9)
+  })
+
+  it('percent: the x axis stops at 100 and is titled "% of the pulquería\'s pulque"; units keep section 29\'s axis', () => {
+    const v = view()
+    const pct = buildWherePulqueWentConfig(v, 'percent') as Dict
+    expect(pct.options.scales.x.max).toBe(100)
+    expect(pct.options.scales.x.title.text).toBe("% of the pulquería's pulque")
+    expect((buildWherePulqueWentConfig(v) as Dict).options.scales.x.max).not.toBe(100)
+  })
+})

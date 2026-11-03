@@ -4,13 +4,22 @@
  * Acceptance criteria 1, 2, 4, 5, 6, 9, 10, 14; failure modes 3, 4, 5, 9, 13.
  * Queries are by role, label or text; copy is only what the spec or the section document quotes.
  */
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// Spec §12.4: every figure on the form is the server's answer to preview_decision; a double stands in for it.
+const server = vi.hoisted(() => ({ preview: vi.fn() }))
+vi.mock('../api/games', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/games')>()),
+  previewDecision: server.preview,
+}))
+
 import DecisionForm from '../components/game/DecisionForm'
-
-
+import { useGameStore } from '../store/gameStore'
 import type { Decision, PlayerView, PublicConfig, QualityGuideRow } from '../types/game'
+import { ROOM, serveDecisionPreviews } from './fixtures/fakeDecisionServer'
+import { SERVER_LIMITS, seedServerLimits } from './fixtures/serverConfig'
 
 type Props = React.ComponentProps<typeof DecisionForm>
 
@@ -23,9 +32,11 @@ function lot(id: string, qty: number, quality: number, extra: Record<string, unk
     initial_quality: 100,
     conserved: false,
     quality,
+    days_left: 3, // through day 7, from day 5
     last_day: 7,
     risk_tonight: (100 - quality) / 100,
     expected_loss_tonight: (qty * (100 - quality)) / 100,
+    conservation_cost: extra.conserved === true ? null : qty, // $1.00 a unit
     ...extra,
   }
 }
@@ -34,11 +45,12 @@ function lot(id: string, qty: number, quality: number, extra: Record<string, unk
 function makeGuide(): QualityGuideRow[] {
   const rows: QualityGuideRow[] = []
   for (let q = 100; q >= 0; q -= 5) {
-    rows.push({ quality: q, half_spoiled_day: q === 0 ? 5 : 6, last_day: q === 0 ? 5 : 30 + q / 5 })
+    rows.push({ quality: q, half_spoiled_day: q === 0 ? 5 : 6, days_left: q === 0 ? 1 : 26 + q / 5, last_day: q === 0 ? 5 : 30 + q / 5 })
   }
   const r90 = rows.find((r) => r.quality === 90)!
   r90.half_spoiled_day = 7
   r90.last_day = 8
+  r90.days_left = 4
   return rows
 }
 
@@ -53,10 +65,10 @@ interface ViewOverrides {
 
 function makePlans(disabled: string[] = []) {
   const all = [
-    { tier: 'exw', label: 'EXW', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
-    { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
-    { tier: 'dap', label: 'DAP', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.55 },
-    { tier: 'ddp', label: 'DDP', enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 1.39 },
+    { tier: 'exw', label: 'EXW', enabled: true, refund_basis: 'none', refund_value_today: null, refund_shipment: null, fee_per_unit: 0 },
+    { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, refund_shipment: null, fee_per_unit: 0.55 },
+    { tier: 'dap', label: 'DAP', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, refund_shipment: null, fee_per_unit: 0.55 },
+    { tier: 'ddp', label: 'DDP', enabled: true, refund_basis: 'retail', refund_value_today: 30, refund_shipment: null, fee_per_unit: 1.39 },
   ]
   return all.map((p) => (disabled.includes(p.tier) ? { ...p, enabled: false } : p))
 }
@@ -81,8 +93,8 @@ function makeView(o: ViewOverrides = {}): PlayerView {
       weekday_multipliers: { mon: 0.25, tue: 0.5, wed: 0.75, thu: 1, fri: 1, sat: 1, sun: 0.75 },
       expected_demand: 100,
       supplier: { disrupted: false, disruption_message: null, spot_price: 13.4, base_price: 12, lead_time_days: 1 },
-      spot: { open: true, arrives_day: 6 },
-      futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, last_day_to_buy: 7, days_left_to_buy: 3 },
+      spot: { open: true, arrives_day: 6, arrives_weekday: 'sat' },
+      futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, delivery_weekday: 'fri', last_day_to_buy: 7, days_left_to_buy: 3 },
       transport: { shared: false },
       reputation: { P1: 0.62 },
     },
@@ -149,13 +161,20 @@ function renderForm(over: Partial<Props> = {}) {
     onSubmit,
     ...over,
   }
+  serveDecisionPreviews(server.preview, props.view, props.config)
   const utils = render(<DecisionForm {...props} />)
   return {
     ...utils,
     onSubmit: props.onSubmit as ReturnType<typeof vi.fn>,
-    rerenderForm: (next: Partial<Props>) => utils.rerender(<DecisionForm {...props} {...next} />),
+    rerenderForm: (next: Partial<Props>) => {
+      serveDecisionPreviews(server.preview, next.view ?? props.view, next.config ?? props.config)
+      utils.rerender(<DecisionForm {...props} {...next} />)
+    },
   }
 }
+
+/** Waits for the server's answer to the draft on screen to show on the card. */
+const eventually = (text: string) => waitFor(() => expect(cardHas(text)).toBe(true))
 
 const card = () => screen.getByRole('region', { name: "Today's decision" })
 const squash = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, '')
@@ -194,6 +213,13 @@ function described(el: HTMLElement): string {
 
 const MSG_QTY = 'Orders must be whole numbers from 0 to 9,999.'
 
+// Spec §13.6: the form's upper bounds are the server's, loaded once the backend is awake.
+beforeEach(seedServerLimits)
+
+function RICH_VIEW(): PlayerView {
+  return makeView({ cash: 1e9 })
+}
+
 const FOCUSABLE =
   'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, a[href], [tabindex]:not([tabindex="-1"])'
 
@@ -230,6 +256,14 @@ describe('layout (acceptance criterion 1)', () => {
     for (const name of ['Buy from Supplier', 'Buy from Players', 'Futures', 'Shipping insurance', 'Conserve', 'Sell to Players', 'Equal Supply']) {
       expect(tipText(name).length).toBeGreaterThan(20)
     }
+  })
+
+  it('Buy from Players says only a spot shortfall can be bought from rivals, never a futures one (spec §5.7)', () => {
+    renderForm()
+    const tip = tipText('Buy from Players')
+    expect(tip).toContain(squash('If the supplier fills only part of your spot order, buy the missing spot units today'))
+    expect(tip).toContain(squash('Futures the supplier cannot ship are refunded, not bought from rivals.'))
+    expect(tip).not.toContain(squash('cannot fill your whole order'))
   })
 
   it('renders six rows without If short and Sell when the peer market is off', () => {
@@ -305,12 +339,38 @@ describe('layout (acceptance criterion 1)', () => {
     expect(screen.getByText('Last day to buy').closest('[class*="warning"]')).not.toBeNull()
   })
 
-  it('bounds the quantity fields at 0..9999', () => {
+  it("bounds the quantity fields at 0..MAX_ORDER, the server's limit (spec §13.6)", () => {
     renderForm()
+    expect(SERVER_LIMITS.MAX_ORDER).toBe(9999)
     expect(spot()).toHaveAttribute('min', '0')
     expect(spot()).toHaveAttribute('max', '9999')
     expect(futures()).toHaveAttribute('min', '0')
     expect(futures()).toHaveAttribute('max', '9999')
+  })
+
+  it("takes the upper bound from the store and the message from the server: a different server limit moves both", async () => {
+    useGameStore.setState({ limits: { ...SERVER_LIMITS, MAX_ORDER: 500 } })
+    const { unmount } = renderForm({ view: RICH_VIEW() })
+    expect(spot()).toHaveAttribute('max', '500')
+    setField(spot(), '501')
+    blur(spot())
+    expect(await screen.findByText('Orders must be whole numbers from 0 to 500.')).toBeInTheDocument()
+    unmount()
+    useGameStore.setState({ limits: null })
+    renderForm({ view: RICH_VIEW() })
+    expect(spot()).not.toHaveAttribute('max')
+  })
+
+  it('refuses a negative quantity: a minus sign never reaches the spot, futures or peer fields', async () => {
+    const { onSubmit } = renderForm({ view: RICH_VIEW() })
+    for (const field of [spot(), futures()]) {
+      setField(field, '-5')
+      expect(field).not.toHaveValue('-5')
+    }
+    await userEvent.setup().click(submitBtn())
+    const sent = onSubmit.mock.calls[0][0] as Decision
+    expect(sent.order_spot).toBeGreaterThanOrEqual(0)
+    expect(sent.order_futures).toBeGreaterThanOrEqual(0)
   })
 })
 
@@ -407,44 +467,110 @@ describe('state and prefill (acceptance criterion 2)', () => {
   })
 })
 
+/** Lets the debounce run out and the double answer the draft on screen. */
+const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 300)))
+
+describe('the server preview (spec 12.4)', () => {
+  it('asks the server for the draft as typed, once the typing pauses, never computing a figure itself', async () => {
+    renderForm()
+    await waitFor(() => expect(server.preview).toHaveBeenCalled())
+    expect(server.preview).toHaveBeenLastCalledWith(ROOM, {
+      day: 5,
+      order_spot: 40,
+      order_futures: 25,
+      incoterm_tier: 'cip',
+      conserve_lots: [],
+      cooperate: true,
+      peer_buy: null,
+      peer_sell: null,
+    })
+    server.preview.mockClear()
+    setField(spot(), 4)
+    setField(spot(), 41)
+    setField(spot(), 412)
+    await settle()
+    // three keystrokes, one question: the last draft
+    expect(server.preview).toHaveBeenCalledTimes(1)
+    expect(server.preview.mock.calls[0][1]).toMatchObject({ order_spot: 412 })
+  })
+
+  it('shows a placeholder while the answer is on its way, then the server total', async () => {
+    let release: (v: unknown) => void = () => {}
+    renderForm()
+    server.preview.mockImplementationOnce(() => new Promise((r) => (release = r)))
+    expect(cardHas('Today: … of $6,120.00')).toBe(true)
+    await settle()
+    expect(cardHas('Today: … of $6,120.00')).toBe(true)
+    await act(async () =>
+      release({ preview: { day: 5, outlay: { spot: 1, futures: 2, shipping: 3, conservation: 4, total: 1234.5 }, affordable: true, unaffordable_message: null, shipment_units: 40, tier_plans: null, offer: null, errors: [] } }),
+    )
+    expect(cardHas('Today: $1,234.50 of $6,120.00')).toBe(true)
+  })
+
+  it('drops an answer for an older draft', async () => {
+    const answers: Array<(v: unknown) => void> = []
+    renderForm()
+    server.preview.mockImplementation(() => new Promise((r) => answers.push(r)))
+    await settle()
+    setField(spot(), 7)
+    await settle()
+    const answer = (total: number) => ({ preview: { day: 5, outlay: { spot: 0, futures: 0, shipping: 0, conservation: 0, total }, affordable: true, unaffordable_message: null, shipment_units: 0, tier_plans: null, offer: null, errors: [] } })
+    await act(async () => answers.at(-2)?.(answer(111)))
+    expect(cardHas('Today: $111.00')).toBe(false)
+    await act(async () => answers.at(-1)?.(answer(222)))
+    expect(cardHas('Today: $222.00 of $6,120.00')).toBe(true)
+  })
+})
+
 describe('outlay line and bar (acceptance criterion 4)', () => {
-  it('shows Today: total of cash and follows quantities, tier and ticks', async () => {
+  it("shows the server's Today: total of cash as quantities, tier and ticks change", async () => {
     const user = userEvent.setup()
     renderForm()
-    // 40 x 13.40 + 25 x 12.00 + 40 x (1.00 + 0.55) = 898
-    expect(cardHas('Today: $898.00 of $6,120.00')).toBe(true)
+    // spec 8.3 worked example: 40 x 13.40 + 25 x 12.00 + 40 x (1.00 + 0.55) = 898
+    await eventually('Today: $898.00 of $6,120.00')
     await user.click(lotBox('L3'))
-    expect(cardHas('Today: $910.00 of $6,120.00')).toBe(true)
+    await eventually('Today: $910.00 of $6,120.00')
     setField(spot(), 50)
-    // 670 + 300 + 77.5 + 12
-    expect(cardHas('Today: $1,059.50 of $6,120.00')).toBe(true)
+    await eventually('Today: $1,059.50 of $6,120.00')
     await user.click(radio('EXW'))
-    // 670 + 300 + 50 + 12
-    expect(cardHas('Today: $1,032.00 of $6,120.00')).toBe(true)
+    await eventually('Today: $1,032.00 of $6,120.00')
     setField(futures(), 0)
-    expect(cardHas('Today: $732.00 of $6,120.00')).toBe(true)
+    await eventually('Today: $732.00 of $6,120.00')
+    expect(server.preview.mock.lastCall?.[1]).toMatchObject({ order_spot: 50, order_futures: 0, incoterm_tier: 'exw', conserve_lots: ['L3'] })
   })
 
-  it('counts the fee, but not the transport cost, of the futures due today', () => {
+  it("shows the server's fee estimate for today's shipment in the chosen tier's tooltip", async () => {
     renderForm({ view: makeView({ futures_book: [{ contract_day: 0, ships_day: 5, delivery_day: 6, qty: 10 }] }) })
-    // 898 + 0.55 x 10
-    expect(cardHas('Today: $903.50 of $6,120.00')).toBe(true)
-  })
-
-  it("shows the labelled fee estimate for today's shipment in the chosen tier's tooltip", () => {
-    renderForm({ view: makeView({ futures_book: [{ contract_day: 0, ships_day: 5, delivery_day: 6, qty: 10 }] }) })
-    // fee 0.55 x (40 spot + 10 due) = 27.50
+    // the server's fee_for_shipment: 0.55 x (40 spot + 10 due)
+    await settle()
     expect(tipText('CIP details')).toContain(squash("~$27.50 for today's shipment"))
   })
 
-  it('failure mode 9: a peer purchase limit adds nothing to the outlay', async () => {
+  it("Paid-price card follows the spot order as it is typed (spec 6.3 example, the server's figure)", async () => {
+    // the view's own card, as the server sends it with 20 futures due: the held order's average
+    const plans = makePlans().map((p) =>
+      p.tier === 'cip' ? { ...p, refund_value_today: 13.02, refund_shipment: { spot_units: 40, futures_units: 20 } } : p,
+    )
+    renderForm({ view: makeView({ plans: plans as never, futures_book: [{ contract_day: 0, ships_day: 5, delivery_day: 6, qty: 20 }] }) })
+    setField(spot(), 20)
+    await settle()
+    // the double answers what the server would: (20 x 13.40 + 20 x 12.00) / 40
+    expect(tipText('CIP details')).toContain(squash('Refund per lost unit: $12.70, the average price of today'))
+    setField(spot(), 60)
+    expect(tipText('CIP details')).toContain(squash('Refund per lost unit: …'))
+    await settle()
+    expect(tipText('CIP details')).toContain(squash('60 spot and 20 futures units'))
+  })
+
+  it('failure mode 9: a peer purchase limit is sent but the server adds nothing for it', async () => {
     const user = userEvent.setup()
     renderForm()
     await user.click(lotBox('L3'))
     await user.click(buyBox())
     setField(buyPrice(), 16)
     setField(buyQuality(), 90)
-    expect(cardHas('Today: $910.00 of $6,120.00')).toBe(true)
+    await eventually('Today: $910.00 of $6,120.00')
+    expect(server.preview.mock.lastCall?.[1]).toMatchObject({ peer_buy: { max_price: 16, min_quality: 90 } })
   })
 })
 
@@ -457,48 +583,35 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
     const user = userEvent.setup()
     renderForm({ view: makeView({ cash: 910 }) })
     await tickMock(user)
-    expect(cardHas('Today: $910.00 of $910.00')).toBe(true)
+    await eventually('Today: $910.00 of $910.00')
     expect(submitBtn()).toBeEnabled()
   })
 
-  it('a cent above the cash disables Submit day and shows the spec 4.3 line', async () => {
+  it("over the cash the server says so: Submit day is disabled and the server's spec 4.3 line shows", async () => {
     const user = userEvent.setup()
     const { onSubmit } = renderForm({ view: makeView({ cash: 909.99 }) })
     await tickMock(user)
-    expect(submitBtn()).toBeDisabled()
+    await waitFor(() => expect(submitBtn()).toBeDisabled())
     expect(cardHas("Today's purchases cost $910.00 but you only have $909.99")).toBe(true)
     await user.click(submitBtn())
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
-  it('acceptance criterion 5: an invalid field never disables Submit day, but the cash still does, and the over-cash line stays live', async () => {
+  it('acceptance criterion 5: an invalid field never disables Submit day; the press shows its message', async () => {
     const user = userEvent.setup()
     const { onSubmit } = renderForm({ view: makeView({ cash: 100 }) })
-    setField(futures(), '')
-    expect(submitBtn()).toBeDisabled()
-    expect(cardHas("Today's purchases cost")).toBe(true)
     setField(spot(), '1')
     setField(futures(), '')
+    await settle()
     expect(submitBtn()).toBeEnabled()
     await user.click(submitBtn())
     expect(onSubmit).not.toHaveBeenCalled()
     expect(screen.getByText(MSG_QTY)).toBeInTheDocument()
   })
 
-  it('the over-cash line is absent while the outlay fits', () => {
+  it('the over-cash line is absent while the outlay fits', async () => {
     renderForm()
-    expect(cardHas("Today's purchases cost")).toBe(false)
-  })
-
-  it('failure mode 9: with cash 910 and the mock ticks, adding peer_buy max_price 16 keeps Submit day enabled', async () => {
-    const user = userEvent.setup()
-    renderForm({ view: makeView({ cash: 910 }) })
-    await tickMock(user)
-    await user.click(buyBox())
-    setField(buyPrice(), 16)
-    setField(buyQuality(), 90)
-    expect(cardHas('Today: $910.00 of $910.00')).toBe(true)
-    expect(submitBtn()).toBeEnabled()
+    await eventually('Today: $898.00 of $6,120.00')
     expect(cardHas("Today's purchases cost")).toBe(false)
   })
 
@@ -508,23 +621,14 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
       view: makeView({ cash: -20, futures_book: [{ contract_day: 0, ships_day: 5, delivery_day: 6, qty: 10 }] }),
       initialDecision: makePrefill({ order_spot: 0, order_futures: 0, incoterm_tier: 'exw', cooperate: false }),
     })
+    await settle()
     expect(submitBtn()).toBeEnabled()
     setField(spot(), 1)
-    expect(submitBtn()).toBeDisabled()
+    await waitFor(() => expect(submitBtn()).toBeDisabled())
     setField(spot(), 0)
-    expect(submitBtn()).toBeEnabled()
+    await waitFor(() => expect(submitBtn()).toBeEnabled())
     await user.click(submitBtn())
     expect(onSubmit).toHaveBeenCalledTimes(1)
-  })
-
-  it('a zero total with cash 0 is submittable, a cent over is not', () => {
-    renderForm({
-      view: makeView({ cash: 0 }),
-      initialDecision: makePrefill({ order_spot: 0, order_futures: 0, incoterm_tier: 'exw', cooperate: false }),
-    })
-    expect(submitBtn()).toBeEnabled()
-    setField(spot(), 1)
-    expect(submitBtn()).toBeDisabled()
   })
 
   it('submits once with the full decision of the worked example (acceptance criterion 9)', async () => {
@@ -538,6 +642,7 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
     setField(sellPrice(), 15)
     setField(sellQuality(), 60)
     setField(sellUnits(), 10)
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit).toHaveBeenCalledTimes(1)
     expect(onSubmit).toHaveBeenCalledWith({
@@ -557,8 +662,6 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
     const { onSubmit } = renderForm()
     await user.click(submitBtn())
     const sent = onSubmit.mock.calls[0][0]
-    expect(sent).toHaveProperty('peer_buy', null)
-    expect(sent).toHaveProperty('peer_sell', null)
     expect(sent).toEqual({
       day: 5,
       order_spot: 40,
@@ -580,6 +683,7 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
     await user.click(screen.getByRole('switch', { name: 'Vote for equal supply' }))
     setField(spot(), 3)
     setField(futures(), 0)
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit.mock.calls[0][0]).toMatchObject({
       day: 5,
@@ -592,28 +696,29 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
   })
 })
 
-const RICH = makeView({ cash: 1e9 }) // an order of 10,000 units must not also be over the cash
+const RICH = RICH_VIEW() // an order of 10,000 units must not also be over the cash
 
-describe('quantity validity (acceptance criteria 5 and 16)', () => {
+describe('quantity validity, from the server (acceptance criteria 5 and 16)', () => {
   it.each([
     ['an empty spot field', () => spot(), ''],
     ['a spot order above 9,999', () => spot(), '10000'],
     ['an empty futures field', () => futures(), ''],
     ['a futures order above 9,999', () => futures(), '10000'],
-  ])('%s shows the spec message once left, and Submit day stays enabled', (_name, field, value) => {
+  ])("%s shows the server's spec message once left, and Submit day stays enabled", async (_name, field, value) => {
     renderForm({ view: RICH })
     setField(field(), value)
     blur(field())
-    expect(screen.getAllByText(MSG_QTY).length).toBeGreaterThan(0)
+    await settle()
     expect(described(field())).toContain(MSG_QTY)
     expect(field()).toHaveAttribute('aria-invalid', 'true')
     expect(submitBtn()).toBeEnabled()
   })
 
-  it('failure mode 16: emptying a quantity field that still has focus shows no message; leaving it shows the message', () => {
+  it('failure mode 16: emptying a quantity field that still has focus shows no message; leaving it shows the message', async () => {
     renderForm({ view: RICH })
     act(() => spot().focus())
     setField(spot(), '')
+    await settle()
     expect(screen.queryByText(MSG_QTY)).toBeNull()
     expect(spot()).not.toHaveAttribute('aria-invalid')
     act(() => spot().blur())
@@ -621,21 +726,24 @@ describe('quantity validity (acceptance criteria 5 and 16)', () => {
     expect(spot()).toHaveAttribute('aria-invalid', 'true')
   })
 
-  it('leaving one field does not show the message of another untouched invalid field', () => {
+  it('leaving one field does not show the message of another untouched invalid field', async () => {
     renderForm({ view: RICH })
     setField(spot(), '')
     setField(futures(), '')
     blur(spot())
+    await settle()
     expect(screen.getAllByText(MSG_QTY)).toHaveLength(1)
     expect(futures()).not.toHaveAttribute('aria-invalid')
   })
 
-  it('clears the message once the quantity is valid again', () => {
+  it('clears the message once the server accepts the quantity again', async () => {
     renderForm({ view: RICH })
     setField(spot(), '10000')
     blur(spot())
+    await settle()
     expect(screen.getByText(MSG_QTY)).toBeInTheDocument()
     setField(spot(), '50')
+    await settle()
     expect(screen.queryByText(MSG_QTY)).toBeNull()
     expect(submitBtn()).toBeEnabled()
   })
@@ -645,6 +753,7 @@ describe('quantity validity (acceptance criteria 5 and 16)', () => {
     const { onSubmit } = renderForm({ view: RICH })
     setField(spot(), '')
     setField(futures(), '10000')
+    await settle()
     expect(screen.queryByText(MSG_QTY)).toBeNull()
     await user.click(submitBtn())
     expect(onSubmit).not.toHaveBeenCalled()
@@ -655,6 +764,7 @@ describe('quantity validity (acceptance criteria 5 and 16)', () => {
   it('a valid decision is still submitted by the press', async () => {
     const user = userEvent.setup()
     const { onSubmit } = renderForm({ view: RICH })
+    await settle()
     await user.click(submitBtn())
     expect(onSubmit).toHaveBeenCalledTimes(1)
   })
@@ -663,9 +773,11 @@ describe('quantity validity (acceptance criteria 5 and 16)', () => {
     const user = userEvent.setup()
     const { rerenderForm } = renderForm({ view: RICH })
     setField(spot(), '')
+    await settle()
     await user.click(submitBtn())
     expect(screen.getByText(MSG_QTY)).toBeInTheDocument()
     rerenderForm({ initialDecision: makePrefill({ day: 6, order_spot: null as unknown as number }) })
+    await settle()
     expect(screen.queryByText(MSG_QTY)).toBeNull()
     expect(spot()).not.toHaveAttribute('aria-invalid')
   })
@@ -790,9 +902,10 @@ describe('conserve rows (acceptance criteria 10 and 14)', () => {
     const user = userEvent.setup()
     renderForm()
     await user.click(lotBox('L4'))
-    expect(cardHas('Today: $928.00 of $6,120.00')).toBe(true)
+    await eventually('Today: $928.00 of $6,120.00')
+    expect(server.preview.mock.lastCall?.[1]).toMatchObject({ conserve_lots: ['L4'] })
     await user.click(lotBox('L4'))
-    expect(cardHas('Today: $898.00 of $6,120.00')).toBe(true)
+    await eventually('Today: $898.00 of $6,120.00')
   })
 })
 
@@ -828,7 +941,7 @@ describe('conserve list: three lots, then Show all (spec 13.7)', () => {
     await user.click(toggle('Show all 5 lots'))
     await user.click(lotBox('L5'))
     await user.click(toggle('Hide'))
-    expect(cardHas('Today: $8.00 of $6,120.00')).toBe(true)
+    await eventually('Today: $8.00 of $6,120.00')
     await user.click(submitBtn())
     expect(onSubmit.mock.calls[0][0].conserve_lots).toEqual(['L5'])
   })
