@@ -1,6 +1,7 @@
 import { ArrowLeftRight } from 'lucide-react'
 import type { ReactElement } from 'react'
-import { LIMITS, type PlayerView, type PublicConfig } from '../../types/game'
+import { useLimits } from '../../api/config'
+import type { PlayerView, PublicConfig } from '../../types/game'
 import { unitsOnOffer } from '../../game/estimates'
 import { formatMoney, formatUnits, lotLabel } from '../../utils/format'
 import Checkbox from '../shared/Checkbox'
@@ -46,6 +47,7 @@ export default function PeerSellSection({
   onFieldBlur,
   locked,
 }: PeerSellSectionProps): ReactElement {
+  const limits = useLimits()
   const fieldsOff = !ticked
   let context: string | null = null
   if (maxQuality !== null) {
@@ -85,7 +87,7 @@ export default function PeerSellSection({
               prefix="$"
               suffix="/unit"
               min={0.01}
-              max={LIMITS.MAX_PEER_PRICE}
+              max={limits?.MAX_PEER_PRICE}
               value={price}
               onChange={onPrice}
               disabled={fieldsOff}
@@ -119,7 +121,7 @@ export default function PeerSellSection({
               kind="quantity"
               suffix="units"
               min={1}
-              max={LIMITS.MAX_ORDER}
+              max={limits?.MAX_ORDER}
               value={maxUnits}
               onChange={onMaxUnits}
               disabled={fieldsOff}

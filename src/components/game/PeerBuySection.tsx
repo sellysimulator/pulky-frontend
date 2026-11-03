@@ -1,6 +1,7 @@
 import { ArrowLeftRight } from 'lucide-react'
 import type { KeyboardEvent, ReactElement } from 'react'
-import { LIMITS, type PlayerView } from '../../types/game'
+import { useLimits } from '../../api/config'
+import type { PlayerView } from '../../types/game'
 import { QUALITY_GUIDE_NOTE } from '../../utils/format'
 import Checkbox from '../shared/Checkbox'
 import InfoTip from '../shared/InfoTip'
@@ -78,6 +79,7 @@ export default function PeerBuySection({
   closed,
   locked,
 }: PeerBuySectionProps): ReactElement {
+  const limits = useLimits()
   const fieldsOff = closed || !ticked
   return (
     <FormRow
@@ -86,8 +88,9 @@ export default function PeerBuySection({
       info={
         <InfoTip label="Buy from Players">
           <span>
-            If the supplier cannot fill your whole order, buy the missing units today from other pulquerías&apos; offers,
-            within your price, your minimum quality and your cash.
+            If the supplier fills only part of your spot order, buy the missing spot units today from other pulquerías&apos;
+            offers, within your price, your minimum quality and your cash. Futures the supplier cannot ship are refunded, not
+            bought from rivals.
           </span>
           <span>{QUALITY_GUIDE_NOTE}</span>
         </InfoTip>
@@ -112,7 +115,7 @@ export default function PeerBuySection({
               prefix="$"
               suffix="/unit"
               min={0.01}
-              max={LIMITS.MAX_PEER_PRICE}
+              max={limits?.MAX_PEER_PRICE}
               value={maxPrice}
               onChange={onMaxPrice}
               disabled={fieldsOff}

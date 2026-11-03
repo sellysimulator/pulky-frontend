@@ -1,13 +1,14 @@
 import { ClipboardList, Lock } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
-import { canAfford, isWholeCents, outlayEstimate, type DecisionDraft } from '../../game/estimates'
-import { LIMITS, type Decision, type DecidingView, type IncotermTier, type PlayerView, type PublicConfig } from '../../types/game'
-import { formatMoney, formatQty } from '../../utils/format'
+import { useLimits } from '../../api/config'
+import { canAfford, outlayEstimate, type DecisionDraft } from '../../game/estimates'
+import type { Decision, DecidingView, IncotermTier, Limits, PlayerView, PublicConfig } from '../../types/game'
 import Badge from '../shared/Badge'
 import SectionCard from '../shared/SectionCard'
 import ConserveSection from './ConserveSection'
 import CooperateToggle from './CooperateToggle'
-import OrderSection, { ORDER_ERROR } from './OrderSection'
+import { isValidPrice, isValidQuantity, isValidUnits, orderMessage, priceMessage, unitsMessage } from './formLimits'
+import OrderSection from './OrderSection'
 import OutlayBar from './OutlayBar'
 import PeerBuySection from './PeerBuySection'
 import PeerSellSection from './PeerSellSection'
@@ -41,18 +42,11 @@ interface FormState {
 /** The fields whose messages wait for the player: a field is touched once its input has lost focus. */
 type FieldKey = 'spot' | 'futures' | 'buyPrice' | 'buyQuality' | 'sellPrice' | 'sellQuality' | 'sellUnits'
 
-const PRICE_ERROR = `Peer prices must be from $0.01 to ${formatMoney(LIMITS.MAX_PEER_PRICE)}, in whole cents.`
 const QUALITY_ERROR = 'Quality limits must be whole numbers from 0 to 100.'
 const STEP_ERROR = 'Quality steps by 5: choose 0, 5, 10, … 100.'
-const UNITS_ERROR = `You can offer from 1 to ${formatQty(LIMITS.MAX_ORDER)} units.`
 
-function isValidQuantity(value: number | null): boolean {
-  return value !== null && Number.isInteger(value) && value >= 0 && value <= LIMITS.MAX_ORDER
-}
-
-function priceError(value: number | null): string | undefined {
-  const ok = value !== null && Number.isFinite(value) && isWholeCents(value) && value >= 0.01 && value <= LIMITS.MAX_PEER_PRICE
-  return ok ? undefined : PRICE_ERROR
+function priceError(value: number | null, limits: Limits | null): string | undefined {
+  return isValidPrice(value, limits) ? undefined : priceMessage(limits)
 }
 
 function qualityError(value: number | null): string | undefined {
@@ -60,9 +54,8 @@ function qualityError(value: number | null): string | undefined {
   return value % 5 === 0 ? undefined : STEP_ERROR
 }
 
-function unitsError(value: number | null): string | undefined {
-  const ok = value !== null && Number.isInteger(value) && value >= 1 && value <= LIMITS.MAX_ORDER
-  return ok ? undefined : UNITS_ERROR
+function unitsError(value: number | null, limits: Limits | null): string | undefined {
+  return isValidUnits(value, limits) ? undefined : unitsMessage(limits)
 }
 
 function initialState(initial: Decision, view: PlayerView, config: PublicConfig): FormState {
@@ -89,6 +82,7 @@ function initialState(initial: Decision, view: PlayerView, config: PublicConfig)
 type DecisionFormBodyProps = Omit<DecisionFormProps, 'view' | 'initialDecision'> & { view: DecidingView; initialDecision: Decision }
 
 function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, lockedFooter }: DecisionFormBodyProps): ReactElement {
+  const limits = useLimits()
   const [state, setState] = useState<FormState>(() => initialState(initialDecision, view, config))
   const patch = (changes: Partial<FormState>): void => setState((s) => ({ ...s, ...changes }))
   const [touched, setTouched] = useState<ReadonlySet<FieldKey>>(() => new Set())
@@ -113,14 +107,14 @@ function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, loc
   const buyActive = peers && state.buyOn
   const sellActive = peers && state.sellOn
   const buyValidated = buyActive && spotOpen
-  const buyPriceError = buyValidated ? priceError(state.buyPrice) : undefined
+  const buyPriceError = buyValidated ? priceError(state.buyPrice, limits) : undefined
   const buyQualityError = buyValidated ? qualityError(state.buyQuality) : undefined
-  const sellPriceError = sellActive ? priceError(state.sellPrice) : undefined
+  const sellPriceError = sellActive ? priceError(state.sellPrice, limits) : undefined
   const sellQualityError = sellActive ? qualityError(state.sellQuality) : undefined
-  const sellUnitsError = sellActive ? unitsError(state.sellUnits) : undefined
+  const sellUnitsError = sellActive ? unitsError(state.sellUnits, limits) : undefined
 
-  const spotError = spotOpen && !isValidQuantity(state.spot) ? ORDER_ERROR : undefined
-  const futuresError = futuresOpen && !isValidQuantity(state.futures) ? ORDER_ERROR : undefined
+  const spotError = spotOpen && !isValidQuantity(state.spot, limits) ? orderMessage(limits) : undefined
+  const futuresError = futuresOpen && !isValidQuantity(state.futures, limits) ? orderMessage(limits) : undefined
   const formValid = !spotError && !futuresError && !buyPriceError && !buyQualityError && !sellPriceError && !sellQualityError && !sellUnitsError
 
   const draft: DecisionDraft = {

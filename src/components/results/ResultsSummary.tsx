@@ -44,7 +44,7 @@ export default function ResultsSummary({ view, viewer, showActions, hostSecret }
               {viewer.isHost ? <ExportControls gameId={view.game_id} roomCode={view.room_code} hostSecret={hostSecret} /> : null}
               <GuestClaimPrompt gameId={view.game_id} />
               {viewer.isHost ? <PlayAgainButton gameId={view.game_id} /> : null}
-              {viewer.isHost ? <DebriefNotes /> : null}
+              {viewer.isHost ? <DebriefNotes leadTimeDays={view.config?.supplier.lead_time_days ?? null} /> : null}
             </div>
           </SectionCard>
         </div>

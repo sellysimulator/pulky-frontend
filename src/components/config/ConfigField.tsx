@@ -9,6 +9,7 @@ import Switch from '../shared/Switch'
 import { DOCS } from './docs/entries'
 import InfoButton from './docs/InfoButton'
 import { getAt } from './configDraft'
+import { HIDDEN_HELPER, HIDDEN_PLACEHOLDER, PIPELINE_WITHOUT_LEAD_TIME } from './hiddenDefaults'
 import ShownToPlayersBadge from './ShownToPlayersBadge'
 
 /** What every section body receives from the panel. */
@@ -85,6 +86,9 @@ export default function ConfigField({ path, config, meta, readOnly, error, warni
   const value = getAt(config, path)
   const type = meta?.type ?? (typeof value === 'boolean' ? 'bool' : typeof value === 'string' ? 'weekday' : 'float')
   const shown = meta?.players === 'shown'
+  const hidden = meta?.hidden_default === true
+  // Spec §13.9: the initial pipeline has no slot to fill without a lead time.
+  const noEffect = path === 'supplier.initial_pipeline_qty' && config.supplier.lead_time_days === 0
   const helper =
     meta && meta.min !== null && meta.max !== null ? `Between ${bound(meta.min)} and ${bound(meta.max)}` : null
 
@@ -129,6 +133,8 @@ export default function ConfigField({ path, config, meta, readOnly, error, warni
         min={meta?.min ?? undefined}
         max={meta?.max ?? undefined}
         suffix={PERCENT_PATHS.has(path) ? '%' : undefined}
+        placeholder={hidden ? HIDDEN_PLACEHOLDER : undefined}
+        disabled={noEffect}
         readOnly={readOnly}
         error={error}
         warning={warning}
@@ -152,6 +158,8 @@ export default function ConfigField({ path, config, meta, readOnly, error, warni
           heading
         )}
         {helper ? <p className="text-sm text-ink-muted">{helper}</p> : null}
+        {hidden ? <p className="text-sm text-ink-muted">{HIDDEN_HELPER}</p> : null}
+        {noEffect && warning === undefined ? <p className="text-sm text-ink-muted">{PIPELINE_WITHOUT_LEAD_TIME}</p> : null}
       </div>
       <div className="flex items-start">{control}</div>
       {ownMessages ? <Messages id={id} error={error} warning={warning} /> : null}

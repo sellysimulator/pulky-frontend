@@ -1,4 +1,4 @@
-import type { GameFinishedPayload, GameStats, IncotermTier, PulqueFlow, ResultsResponse, Weekday } from '../../types/game'
+import type { GameConfig, GameFinishedPayload, GameStats, IncotermTier, PulqueFlow, ResultsResponse, Weekday } from '../../types/game'
 
 /** Spec §13.8, field for field. The peer fields are optional: a stored payload without them renders no peer segment, column or chart. */
 export interface PulqueriaResultView {
@@ -62,6 +62,8 @@ export interface ResultsView {
   ended_early: boolean
   started_at?: string
   finished_at?: string
+  /** The full config the game ran with: the end reveals the hidden defaults (spec §9.3). Absent from an older payload. */
+  config?: GameConfig
   market: {
     weekday: Weekday[]
     weekday_multiplier: number[]
@@ -212,13 +214,16 @@ export function resultsViewFromLive(
   p: GameFinishedPayload,
   ctx: { roomCode: string; durationDays: number },
 ): ResultsView {
-  return normalise(p.stats, {
-    game_id: p.game_id,
-    room_code: ctx.roomCode,
-    days_played: p.days_played,
-    duration_days: ctx.durationDays,
-    ended_early: p.ended_early,
-  })
+  return {
+    ...normalise(p.stats, {
+      game_id: p.game_id,
+      room_code: ctx.roomCode,
+      days_played: p.days_played,
+      duration_days: ctx.durationDays,
+      ended_early: p.ended_early,
+    }),
+    ...(p.config ? { config: p.config } : {}),
+  }
 }
 
 /** Copies a stored `ResultsResponse` into the same view model, adding the two timestamps. */
@@ -233,5 +238,6 @@ export function resultsViewFromResponse(r: ResultsResponse): ResultsView {
     }),
     started_at: r.started_at,
     finished_at: r.finished_at,
+    ...(r.config ? { config: r.config } : {}),
   }
 }

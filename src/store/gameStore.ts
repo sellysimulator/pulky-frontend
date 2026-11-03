@@ -1,6 +1,7 @@
 /**
  * The single source of truth. Written only by the socket handlers
- * (src/api/socketHandlers.ts) and the REST loaders that call `setConfig`.
+ * (src/api/socketHandlers.ts) and the REST loaders that call `setConfig` and
+ * `setLimits` (src/api/config.ts).
  */
 import { create } from 'zustand'
 import { v4 as uuidv4 } from 'uuid'
@@ -22,6 +23,7 @@ import type {
   JoinedPayload,
   JoinErrorPayload,
   LeaveAckPayload,
+  Limits,
   LobbyUpdatePayload,
   MarketDay,
   Participant,
@@ -77,6 +79,8 @@ export interface GameState {
   selectedDay: number | null
   connectionError: string | null
   lastError: ServerError | null
+  /** The backend's hard limits (spec §9.2), loaded once per page by `loadLimits`; null until then. */
+  limits: Limits | null
 }
 
 export interface GameActions {
@@ -105,6 +109,7 @@ export interface GameActions {
   applyError(p: ServerError): void
   clearLastError(): void
   setConfig(config: GameConfig | PublicConfig): void
+  setLimits(limits: Limits): void
   setConnectionError(message: string | null): void
   addAlert(a: Omit<Alert, 'id'>): string
   dismissAlert(id: string): void
@@ -144,6 +149,7 @@ export const INITIAL_STATE: GameState = {
   selectedDay: null,
   connectionError: null,
   lastError: null,
+  limits: null,
 }
 
 /** Spec §12.6 append rule: an entry is added only when its `day` is later than the last one held. */
@@ -176,12 +182,13 @@ export const useGameStore = create<GameState & GameActions>()((set, get) => {
   return {
     ...INITIAL_STATE,
 
+    // The limits belong to the server, not to a room: leaving a room keeps them.
     setRoom: (roomCode, isHost) => {
-      if (get().roomCode !== roomCode) set({ ...INITIAL_STATE, roomCode, isHost })
+      if (get().roomCode !== roomCode) set({ ...INITIAL_STATE, roomCode, isHost, limits: get().limits })
       else set({ isHost })
     },
 
-    reset: () => set({ ...INITIAL_STATE }),
+    reset: () => set({ ...INITIAL_STATE, limits: get().limits }),
 
     applyJoined: (p) => set({ myAlias: p.alias, joinError: null }),
 
@@ -316,6 +323,8 @@ export const useGameStore = create<GameState & GameActions>()((set, get) => {
     clearLastError: () => set({ lastError: null }),
 
     setConfig: (config) => set({ config }),
+
+    setLimits: (limits) => set({ limits }),
 
     setConnectionError: (message) => set({ connectionError: message }),
 

@@ -9,6 +9,7 @@ import HelpDialog from '../components/config/docs/HelpDialog'
 import { Note, P, Formula, Table } from '../components/config/docs/primitives'
 import { PLAYER_CONFIG_KEYS, SECRET_CONFIG_KEYS } from '../types/game'
 import type { ConfigDefaultsResponse, GameConfig } from '../types/game'
+import { withTypedRisks } from './fixtures/serverConfig'
 
 // jsdom has no canvas: the chart wrapper is replaced by a plain canvas. The table fallback is real.
 vi.mock('react-chartjs-2', () => ({
@@ -20,8 +21,9 @@ const defaults = JSON.parse(
   readFileSync(resolve(process.cwd(), 'src/__tests__/fixtures/config_defaults.json'), 'utf8'),
 ) as ConfigDefaultsResponse
 
+/** The defaults with the risk odds typed in (as a host may), so every live example has its numbers. */
 function makeConfig(patch: (c: GameConfig) => void = () => {}): GameConfig {
-  const c = structuredClone(defaults.config)
+  const c = withTypedRisks(structuredClone(defaults.config))
   patch(c)
   return c
 }
@@ -63,7 +65,7 @@ const COPY: Record<string, [string, string]> = {
   'reputation.smoothing': ['Smoothing (ρ)', 'A higher value makes reputation react faster to a good or bad day.'],
   'reputation.waste_weight': [
     'Waste weight (w)',
-    'A higher weight makes spoiled pulque hurt reputation more than backlog does.',
+    "The share of the day's score that spoiled pulque decides; the rest is decided by serving what is owed. Above 0.5, spoilage hurts reputation more than backlog; below 0.5, backlog hurts it more.",
   ],
   'supplier.base_price': [
     'Base price',
@@ -91,11 +93,11 @@ const COPY: Record<string, [string, string]> = {
   ],
   'supplier.lead_time_days': [
     'Lead time (days)',
-    'Longer lead times force players to order further ahead of demand.',
+    'At 0 an order arrives the day it is placed and spot orders never close. Longer lead times force players to order further ahead of demand, and close spot orders for the last days of the game.',
   ],
   'supplier.initial_pipeline_qty': [
     'Initial pipeline (units per slot)',
-    'Free units already on their way at the start, so day 1 is not empty.',
+    'Free units already on their way at the start, so the first days are not empty. No effect with a lead time of 0.',
   ],
   'supplier.quality_min': [
     'Lowest initial quality',
@@ -492,7 +494,19 @@ describe('examples follow the config (AC 3, failure mode 7)', () => {
   })
 
   it('lead time: the arrival weekday of a Monday order', () => {
-    expect(textOf('supplier.lead_time_days')).toMatch(/Tue/)
+    // the default lead time is 0: the same day, and spot never closes
+    const sameDay = textOf('supplier.lead_time_days')
+    expect(sameDay).toMatch(/arrives the same day/)
+    expect(sameDay).toMatch(/spot orders stay open to the last day/)
+    cleanup()
+    expect(
+      textOf(
+        'supplier.lead_time_days',
+        makeConfig((c) => {
+          c.supplier.lead_time_days = 1
+        }),
+      ),
+    ).toMatch(/Tue/)
     cleanup()
     expect(
       textOf(
@@ -627,5 +641,35 @@ describe('primitives (spec 13.10)', () => {
     expect(screen.getByText('An aside')).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Night' })).toBeInTheDocument()
     expect(screen.getByRole('cell', { name: '20%' })).toBeInTheDocument()
+  })
+})
+
+describe('hidden defaults (spec §9.3, §13.10)', () => {
+  const HIDDEN = 'Hidden until the game ends. Type a value to see this example.'
+  const raw = (): GameConfig => structuredClone(defaults.config)
+
+  it.each([
+    'supplier.capacity_sd_per_player',
+    'supplier.disruption_probability',
+    'transport.failure_probability',
+    'transport.loss_fraction',
+    'transport.shared',
+    'insurance.tiers.cip.fee',
+    'insurance.target_margin',
+    'insurance.reference_shipment',
+  ])('%s: with the risks at their hidden defaults, the example says so and shows no figure that needs them', (key) => {
+    const text = textOf(key, raw())
+    expect(text).toContain(HIDDEN)
+    expect(text).not.toMatch(/NaN|Infinity/)
+  })
+
+  it('the lead time example names the closing spot window with a lead time of 2', () => {
+    const text = textOf(
+      'supplier.lead_time_days',
+      makeConfig((c) => {
+        c.supplier.lead_time_days = 2
+      }),
+    )
+    expect(text).toMatch(/Spot orders close after day 12/)
   })
 })

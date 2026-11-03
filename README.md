@@ -12,6 +12,19 @@ npm run dev        # http://localhost:5173, proxies /api and /socket.io to local
 npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build   # the gates ci.yml runs
 ```
 
+## Contracts with the backend
+
+- **No copied limits.** `MAX_ORDER`, `MAX_PEER_PRICE`, `MAX_DISPLAY_NAME` and every other hard limit come from `GET /config/defaults`:
+  `RequireBackend` runs `loadLimits()` once the backend is awake, and components read `useLimits()` (`src/api/config.ts`), which
+  never requests anything. Until they load a form checks only its lower bounds. Config controls take their bounds from the same
+  response's `fields`. Tests seed them from `src/__tests__/fixtures/config_defaults.json`, which is that response, regenerated from
+  the backend's `config_schema()` whenever it changes.
+- **Hidden defaults** (spec §9.3): a host config holds null for each risk whose field has `hidden_default`; the form shows
+  **Default (hidden)**, and the calculator and help examples say **Hidden until the game ends** where they would need it. The
+  results' `config` reveals the values; **Play again** copies the host's config from the store, never that one.
+- **Server figures only**: the tier cards show `refund_value_today` as sent (the Paid-price figure is the shipment's average price,
+  computed by the backend); the client computes no refund.
+
 ## Charts
 
 Every chart is a Chart.js chart inside a `ChartBox` (title, caption, a **Show table** toggle and an error fallback), built by a pure

@@ -1,5 +1,6 @@
-import { createElement, type ReactElement, type ReactNode } from 'react'
+import { createElement, useEffect, type ReactElement, type ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
+import { loadLimits } from '../api/config'
 import { useAuth } from '../auth/AuthContext'
 import { useBackendStatus } from '../contexts/BackendStatusContext'
 import { getShellComponent } from './registry'
@@ -25,6 +26,10 @@ export function RequireAuth({ children }: { children: ReactNode }): ReactElement
 
 export function RequireBackend({ children }: { children: ReactNode }): ReactElement {
   const { status } = useBackendStatus()
+  // Every page behind this guard may hold a form bounded by the server's limits (spec §13.6).
+  useEffect(() => {
+    if (status === 'awake') void loadLimits()
+  }, [status])
 
   if (status === 'awake') return <>{children}</>
   const wakeUp = getShellComponent('BackendWakeUp')

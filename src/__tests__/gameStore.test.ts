@@ -125,6 +125,7 @@ describe('INITIAL_STATE and reset (criterion 1)', () => {
     selectedDay: null,
     connectionError: null,
     lastError: null,
+    limits: null,
   }
 
   it('is exactly the documented state', () => {
@@ -147,6 +148,17 @@ describe('INITIAL_STATE and reset (criterion 1)', () => {
     expect(data()).not.toEqual(EXPECTED)
     S().reset()
     expect(data()).toEqual(EXPECTED)
+  })
+
+  it("reset() and a new room keep the server's limits: they belong to the server, not to a room (spec §13.6)", () => {
+    const limits = { MAX_ORDER: 9999, MAX_PEER_PRICE: 10000, MAX_DISPLAY_NAME: 24 }
+    S().setLimits(limits)
+    S().setRoom('ABC234', true)
+    expect(S().limits).toEqual(limits)
+    S().setRoom('XYZ789', false)
+    expect(S().limits).toEqual(limits)
+    S().reset()
+    expect(data()).toEqual({ ...EXPECTED, limits })
   })
 })
 

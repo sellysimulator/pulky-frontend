@@ -22,7 +22,7 @@ import {
   setSessionToken,
   setUiFlag,
 } from '../utils/storage'
-import { LIMITS } from '../types/game'
+import { SERVER_LIMITS } from './fixtures/serverConfig'
 
 function keysOf(area: Storage): string[] {
   const keys: string[] = []
@@ -185,12 +185,18 @@ describe('display name (spec 3.4)', () => {
     expect(getDisplayName()).toBe('Don Agave')
   })
 
-  it('clamps to MAX_DISPLAY_NAME and trims again', () => {
-    expect(LIMITS.MAX_DISPLAY_NAME).toBe(24)
-    setDisplayName('x'.repeat(40))
+  it("clamps to the server's MAX_DISPLAY_NAME and trims again", () => {
+    const max = SERVER_LIMITS.MAX_DISPLAY_NAME
+    expect(max).toBe(24)
+    setDisplayName('x'.repeat(40), max)
     expect(getDisplayName()).toBe('x'.repeat(24))
-    setDisplayName('a'.repeat(23) + ' bcd')
+    setDisplayName('a'.repeat(23) + ' bcd', max)
     expect(getDisplayName()).toBe('a'.repeat(23))
+  })
+
+  it('keeps the whole name while the server limits are not loaded (the server cuts it on join)', () => {
+    setDisplayName('x'.repeat(40))
+    expect(getDisplayName()).toBe('x'.repeat(40))
   })
 
   it('clears the stored name when nothing is left after sanitising', () => {

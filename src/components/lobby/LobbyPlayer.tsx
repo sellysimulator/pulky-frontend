@@ -1,5 +1,6 @@
 import { useState, type ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useLimits } from '../../api/config'
 import { join, leave } from '../../api/games'
 import { useGameStore } from '../../store/gameStore'
 import { getSessionToken, setDisplayName } from '../../utils/storage'
@@ -17,6 +18,7 @@ export default function LobbyPlayer({ roomCode }: { roomCode: string }): ReactEl
   const seatsTotal = useGameStore((s) => s.seatsTotal)
   const joinError = useGameStore((s) => s.joinError)
   const alerts = useGameStore((s) => s.alerts)
+  const limits = useLimits()
 
   // Pending until `joined` (myAlias set) or `join_error` (a new alert is raised with it).
   const [sentAt, setSentAt] = useState<unknown>(null)
@@ -24,7 +26,7 @@ export default function LobbyPlayer({ roomCode }: { roomCode: string }): ReactEl
 
   const handleSubmit = (name: string): void => {
     const trimmed = name.trim()
-    if (trimmed !== '') setDisplayName(trimmed)
+    if (trimmed !== '') setDisplayName(trimmed, limits?.MAX_DISPLAY_NAME ?? null)
     setSentAt(alerts)
     join(roomCode, trimmed || null, getSessionToken(roomCode))
   }

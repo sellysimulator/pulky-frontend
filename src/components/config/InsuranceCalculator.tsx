@@ -10,7 +10,7 @@ import {
   type BreakEvenInput,
   type RatioBadge,
 } from '../../game/configMath'
-import { INSURED_TIERS, type GameConfig, type InsuredTier } from '../../types/game'
+import { INSURED_TIERS, type ConfigFieldMeta, type GameConfig, type InsuredTier } from '../../types/game'
 import { INCOTERM_TIER_NAMES, formatMoney, formatPercent } from '../../utils/format'
 import { InlineAlert } from '../shared/AlertContainer'
 import Badge from '../shared/Badge'
@@ -21,12 +21,15 @@ import StatTile from '../shared/StatTile'
 import Switch from '../shared/Switch'
 import { DOCS } from './docs/entries'
 import InfoButton from './docs/InfoButton'
+import { CALCULATOR_HIDDEN_NOTE, HIDDEN_FIGURE } from './hiddenDefaults'
 
 interface InsuranceCalculatorProps {
   config: GameConfig
   onChange(patch: object): void
   readOnly: boolean
   issues?: Record<string, { kind: 'error' | 'warning'; message: string }>
+  /** `GET /config/defaults` field entries: the inputs' bounds come from the server (spec §13.9). */
+  fields?: Record<string, ConfigFieldMeta>
 }
 
 const VERDICTS: Record<RatioBadge, { tone: 'success' | 'info' | 'warning' | 'neutral'; icon: LucideIcon; text: string }> = {
@@ -36,23 +39,24 @@ const VERDICTS: Record<RatioBadge, { tone: 'success' | 'info' | 'warning' | 'neu
   no_risk: { tone: 'neutral', icon: CircleSlash, text: 'No risk configured' },
 }
 
+/** A break-even figure, or null while it would need a hidden default (spec §6.4). */
 interface TierRow {
   tier: InsuredTier
   name: string
   enabled: boolean
   fee: number
-  solo: number
-  shared: number
+  solo: number | null
+  shared: number | null
   refund: number
-  worstSolo: number
-  worstShared: number
+  worstSolo: number | null
+  worstShared: number | null
 }
 
 interface CaseRow {
   key: string
   transport: string
-  breakEven: number
-  worst: number
+  breakEven: number | null
+  worst: number | null
 }
 
 /** A draft value that is mid-edit (empty) counts as 0 so nothing here ever shows NaN or Infinity. */
@@ -60,10 +64,13 @@ function finite(value: number): number {
   return Number.isFinite(value) ? value : 0
 }
 
-function inputFor(config: GameConfig, shared: boolean): BreakEvenInput {
+/** Null while the failure chance or the loss share is a hidden default: the break-even fee would reveal it. */
+function inputFor(config: GameConfig, shared: boolean): BreakEvenInput | null {
+  const { failure_probability: p, loss_fraction: l } = config.transport
+  if (p === null || l === null) return null
   return {
-    failureProbability: finite(config.transport.failure_probability),
-    lossFraction: finite(config.transport.loss_fraction),
+    failureProbability: finite(p),
+    lossFraction: finite(l),
     shared,
     nRef: Math.max(1, finite(config.max_players)),
     referenceShipment: Math.max(1, finite(config.insurance.reference_shipment)),
@@ -85,14 +92,22 @@ function docLabel(path: string): string {
   return (DOCS[path] as (typeof DOCS)[string] | undefined)?.label ?? path
 }
 
-export default function InsuranceCalculator({ config, onChange, readOnly, issues = {} }: InsuranceCalculatorProps): ReactElement {
+function Hidden(): ReactElement {
+  return <span className="text-ink-muted">{HIDDEN_FIGURE}</span>
+}
+
+export default function InsuranceCalculator({ config, onChange, readOnly, issues = {}, fields = {} }: InsuranceCalculatorProps): ReactElement {
   const seats = config.max_players
   const solo = inputFor(config, false)
   const shared = inputFor(config, true)
   const current = config.transport.shared ? shared : solo
   const margin = finite(config.insurance.target_margin)
-  const p = finite(config.transport.failure_probability)
+  const p = config.transport.failure_probability === null ? null : finite(config.transport.failure_probability)
   const days = finite(config.duration_days)
+  const bounds = (path: string): { min?: number; max?: number } => {
+    const meta = fields[path] as ConfigFieldMeta | undefined
+    return { min: meta?.min ?? undefined, max: meta?.max ?? undefined }
+  }
 
   const rows: TierRow[] = INSURED_TIERS.map((tier) => {
     const t = config.insurance.tiers[tier]
@@ -101,16 +116,16 @@ export default function InsuranceCalculator({ config, onChange, readOnly, issues
       name: INCOTERM_TIER_NAMES[tier],
       enabled: t.enabled,
       fee: finite(t.fee),
-      solo: breakEvenFee(tier, solo),
-      shared: breakEvenFee(tier, shared),
-      refund: tier === 'ddp' ? solo.retailPrice : solo.basePrice,
-      worstSolo: worstSingleFailureLoss(tier, solo),
-      worstShared: worstSingleFailureLoss(tier, shared),
+      solo: solo === null ? null : breakEvenFee(tier, solo),
+      shared: shared === null ? null : breakEvenFee(tier, shared),
+      refund: tier === 'ddp' ? finite(config.demand.retail_price) : finite(config.supplier.base_price),
+      worstSolo: solo === null ? null : worstSingleFailureLoss(tier, solo),
+      worstShared: shared === null ? null : worstSingleFailureLoss(tier, shared),
     }
   })
 
   const outOfSync = rows.flatMap((row) => {
-    if (!row.enabled) return []
+    if (!row.enabled || current === null) return []
     const be = breakEvenFee(row.tier, current)
     if (be <= 0) return []
     if (Math.abs(row.fee - feeFromMargin(be, margin)) < 1e-9) return []
@@ -118,6 +133,7 @@ export default function InsuranceCalculator({ config, onChange, readOnly, issues
   })
 
   const setFees = (): void => {
+    if (current === null) return
     const tiers: Record<string, { fee: number }> = {}
     for (const row of rows) {
       if (row.enabled) tiers[row.tier] = { fee: feeFromMargin(breakEvenFee(row.tier, current), margin) }
@@ -158,8 +174,7 @@ export default function InsuranceCalculator({ config, onChange, readOnly, issues
           <NumberField
             label="Reference shipment (units)"
             kind="quantity"
-            min={1}
-            max={9999}
+            {...bounds('insurance.reference_shipment')}
             value={config.insurance.reference_shipment}
             readOnly={readOnly}
             error={errorAt('insurance.reference_shipment')}
@@ -172,8 +187,7 @@ export default function InsuranceCalculator({ config, onChange, readOnly, issues
           <NumberField
             label="Target margin"
             kind="decimal"
-            min={-0.5}
-            max={2}
+            {...bounds('insurance.target_margin')}
             value={config.insurance.target_margin}
             readOnly={readOnly}
             error={errorAt('insurance.target_margin')}
@@ -184,8 +198,11 @@ export default function InsuranceCalculator({ config, onChange, readOnly, issues
         </div>
       </div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-4">
-        <StatTile label="Chance of at least one failure" value={formatPercent(chanceOfAtLeastOneFailure(p, days))} />
-        <StatTile label="Expected failures" value={expectedFailures(p, days).toFixed(1)} />
+        <StatTile
+          label="Chance of at least one failure"
+          value={p === null ? HIDDEN_FIGURE : formatPercent(chanceOfAtLeastOneFailure(p, days))}
+        />
+        <StatTile label="Expected failures" value={p === null ? HIDDEN_FIGURE : expectedFailures(p, days).toFixed(1)} />
       </div>
       {rows.map((row) => {
         const cases: CaseRow[] = [
@@ -219,8 +236,7 @@ export default function InsuranceCalculator({ config, onChange, readOnly, issues
                   warning={warningAt(`insurance.tiers.${row.tier}.fee`)}
                   hideLabel
                   kind="money"
-                  min={0}
-                  max={10000}
+                  {...bounds(`insurance.tiers.${row.tier}.fee`)}
                   value={config.insurance.tiers[row.tier].fee}
                   readOnly={readOnly}
                   onChange={(v) => onChange({ insurance: { tiers: { [row.tier]: { fee: v } } } })}
@@ -241,14 +257,14 @@ export default function InsuranceCalculator({ config, onChange, readOnly, issues
                   key: 'break-even',
                   header: 'Break-even',
                   align: 'right',
-                  render: (c) => <span className={dim(row)}>{formatMoney(c.breakEven)}</span>,
+                  render: (c) => <span className={dim(row)}>{c.breakEven === null ? <Hidden /> : formatMoney(c.breakEven)}</span>,
                 },
                 {
                   key: 'verdict',
                   header: 'Verdict',
                   render: (c) => (
                     <span className={dim(row)}>
-                      <Verdict fee={row.fee} breakEven={c.breakEven} />
+                      {c.breakEven === null ? <Hidden /> : <Verdict fee={row.fee} breakEven={c.breakEven} />}
                     </span>
                   ),
                 },
@@ -256,7 +272,7 @@ export default function InsuranceCalculator({ config, onChange, readOnly, issues
                   key: 'worst',
                   header: 'Worst single failure',
                   align: 'right',
-                  render: (c) => <span className={dim(row)}>{formatMoney(c.worst)}</span>,
+                  render: (c) => <span className={dim(row)}>{c.worst === null ? <Hidden /> : formatMoney(c.worst)}</span>,
                 },
               ]}
               rows={cases}
@@ -272,10 +288,13 @@ export default function InsuranceCalculator({ config, onChange, readOnly, issues
           </InlineAlert>
         ))}
         {readOnly ? null : (
-          <div>
-            <Button variant="secondary" onClick={setFees}>
-              Set fees from margin
-            </Button>
+          <div className="flex flex-col gap-2">
+            <div>
+              <Button variant="secondary" onClick={setFees} disabled={current === null}>
+                Set fees from margin
+              </Button>
+            </div>
+            {current === null ? <p className="text-sm text-ink-muted">{CALCULATOR_HIDDEN_NOTE}</p> : null}
           </div>
         )}
       </div>

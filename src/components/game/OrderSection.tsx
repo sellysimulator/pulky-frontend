@@ -1,12 +1,11 @@
 import { FileClock, ShoppingCart, type LucideIcon } from 'lucide-react'
 import type { ReactElement, ReactNode } from 'react'
-import { LIMITS, WEEKDAYS, type DecidingView, type PlayerView, type Weekday } from '../../types/game'
-import { formatMoney, formatQty, weekdayLong } from '../../utils/format'
+import { useLimits } from '../../api/config'
+import { WEEKDAYS, type DecidingView, type PlayerView, type Weekday } from '../../types/game'
+import { formatMoney, weekdayLong } from '../../utils/format'
 import Badge from '../shared/Badge'
 import InfoTip from '../shared/InfoTip'
 import NumberField from '../shared/NumberField'
-
-export const ORDER_ERROR = `Orders must be whole numbers from 0 to ${formatQty(LIMITS.MAX_ORDER)}.`
 
 function weekdayOn(view: PlayerView, day: number): Weekday {
   const start = WEEKDAYS.indexOf(view.weekday)
@@ -80,6 +79,7 @@ function FuturesInfo({ view }: { view: PlayerView }): ReactElement {
 }
 
 export default function OrderSection({ kind, view, value, onChange, error, onFieldBlur, locked }: OrderSectionProps): ReactElement {
+  const limits = useLimits()
   const spot = kind === 'spot'
   const open = spot ? view.order_windows.spot_open : view.order_windows.futures_open
   const brief = view.brief
@@ -107,7 +107,7 @@ export default function OrderSection({ kind, view, value, onChange, error, onFie
             hideLabel
             kind="quantity"
             min={0}
-            max={LIMITS.MAX_ORDER}
+            max={limits?.MAX_ORDER}
             value={shown}
             onChange={onChange}
             disabled={!open}

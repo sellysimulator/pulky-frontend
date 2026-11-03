@@ -18,6 +18,8 @@ interface NumberFieldProps {
   hideLabel?: boolean
   id?: string
   name?: string
+  /** Shown while the field is empty, e.g. a hidden default (spec §9.3). */
+  placeholder?: string
 }
 
 /** What the input may hold while it is being typed, per kind. */
@@ -57,6 +59,7 @@ export default function NumberField({
   hideLabel = false,
   id,
   name,
+  placeholder,
 }: NumberFieldProps): ReactElement {
   const autoId = useId()
   const inputId = id ?? autoId
@@ -131,6 +134,7 @@ export default function NumberField({
           inputMode={kind === 'quantity' ? 'numeric' : 'decimal'}
           autoComplete="off"
           value={shown}
+          placeholder={placeholder}
           min={min}
           max={max}
           disabled={disabled}
@@ -144,7 +148,7 @@ export default function NumberField({
             setFocused(false)
             setDraft(null)
           }}
-          className="min-w-0 flex-1 bg-transparent text-right text-lg font-medium tabular-nums outline-none focus-visible:outline-none"
+          className="min-w-0 flex-1 bg-transparent text-right text-lg font-medium tabular-nums outline-none placeholder:text-sm placeholder:font-normal placeholder:text-ink-subtle focus-visible:outline-none"
         />
         {suffix ? <span className="text-base text-ink-subtle">{suffix}</span> : null}
       </div>

@@ -36,6 +36,7 @@ import {
   weekdayLong,
   weekdayShort,
 } from '../../../utils/format'
+import { HIDDEN_EXAMPLE } from '../hiddenDefaults'
 import { BarChart, Example, Formula, LineChart, List, Note, P, Table } from './primitives'
 
 export interface HelpEntry {
@@ -66,10 +67,22 @@ function averageMultiplier(cfg: GameConfig): number {
   return WEEKDAYS.reduce((sum, d) => sum + m[d], 0) / 7
 }
 
-function breakEvenInput(cfg: GameConfig, shared: boolean): BreakEvenInput {
+/** Spec §9.3: an example that needs a hidden default the host has not typed. */
+function hiddenExample(): ReactNode {
+  return (
+    <Example>
+      <P>{HIDDEN_EXAMPLE}</P>
+    </Example>
+  )
+}
+
+/** The break-even inputs, or null while the failure chance or the loss share is a hidden default. */
+function breakEvenInput(cfg: GameConfig, shared: boolean): BreakEvenInput | null {
+  const { failure_probability: p, loss_fraction: l } = cfg.transport
+  if (p === null || l === null) return null
   return {
-    failureProbability: cfg.transport.failure_probability,
-    lossFraction: cfg.transport.loss_fraction,
+    failureProbability: p,
+    lossFraction: l,
     shared,
     nRef: cfg.max_players,
     referenceShipment: cfg.insurance.reference_shipment,
@@ -229,8 +242,10 @@ function weekdayFormula(cfg: GameConfig): ReactNode {
 
 function tierRows(cfg: GameConfig, tier: InsuredTier): ReactNode {
   const fee = cfg.insurance.tiers[tier].fee
-  const columns = [false, true].map((shared) => {
-    const input = breakEvenInput(cfg, shared)
+  const solo = breakEvenInput(cfg, false)
+  const shared = breakEvenInput(cfg, true)
+  if (solo === null || shared === null) return <P>{HIDDEN_EXAMPLE}</P>
+  const columns = [solo, shared].map((input) => {
     const be = breakEvenFee(tier, input)
     const badge: RatioBadge = ratioBadge(fee, be)
     return { input, be, badge }
@@ -306,10 +321,12 @@ function lostUnitsFor(shipment: number, fraction: number): number {
 }
 
 function lossTable(cfg: GameConfig): ReactNode {
+  const loss = cfg.transport.loss_fraction
+  if (loss === null) return <P>{HIDDEN_EXAMPLE}</P>
   const ships = [60, 30, 10]
   const n = ships.length
-  const solo = ships.map((s) => lostUnitsFor(s, cfg.transport.loss_fraction))
-  const shared = ships.map((s) => lostUnitsFor(s, cfg.transport.loss_fraction / n))
+  const solo = ships.map((s) => lostUnitsFor(s, loss))
+  const shared = ships.map((s) => lostUnitsFor(s, loss / n))
   const sum = (a: number[]): number => a.reduce((x, y) => x + y, 0)
   return (
     <Table
@@ -318,7 +335,7 @@ function lossTable(cfg: GameConfig): ReactNode {
       rows={[
         ['Not shared', ...solo.map(String), String(sum(solo))],
         [
-          `Shared (N = ${n}, ${formatPercent(cfg.transport.loss_fraction / n)} each)`,
+          `Shared (N = ${n}, ${formatPercent(loss / n)} each)`,
           ...shared.map(String),
           String(sum(shared)),
         ],
@@ -504,7 +521,8 @@ function build(): Record<string, HelpEntry> {
     'reputation.waste_weight': {
       label: 'Waste weight (w)',
       formula: () => <Formula>{'day score = (1 − w) × fill + w × (1 − waste)'}</Formula>,
-      effect: 'A higher weight makes spoiled pulque hurt reputation more than backlog does.',
+      effect:
+        "The share of the day's score that spoiled pulque decides; the rest is decided by serving what is owed. Above 0.5, spoilage hurts reputation more than backlog; below 0.5, backlog hurts it more.",
       example: (cfg) => {
         const w = cfg.reputation.waste_weight
         const wastes = [0, 0.2, 0.5]
@@ -563,8 +581,10 @@ function build(): Record<string, HelpEntry> {
       formula: () => <Formula>{'about 95% of days fall within mean × N ± 1.96 × sd × N'}</Formula>,
       effect: 'A larger spread makes some days far shorter than others.',
       example: (cfg) => {
+        const sd = cfg.supplier.capacity_sd_per_player
+        if (sd === null) return hiddenExample()
         const mean = cfg.supplier.capacity_mean_per_player * cfg.max_players
-        const spread = 1.96 * cfg.supplier.capacity_sd_per_player * cfg.max_players
+        const spread = 1.96 * sd * cfg.max_players
         return (
           <Example>
             <P>{`About 95% of days the supplier can ship between ${num(Math.max(0, Math.round(mean - spread)))} and ${num(Math.round(mean + spread))} units.`}</P>
@@ -576,16 +596,20 @@ function build(): Record<string, HelpEntry> {
       label: 'Disruption chance per day',
       formula: () => <Formula>{'chance of at least one disruption = 1 − (1 − p)^days'}</Formula>,
       effect: "Raises the chance that a day's capacity is cut.",
-      example: (cfg) => (
-        <Example>
-          <List
-            items={[
-              `Chance of at least one disruption in ${cfg.duration_days} days: ${formatPercent(chanceOfAtLeastOneFailure(cfg.supplier.disruption_probability, cfg.duration_days))}.`,
-              `Expected disruptions: ${expectedFailures(cfg.supplier.disruption_probability, cfg.duration_days).toFixed(1)}.`,
-            ]}
-          />
-        </Example>
-      ),
+      example: (cfg) => {
+        const p = cfg.supplier.disruption_probability
+        if (p === null) return hiddenExample()
+        return (
+          <Example>
+            <List
+              items={[
+                `Chance of at least one disruption in ${cfg.duration_days} days: ${formatPercent(chanceOfAtLeastOneFailure(p, cfg.duration_days))}.`,
+                `Expected disruptions: ${expectedFailures(p, cfg.duration_days).toFixed(1)}.`,
+              ]}
+            />
+          </Example>
+        )
+      },
     },
     'supplier.disruption_factor': {
       label: 'Capacity on a disrupted day',
@@ -609,13 +633,28 @@ function build(): Record<string, HelpEntry> {
     },
     'supplier.lead_time_days': {
       label: 'Lead time (days)',
-      formula: () => <Formula>{'arrival day = order day + lead time'}</Formula>,
-      effect: 'Longer lead times force players to order further ahead of demand.',
+      formula: () => <Formula>{'arrival day = order day + lead time\nspot orders close for the last (lead time) days of the game'}</Formula>,
+      effect:
+        'At 0 an order arrives the day it is placed and spot orders never close. Longer lead times force players to order further ahead of demand, and close spot orders for the last days of the game.',
       example: (cfg) => {
-        const arrival = WEEKDAYS[cfg.supplier.lead_time_days % 7]
+        const l = cfg.supplier.lead_time_days
+        if (l === 0) {
+          return (
+            <Example>
+              <P>An order placed on Monday (day 1) arrives the same day. Nothing is ever in transit, and spot orders stay open to the last day.</P>
+            </Example>
+          )
+        }
+        const arrival = WEEKDAYS[l % 7]
+        const lastSpot = cfg.duration_days - l
         return (
           <Example>
-            <P>{`An order placed on Monday (day 1) arrives on ${weekdayLong(arrival)} (day ${1 + cfg.supplier.lead_time_days}).`}</P>
+            <List
+              items={[
+                `An order placed on Monday (day 1) arrives on ${weekdayLong(arrival)} (day ${1 + l}).`,
+                `Spot orders close after day ${lastSpot}: later ones would arrive after the game ends.`,
+              ]}
+            />
           </Example>
         )
       },
@@ -623,7 +662,7 @@ function build(): Record<string, HelpEntry> {
     'supplier.initial_pipeline_qty': {
       label: 'Initial pipeline (units per slot)',
       formula: () => <Formula>{'one free shipment arrives on each of days 1 … lead time'}</Formula>,
-      effect: 'Free units already on their way at the start, so day 1 is not empty.',
+      effect: 'Free units already on their way at the start, so the first days are not empty. No effect with a lead time of 0.',
       example: (cfg) => {
         const l = cfg.supplier.lead_time_days
         if (l === 0) {
@@ -808,33 +847,41 @@ function build(): Record<string, HelpEntry> {
       label: 'Refrigeration failure chance per day',
       formula: () => <Formula>{'chance of at least one failure = 1 − (1 − p)^days\nexpected failures = p × days'}</Formula>,
       effect: "Raises the chance that a day's shipments lose units.",
-      example: (cfg) => (
-        <Example>
-          <List
-            items={[
-              `Chance of at least one failure in ${cfg.duration_days} days: ${formatPercent(chanceOfAtLeastOneFailure(cfg.transport.failure_probability, cfg.duration_days))}.`,
-              `Expected failures: ${expectedFailures(cfg.transport.failure_probability, cfg.duration_days).toFixed(1)}.`,
-            ]}
-          />
-        </Example>
-      ),
+      example: (cfg) => {
+        const p = cfg.transport.failure_probability
+        if (p === null) return hiddenExample()
+        return (
+          <Example>
+            <List
+              items={[
+                `Chance of at least one failure in ${cfg.duration_days} days: ${formatPercent(chanceOfAtLeastOneFailure(p, cfg.duration_days))}.`,
+                `Expected failures: ${expectedFailures(p, cfg.duration_days).toFixed(1)}.`,
+              ]}
+            />
+          </Example>
+        )
+      },
     },
     'transport.loss_fraction': {
       label: 'Share of a shipment lost in a failure',
       formula: () => <Formula>{'lost = floor(shipped × L)  (floor(x + 1e-9))'}</Formula>,
       effect: 'How much of a shipment a failure destroys.',
-      example: (cfg) => (
-        <Example title="A 20-unit shipment">
-          <Table
-            caption="Units lost from a 20-unit shipment"
-            head={['', 'Units lost']}
-            rows={[
-              ['Alone', String(lostUnitsFor(20, cfg.transport.loss_fraction))],
-              [`Shared (N = ${cfg.max_players})`, String(lostUnitsFor(20, cfg.transport.loss_fraction / cfg.max_players))],
-            ]}
-          />
-        </Example>
-      ),
+      example: (cfg) => {
+        const loss = cfg.transport.loss_fraction
+        if (loss === null) return hiddenExample()
+        return (
+          <Example title="A 20-unit shipment">
+            <Table
+              caption="Units lost from a 20-unit shipment"
+              head={['', 'Units lost']}
+              rows={[
+                ['Alone', String(lostUnitsFor(20, loss))],
+                [`Shared (N = ${cfg.max_players})`, String(lostUnitsFor(20, loss / cfg.max_players))],
+              ]}
+            />
+          </Example>
+        )
+      },
     },
     ...tierEntries(),
     'insurance.target_margin': {
@@ -847,6 +894,7 @@ function build(): Record<string, HelpEntry> {
       ),
       example: (cfg) => {
         const input = breakEvenInput(cfg, cfg.transport.shared)
+        if (input === null) return hiddenExample()
         return (
           <Example title="Fees from margin">
             <Table
@@ -867,14 +915,16 @@ function build(): Record<string, HelpEntry> {
       effect: 'The typical shipment the calculator uses; small shipments can lose 0 units to rounding.',
       example: (cfg) => {
         const u = cfg.insurance.reference_shipment
+        const loss = cfg.transport.loss_fraction
+        if (loss === null) return hiddenExample()
         return (
           <Example>
             <Table
               caption={`Units lost from a ${u}-unit shipment`}
               head={['', 'Units lost']}
               rows={[
-                ['Not shared', String(lostUnitsFor(u, cfg.transport.loss_fraction))],
-                [`Shared (N = ${cfg.max_players})`, String(lostUnitsFor(u, cfg.transport.loss_fraction / cfg.max_players))],
+                ['Not shared', String(lostUnitsFor(u, loss))],
+                [`Shared (N = ${cfg.max_players})`, String(lostUnitsFor(u, loss / cfg.max_players))],
               ]}
             />
           </Example>
@@ -910,7 +960,7 @@ function build(): Record<string, HelpEntry> {
         <Formula>{'config_public = the five shown keys only\nsecret keys appear in no player payload'}</Formula>
       ),
       effect:
-        'Players see five settings: the retail price, the transport cost per unit, the conservation cost and its extra nights, and whether the peer market is on. They learn the rest by playing, from the brief, their cellar and their ledger, and never see the seed or the risk odds.',
+        "Players see five settings: the retail price, the transport cost per unit, the conservation cost and its extra nights, and whether the peer market is on. They learn the rest by playing, from the brief, their cellar and their ledger, and never see the seed or the risk odds. The risk odds' defaults are hidden from hosts too: their fields read Default (hidden) until the game ends, and the results reveal them.",
       example: () => (
         <Example>
           <P>Shown to players:</P>

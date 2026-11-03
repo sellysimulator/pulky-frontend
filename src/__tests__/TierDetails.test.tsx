@@ -58,10 +58,10 @@ const LABEL = {
 
 function makePlans(disabled: string[] = []) {
   const all = [
-    { tier: 'exw', label: LABEL.exw, enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
-    { tier: 'cip', label: LABEL.cip, enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
-    { tier: 'dap', label: LABEL.dap, enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.55 },
-    { tier: 'ddp', label: LABEL.ddp, enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 1.39 },
+    { tier: 'exw', label: LABEL.exw, enabled: true, refund_basis: 'none', refund_value_today: null, refund_shipment: null, fee_per_unit: 0 },
+    { tier: 'cip', label: LABEL.cip, enabled: true, refund_basis: 'paid', refund_value_today: 13.4, refund_shipment: null, fee_per_unit: 0.55 },
+    { tier: 'dap', label: LABEL.dap, enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, refund_shipment: null, fee_per_unit: 0.55 },
+    { tier: 'ddp', label: LABEL.ddp, enabled: true, refund_basis: 'retail', refund_value_today: 30, refund_shipment: null, fee_per_unit: 1.39 },
   ]
   return all.map((p) => (disabled.includes(p.tier) ? { ...p, enabled: false } : p))
 }
@@ -292,7 +292,11 @@ describe('tier details tooltip (acceptance criterion 8)', () => {
     expect(exw).toContain(squash('Refund per lost unit: $0.00'))
     expect(exw).toContain(squash("Fee: $0.00/unit · ~$0.00 for today's shipment"))
     const cip = tipText(`${LABEL.cip} details`)
-    expect(cip).toContain(squash("Refunds: What you paid: today's spot price for spot units, the base price for futures units"))
+    expect(cip).toContain(
+      squash(
+        "Refunds: What you paid, averaged over the shipment: spot units at today's spot price and futures units at the base price give one average price, and every lost unit is refunded at it",
+      ),
+    )
     expect(cip).toContain(squash('Refund per lost unit: $13.40'))
     expect(cip).toContain(squash("Fee: $0.55/unit · ~$22.00 for today's shipment"))
     const dap = tipText(`${LABEL.dap} details`)
@@ -315,6 +319,26 @@ describe('tier details tooltip (acceptance criterion 8)', () => {
     setField(spot(), 0)
     // shipmentMax = 10
     expect(tipText(`${LABEL.cip} details`)).toContain(squash("~$5.50 for today's shipment"))
+  })
+
+  it("spec §6.3 example: the Paid-price card shows the server's blended refund and the shipment it assumed, not today's spot price", () => {
+    // 20 spot units at $14.50 and 20 futures units at $12 average $13.25: 12 lost units are refunded $159, not $174.
+    const plans = makePlans().map((p) =>
+      p.tier === 'cip' ? { ...p, refund_value_today: 13.25, refund_shipment: { spot_units: 20, futures_units: 20 } } : p,
+    )
+    renderForm({ view: makeView({ plans }) })
+    const cip = tipText(`${LABEL.cip} details`)
+    expect(cip).toContain(
+      squash("Refund per lost unit: $13.25, the average price of today's shipment: 20 spot and 20 futures units"),
+    )
+    expect(cip).not.toContain(squash('$14.50'))
+  })
+
+  it('the Market-price card shows a refund value whenever the server knows it (lead time 0), and words otherwise', () => {
+    const known = makePlans().map((p) => (p.tier === 'dap' ? { ...p, refund_value_today: 13.4 } : p))
+    renderForm({ view: makeView({ plans: known }) })
+    expect(tipText(`${LABEL.dap} details`)).toContain(squash('Refund per lost unit: $13.40'))
+    expect(tipText(`${LABEL.dap} details`)).not.toContain(squash('Set on the arrival day'))
   })
 
   it("the Ship row's tooltip says Market-price insurance's refund swings with the market and Paid-price insurance's is fixed", () => {

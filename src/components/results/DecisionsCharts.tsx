@@ -9,6 +9,7 @@ import DataTable, { type Column } from '../shared/DataTable'
 import Legend from '../shared/Legend'
 import SectionCard from '../shared/SectionCard'
 import { buildPeerUnitsConfig } from './demandSupplyConfig'
+import RisksRevealed from './RisksRevealed'
 import type { PulqueriaResultView, ResultsView } from './resultsView'
 
 const ROW_PX = 40
@@ -301,12 +302,15 @@ function SpotPrice({ view }: { view: ResultsView }): ReactElement {
 export default function DecisionsCharts({ view }: { view: ResultsView }): ReactElement {
   return (
     <SectionCard title="5. Decisions">
-      <div className="grid gap-4 lg:grid-cols-2">
-        <CooperationVotes view={view} />
-        <TiersUsed view={view} />
-        <LotsConserved view={view} />
-        <PeerGroup view={view} />
-        <SpotPrice view={view} />
+      <div className="flex flex-col gap-6">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <CooperationVotes view={view} />
+          <TiersUsed view={view} />
+          <LotsConserved view={view} />
+          <PeerGroup view={view} />
+          <SpotPrice view={view} />
+        </div>
+        <RisksRevealed config={view.config} />
       </div>
     </SectionCard>
   )

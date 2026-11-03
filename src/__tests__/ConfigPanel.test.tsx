@@ -31,6 +31,7 @@ import ShownToPlayersBadge from '../components/config/ShownToPlayersBadge'
 import { DOCS } from '../components/config/docs/entries'
 import { INITIAL_STATE, useGameStore } from '../store/gameStore'
 import type { ConfigDefaultsResponse, GameConfig, ServerError } from '../types/game'
+import { withTypedRisks } from './fixtures/serverConfig'
 
 const defaults = JSON.parse(
   readFileSync(resolve(process.cwd(), 'src/__tests__/fixtures/config_defaults.json'), 'utf8'),
@@ -749,7 +750,9 @@ describe('Reset to defaults (acceptance 7)', () => {
 
 describe('calculator inside the panel (acceptance 9)', () => {
   it('Set fees from margin updates the draft and sends only the changed fee', async () => {
-    await mount({ config: cfg((c) => (c.insurance.tiers.cip.fee = 0.2)) })
+    // a host who typed the risks in: the calculator can then compute break-even
+    const typed = withTypedRisks(cfg((c) => (c.insurance.tiers.cip.fee = 0.2)))
+    await mount({ config: typed })
     fireEvent.click(screen.getByRole('button', { name: 'Set fees from margin' }))
     await advance(400)
     await advance(0)
@@ -767,6 +770,59 @@ describe('calculator inside the panel (acceptance 9)', () => {
     await advance(0)
     expect(vi.mocked(validateConfig).mock.calls[0][0]).toEqual(cfg((c) => (c.insurance.reference_shipment = 40)))
     expect((configUpdateCalls()[0][1] as { config: object }).config).toEqual({ insurance: { reference_shipment: 40 } })
+  })
+})
+
+describe('hidden defaults (spec §9.3, §13.9)', () => {
+  const HIDDEN_KEYS = Object.entries(defaults.fields)
+    .filter(([, f]) => f.hidden_default)
+    .map(([k]) => k)
+
+  it('shows each hidden default as Default (hidden), with no value, and says what a blank means', async () => {
+    await mount()
+    expect(HIDDEN_KEYS).toHaveLength(4)
+    for (const key of HIDDEN_KEYS) {
+      const field = control(key) as HTMLInputElement
+      expect(field).toHaveValue('')
+      expect(field).toHaveAttribute('placeholder', 'Default (hidden)')
+    }
+    expect(screen.getAllByText('Blank keeps the default, revealed when the game ends.')).toHaveLength(4)
+  })
+
+  it('a typed risk is sent; clearing it sends null, the default again', async () => {
+    await mount()
+    edit('transport.failure_probability', '0.2')
+    await advance(400)
+    await advance(0)
+    expect((configUpdateCalls()[0][1] as { config: object }).config).toEqual({ transport: { failure_probability: 0.2 } })
+    useGameStore.getState().applyConfigUpdated({ seq: 2, config: cfg((c) => (c.transport.failure_probability = 0.2)) })
+    await advance(0)
+    edit('transport.failure_probability', '')
+    await advance(400)
+    await advance(0)
+    expect((configUpdateCalls()[1][1] as { config: object }).config).toEqual({ transport: { failure_probability: null } })
+  })
+
+  it('Reset to defaults puts the hidden defaults back to null, never a value', async () => {
+    await mount({ config: withTypedRisks(cfg()) })
+    fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }))
+    await advance(0)
+    await advance(0)
+    const sent = (configUpdateCalls()[0][1] as { config: GameConfig }).config
+    expect(sent.transport.failure_probability).toBeNull()
+    expect(sent.supplier.capacity_sd_per_player).toBeNull()
+  })
+
+  it('disables the initial pipeline with a hint while the lead time is 0, and enables it with a lead time', async () => {
+    const hint = 'No effect with a lead time of 0: nothing is on its way at the start.'
+    const { unmount } = await mount({ config: cfg((c) => (c.supplier.lead_time_days = 0)) })
+    expect(control('supplier.initial_pipeline_qty')).toBeDisabled()
+    expect(screen.getByText(hint)).toBeInTheDocument()
+    unmount()
+    useGameStore.setState({ ...INITIAL_STATE })
+    await mount({ config: cfg((c) => (c.supplier.lead_time_days = 2)) })
+    expect(control('supplier.initial_pipeline_qty')).toBeEnabled()
+    expect(screen.queryByText(hint)).toBeNull()
   })
 })
 

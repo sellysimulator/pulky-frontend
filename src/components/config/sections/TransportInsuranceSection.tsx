@@ -7,7 +7,13 @@ export default function TransportInsuranceSection(props: SectionProps): ReactEle
   return (
     <div className="flex flex-col gap-6">
       <Knobs paths={SECTION_PATHS.transport} {...props} />
-      <InsuranceCalculator config={props.config} onChange={props.onPatch} readOnly={props.readOnly} issues={props.insuranceIssues} />
+      <InsuranceCalculator
+        config={props.config}
+        onChange={props.onPatch}
+        readOnly={props.readOnly}
+        issues={props.insuranceIssues}
+        fields={props.fields}
+      />
     </div>
   )
 }

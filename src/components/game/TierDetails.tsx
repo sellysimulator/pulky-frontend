@@ -1,20 +1,28 @@
 import type { ReactElement } from 'react'
 import type { IncotermTierPlan } from '../../types/game'
-import { INCOTERM_TIER_MEANINGS, formatMoney } from '../../utils/format'
+import { INCOTERM_TIER_MEANINGS, formatMoney, formatQty } from '../../utils/format'
 import { roundCents } from '../../utils/money'
 import InfoTip from '../shared/InfoTip'
 
 const BASIS_WORDS: Record<string, string> = {
   none: 'Nothing: you carry the risk',
-  paid: "What you paid: today's spot price for spot units, the base price for futures units",
+  paid: "What you paid, averaged over the shipment: spot units at today's spot price and futures units at the base price give one average price, and every lost unit is refunded at it",
   arrival_spot: 'The spot price on the arrival day',
   retail: 'The retail price',
 }
 
+/**
+ * Spec §6.3: the server's own figure (`refund_value_today`), what the engine would refund per lost unit; this
+ * card computes none. Market-price insurance's is null until the arrival day's price exists (a lead time of 1 or
+ * more); a Paid-price figure that depends on the spot order names the shipment it assumed.
+ */
 function refundPerUnit(plan: IncotermTierPlan): string {
   if (plan.refund_basis === 'none') return formatMoney(0)
-  if (plan.refund_basis === 'arrival_spot' || plan.refund_value_today === null) return 'Set on the arrival day'
-  return formatMoney(plan.refund_value_today)
+  if (plan.refund_value_today === null) return 'Set on the arrival day'
+  const value = formatMoney(plan.refund_value_today)
+  const shipment = plan.refund_shipment
+  if (shipment === null) return value
+  return `${value}, the average price of today's shipment: ${formatQty(shipment.spot_units)} spot and ${formatQty(shipment.futures_units)} futures units`
 }
 
 interface TierDetailsProps {

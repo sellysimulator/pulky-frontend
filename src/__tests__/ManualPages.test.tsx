@@ -37,11 +37,13 @@ import HostManualPage, { route as hostRoute } from '../pages/HostManualPage'
 import PlayerManualPage, { route as playerRoute } from '../pages/PlayerManualPage'
 import { getRoutes } from '../routes/registry'
 import { INCOTERM_TIER_MEANINGS } from '../utils/format'
+import { HIDDEN_DEFAULTS } from './fixtures/serverConfig'
 
 const DEFAULTS = JSON.parse(readFileSync(resolve(process.cwd(), 'src/__tests__/fixtures/config_defaults.json'), 'utf8')) as {
   config: {
-    supplier: { disruption_probability: number; spot_spread: number }
-    transport: { failure_probability: number; loss_fraction: number }
+    supplier: { spot_spread: number; base_price: number }
+    stock: { salvage_value: number }
+    demand: { backlog_penalty: number }
     insurance: { target_margin: number }
   }
 }
@@ -134,12 +136,12 @@ describe.each(MANUALS)('the $name manual', ({ path, Page, route }) => {
 
   it('never states the default of a setting players are not shown (spec §9.3)', () => {
     renderManual(Page)
-    const { supplier, transport, insurance } = DEFAULTS.config
+    const { supplier, insurance } = DEFAULTS.config
     const hidden = [
-      supplier.disruption_probability,
+      HIDDEN_DEFAULTS['supplier.disruption_probability'],
       supplier.spot_spread,
-      transport.failure_probability,
-      transport.loss_fraction,
+      HIDDEN_DEFAULTS['transport.failure_probability'],
+      HIDDEN_DEFAULTS['transport.loss_fraction'],
       insurance.target_margin,
     ]
     const body = text()
@@ -149,11 +151,70 @@ describe.each(MANUALS)('the $name manual', ({ path, Page, route }) => {
     }
   })
 
+  it('never quotes the base price, salvage price or backlog penalty players are not shown (spec §13.15)', () => {
+    renderManual(Page)
+    const { supplier, stock, demand } = DEFAULTS.config
+    const body = text()
+    for (const value of [supplier.base_price, stock.salvage_value, demand.backlog_penalty]) {
+      const [whole, cents] = value.toFixed(2).split('.')
+      // "$12", "$12.00" or "$1.50", but not "$12.40" or "$120"
+      const pattern = new RegExp(cents === '00' ? `\\$${whole}(\\.00)?(?![\\d.])` : `\\$${whole}\\.${cents}(?!\\d)`)
+      expect(`${value}: ${pattern.test(body)}`).toBe(`${value}: false`)
+    }
+    // and no example names a per-unit figure that adds up to the defaults either
+    expect(body).not.toContain('($60)')
+    expect(body).not.toContain('−$4.50')
+    expect(body).not.toContain('salvaged for $12')
+  })
+
   it('promises no timer or pause', () => {
     renderManual(Page)
     const body = text()
     expect(body).toMatch(/no timer/i)
     expect(body).not.toMatch(/countdown of|seconds (per|to) |time limit of|pause the game/i)
+  })
+})
+
+describe('the manuals agree with the engine (spec §13.15)', () => {
+  it('the player manual says what happens with a lead time of 0 and with one of 1 or more', () => {
+    renderManual(PlayerManualPage)
+    const body = text()
+    expect(body).toContain('Spot orders close near the end only when the host sets a lead time')
+    expect(body).toContain('with none, a spot order arrives the day you place it and spot stays open to the last day')
+    expect(body).toContain('It is there only when the host sets a lead time')
+    expect(body).toContain('A spot order arrives the same day, or after the lead time when the host sets one')
+    expect(body).not.toContain('Spot orders close the same way near the end')
+    expect(body).not.toContain('A spot order lands after the lead time')
+  })
+
+  it('the player manual states the rules the engine runs, not the old shortcuts', () => {
+    renderManual(PlayerManualPage)
+    const body = text()
+    // quality counts tonight: a lot with no fresh nights reads below its arrival quality on arrival
+    expect(body).toContain('a lot with no fresh nights reads below its arrival quality on the very day it arrives')
+    expect(body).not.toContain('keeps its arrival quality through its fresh period')
+    // holding cost is charged on what survives the night
+    expect(body).toContain('Units that spoiled overnight pay none')
+    expect(body).not.toContain('even if it survives')
+    // spare capacity goes largest order first, never "split" or "shared" by default
+    expect(body).toContain('the largest order first')
+    expect(body).not.toMatch(/splits what is left between the spot orders|spot orders share whatever is left/)
+    // reputation follows the day's score, and the recap arrow follows reputation
+    expect(body).toContain('reputation can still rise after a day with some backlog')
+    expect(body).toContain('The arrow says whether your reputation rose or fell that day')
+    // Paid-price insurance refunds one average for the shipment
+    expect(body).toContain('every lost unit is refunded at their average price, not at its own')
+    // every recap example is marked as made up
+    expect((body.match(/made-up numbers/g) ?? []).length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('the host manual explains the hidden defaults and never blames a lead time it may not have', () => {
+    renderManual(HostManualPage)
+    const body = text()
+    expect(body).toContain('Default (hidden)')
+    expect(body).toContain('The results reveal the values the game ran with')
+    expect(body).toContain('Hidden until the game ends')
+    expect(body).not.toContain('Nobody was careless: lead time, perishability and scarce supply')
   })
 })
 

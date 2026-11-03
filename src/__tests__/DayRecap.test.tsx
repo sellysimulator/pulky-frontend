@@ -150,8 +150,8 @@ export function makeView(over: ViewOver = {}): PlayerView {
     cash: 6120,
     cumulative_profit: 0,
     tier_plans: [
-      { tier: 'exw', label: 'No insurance — you carry the risk', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
-      { tier: 'cip', label: 'Paid-price insurance — refund what you paid', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
+      { tier: 'exw', label: 'No insurance — you carry the risk', enabled: true, refund_basis: 'none', refund_value_today: null, refund_shipment: null, fee_per_unit: 0 },
+      { tier: 'cip', label: 'Paid-price insurance — refund what you paid', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, refund_shipment: null, fee_per_unit: 0.55 },
     ],
     order_windows: {
       spot_open: true,
@@ -549,11 +549,26 @@ describe('DayRecap events', () => {
     expect(screen.queryByText(/salvaged/)).toBeNull()
   })
 
-  it('6: backlog with its penalty', () => {
-    withRecord({ backlog_end: 3, cost_backlog: 4.5 })
+  it('6: backlog with its penalty, and the arrow of a fall in reputation', () => {
+    withRecord({ backlog_end: 3, cost_backlog: 4.5, reputation_open: 0.62, reputation_end: 0.55 })
     expect(
       openRecap().getByText('3 units of demand went into backlog (−$4.50 penalty; reputation ▼).'),
     ).toBeInTheDocument()
+  })
+
+  it('6 (spec §7.6 example): backlog on a day reputation rose shows ▲, never ▼', () => {
+    // Reputation 0.50, 20% of what was owed unserved, no waste: 0.7 × 0.5 + 0.3 × 0.86 = 0.608.
+    withRecord({ backlog_end: 10, cost_backlog: 15, reputation_open: 0.5, reputation_end: 0.608 })
+    const recap = openRecap()
+    expect(recap.getByText('10 units of demand went into backlog (−$15.00 penalty; reputation ▲).')).toBeInTheDocument()
+    expect(recap.queryByText(/reputation ▼/)).toBeNull()
+  })
+
+  it('6: backlog on a day reputation did not move at two decimals shows no arrow', () => {
+    withRecord({ backlog_end: 2, cost_backlog: 3, reputation_open: 0.6, reputation_end: 0.6000000000000001 })
+    const recap = openRecap()
+    expect(recap.getByText('2 units of demand went into backlog (−$3.00 penalty).')).toBeInTheDocument()
+    expect(recap.queryByText(/reputation [▲▼]/)).toBeNull()
   })
 
   it('7: supplier short, all covered, with one sub-line per buy trade in record order and names not aliases', () => {

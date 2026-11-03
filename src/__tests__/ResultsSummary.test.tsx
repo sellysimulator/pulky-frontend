@@ -56,6 +56,7 @@ import { INSURANCE_TIER_COLORS } from '../components/charts/chartSetup'
 import { formatMoney, formatPercent } from '../utils/format'
 import { getHostSecret, getOrCreateGuestId, markGamePlayed, setSessionToken } from '../utils/storage'
 import { GAME_ID, NAMES, PEAK_DAYS, ROOM, makeView, withoutPeer } from './fixtures/results'
+import { DEFAULTS_RESPONSE, HIDDEN_DEFAULTS, withTypedRisks } from './fixtures/serverConfig'
 import { FLOWS_BY_ALIAS, expectedBands, makeFlowView } from './fixtures/resultsFlow'
 import {
   allCharts,
@@ -451,17 +452,46 @@ describe('block 6: host actions', () => {
 })
 
 describe('Debrief notes', () => {
-  const POINTS = [
+  const COMMON = [
     'Who made the most profit, and who wasted the most? Were they the same players?',
-    'Look at the chart: did deliveries rise before Thursday or after? Lead time and futures exist so you can be early.',
     'Every spoiled unit was paid for twice: its price, and the reputation it cost.',
-    'Backlog lost reputation, and reputation is tomorrow\'s share of demand. Rivals gained what you lost.',
+    "Backlog lowered the day's score, so reputation ended below where a clean day would have left it, and reputation is tomorrow's share of demand. Rivals gained what you gave up.",
     'Futures never beat spot on price on average; they win on availability on short days.',
     'Insurance: did refunds outweigh fees? Was sharing on, and what did that do to its value?',
     'Cooperation: on how many days did everyone agree, and who got served on short days?',
     'Peer market: who sold to whom on short days, and at what price? Did selling old units beat letting them spoil, and did any seller create its own backlog?',
-    'Nobody was careless: lead time, perishability and scarce supply produced these outcomes.',
   ]
+  /** Spec §13.8: points 2 and 9 follow the game's lead time; the rest never change. */
+  function points(chart: string, careless: string): string[] {
+    return [COMMON[0], chart, ...COMMON.slice(1), careless]
+  }
+  const WITH_LEAD = points(
+    'Look at the chart: did deliveries rise before Thursday or after? Lead time and futures exist so you can be early.',
+    'Nobody was careless: lead time, perishability and scarce supply produced these outcomes.',
+  )
+  const SAME_DAY = points(
+    'Look at the chart: did deliveries rise before Thursday or after? Deliveries arrived the day they shipped, but futures had to be bought days ahead.',
+    'Nobody was careless: perishability, uncertain demand and scarce supply produced these outcomes.',
+  )
+  const UNKNOWN = points(
+    'Look at the chart: did deliveries rise before Thursday or after? Futures exist so you can be early.',
+    'Nobody was careless: perishability, uncertain demand and scarce supply produced these outcomes.',
+  )
+
+  async function openNotes(view: ResultsView): Promise<string[]> {
+    renderSummary({ view, viewer: HOST })
+    await userEvent.click(screen.getByText('Debrief notes'))
+    const details = screen.getByText('Debrief notes').closest('details')!
+    expect(details.open).toBe(true)
+    const list = details.querySelector('ol')!
+    expect(list).not.toBeNull()
+    return Array.from(list.querySelectorAll(':scope > li')).map((li) => li.textContent?.trim() ?? '')
+  }
+
+  function withLeadTime(days: number): ResultsView {
+    const config = withTypedRisks(structuredClone(DEFAULTS_RESPONSE.config))
+    return { ...makeView(), config: { ...config, supplier: { ...config.supplier, lead_time_days: days } } }
+  }
 
   it('is a collapsible, closed by default', () => {
     renderSummary({ viewer: HOST })
@@ -470,16 +500,41 @@ describe('Debrief notes', () => {
     expect(details.open).toBe(false)
   })
 
-  it('opens on click and holds the nine talking points, verbatim, as a numbered list', async () => {
-    renderSummary({ viewer: HOST })
-    await userEvent.click(screen.getByText('Debrief notes'))
-    const details = screen.getByText('Debrief notes').closest('details')!
-    expect(details.open).toBe(true)
-    const list = details.querySelector('ol')!
-    expect(list).not.toBeNull()
-    const items = Array.from(list.querySelectorAll(':scope > li')).map((li) => li.textContent?.trim())
-    expect(items).toEqual(POINTS)
+  it('with a lead time, names it as a cause: nine talking points, verbatim, as a numbered list', async () => {
+    const items = await openNotes(withLeadTime(2))
+    expect(items).toEqual(WITH_LEAD)
     expect(items).toHaveLength(9)
+  })
+
+  it('with a lead time of 0, never names the lead time as a cause', async () => {
+    const items = await openNotes(withLeadTime(0))
+    expect(items).toEqual(SAME_DAY)
+    expect(items.join(' ')).not.toMatch(/lead time/i)
+  })
+
+  it('without a config (an older payload), names neither case', async () => {
+    const items = await openNotes(makeView())
+    expect(items).toEqual(UNKNOWN)
+    expect(items.join(' ')).not.toMatch(/lead time/i)
+  })
+})
+
+describe('the risks, revealed (spec §9.3, §13.8 block 5)', () => {
+  it('shows everyone the four hidden-default risks the game ran with', () => {
+    const config = withTypedRisks(structuredClone(DEFAULTS_RESPONSE.config))
+    renderSummary({ view: { ...makeView(), config }, viewer: PLAYER })
+    const table = screen.getByRole('table', { name: 'The risks, revealed' })
+    const text = (table.textContent ?? '').replace(/\s+/g, ' ')
+    const pct = (v: number): string => `${Math.round(v * 100)}%`
+    expect(text).toContain(`Refrigeration failure chance per day${pct(HIDDEN_DEFAULTS['transport.failure_probability'])}`)
+    expect(text).toContain(`Share of a shipment lost in a failure${pct(HIDDEN_DEFAULTS['transport.loss_fraction'])}`)
+    expect(text).toContain(`Disruption chance per day${pct(HIDDEN_DEFAULTS['supplier.disruption_probability'])}`)
+    expect(text).toContain(`Capacity per player (sd)${HIDDEN_DEFAULTS['supplier.capacity_sd_per_player']} units`)
+  })
+
+  it('is not rendered when the payload carries no config', () => {
+    renderSummary({ viewer: PLAYER })
+    expect(screen.queryByText('The risks, revealed')).toBeNull()
   })
 })
 

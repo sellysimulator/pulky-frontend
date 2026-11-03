@@ -19,14 +19,17 @@ export type RoomState = 'lobby' | 'configuring' | 'running' | 'finished'
 export type Phase = 'deciding' | 'finished'
 export type TradeSide = 'buy' | 'sell'
 
-/** Hard limits the UI needs (spec §9.2). */
-export const LIMITS = {
-  MAX_PLAYERS: 12,
-  MAX_ORDER: 9999,
-  MAX_DISPLAY_NAME: 24,
-  MAX_CONSERVE_LOTS: 30,
-  MAX_PEER_PRICE: 10000,
-} as const
+/**
+ * The backend's hard limits (spec §9.2), as `GET /config/defaults` serves them in
+ * `limits`. The client holds no copy: `useLimits()` (src/api/config.ts) reads them
+ * into the store (spec §13.6).
+ */
+export interface Limits {
+  MAX_ORDER: number
+  MAX_PEER_PRICE: number
+  MAX_DISPLAY_NAME: number
+  [name: string]: number
+}
 
 /** Spec §9.3's five shown dot paths, in section 04's order. */
 export const PLAYER_CONFIG_KEYS: readonly string[] = [
@@ -75,8 +78,10 @@ export interface GameConfig {
     base_price: number
     spot_spread: number
     capacity_mean_per_player: number
-    capacity_sd_per_player: number
-    disruption_probability: number
+    /** Null in a host's config: the hidden default (spec §9.3). */
+    capacity_sd_per_player: number | null
+    /** Null in a host's config: the hidden default (spec §9.3). */
+    disruption_probability: number | null
     disruption_factor: number
     lead_time_days: number
     initial_pipeline_qty: number
@@ -101,8 +106,10 @@ export interface GameConfig {
   transport: {
     unit_cost: number
     shared: boolean
-    failure_probability: number
-    loss_fraction: number
+    /** Null in a host's config: the hidden default (spec §9.3). */
+    failure_probability: number | null
+    /** Null in a host's config: the hidden default (spec §9.3). */
+    loss_fraction: number | null
   }
   insurance: {
     tiers: {
@@ -132,12 +139,14 @@ export interface ConfigFieldMeta {
   max: number | null
   nullable: boolean
   players: 'shown' | 'not_shown' | 'secret'
+  /** A risk whose default no host sees before the game ends; null in the config stands for it (spec §9.3). */
+  hidden_default: boolean
 }
 
 export interface ConfigDefaultsResponse {
   config: GameConfig
   fields: Record<string, ConfigFieldMeta>
-  limits: Record<string, number>
+  limits: Limits
 }
 
 export interface FieldIssue {
@@ -356,7 +365,10 @@ export interface IncotermTierPlan {
   label: string
   enabled: boolean
   refund_basis: string
+  /** What the engine would refund per lost unit of today's shipment, computed by the server (spec §6.3). */
   refund_value_today: number | null
+  /** The shipment `refund_value_today` assumed, when it depends on the spot order (Paid-price with futures due). */
+  refund_shipment: { spot_units: number; futures_units: number } | null
   fee_per_unit: number
 }
 
@@ -629,6 +641,8 @@ export interface ResultsResponse {
   finished_at: string
   leaderboard: LeaderboardRow[]
   stats: GameStats
+  /** The full config the game ran with, the hidden defaults revealed (spec §9.3). */
+  config?: GameConfig
 }
 
 export interface MyGameResponse extends ResultsResponse {
@@ -785,6 +799,8 @@ export interface GameFinishedPayload {
   ended_early: boolean
   leaderboard: LeaderboardRow[]
   stats: GameStats
+  /** The full config the game ran with, the hidden defaults revealed (spec §9.3). */
+  config?: GameConfig
 }
 
 export interface GamePersistedPayload {

@@ -20,6 +20,7 @@ import {
   withoutPeer,
 } from './fixtures/results'
 import { FLOWS_BY_ALIAS, withFlowInStats } from './fixtures/resultsFlow'
+import { DEFAULTS_RESPONSE, withTypedRisks } from './fixtures/serverConfig'
 
 type Dict = Record<string, unknown>
 
@@ -43,6 +44,17 @@ describe('the same game from the two sources (criterion 2)', () => {
   it('matches the field-by-field oracle on both paths', () => {
     const expected = asDict(makeView())
     for (const view of [live(), stored()]) expect(withoutDates(view)).toEqual(expected)
+  })
+
+  it('carries the revealed config from both sources alike, and none when the payload has none (spec §9.3)', () => {
+    const config = withTypedRisks(structuredClone(DEFAULTS_RESPONSE.config))
+    const a = live({ ...makeFinished(), config })
+    const b = stored({ ...makeResponse(), config })
+    expect(a.config).toEqual(config)
+    expect(b.config).toEqual(config)
+    expect(withoutDates(a)).toEqual(withoutDates(b))
+    expect('config' in live()).toBe(false)
+    expect('config' in stored()).toBe(false)
   })
 
   it('sets started_at and finished_at only from a response', () => {

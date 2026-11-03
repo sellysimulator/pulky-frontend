@@ -66,6 +66,18 @@ interface EventLine {
 
 const TONES = { bad: TONE_INK.danger, warn: TONE_INK.warning }
 
+/**
+ * Spec §13.7: the day's change in reputation, read from the record at the two decimals the screen shows: ▲ when
+ * it rose, ▼ when it fell, null when it did not move. Backlog alone never sets it (spec §7.6).
+ */
+function reputationArrow(r: Pick<DayRecord, 'reputation_open' | 'reputation_end'>): '▲' | '▼' | null {
+  const open = Number(r.reputation_open.toFixed(2))
+  const end = Number(r.reputation_end.toFixed(2))
+  if (end > open) return '▲'
+  if (end < open) return '▼'
+  return null
+}
+
 /** The events of the day, in spec §13.7's order, each only when its condition holds. */
 function eventsOf(r: DayRecord, view: PlayerView, publicHistory: PublicDayResults[], participants: Participant[]): EventLine[] {
   const nameOf = (alias: string): string => participants.find((p) => p.alias === alias)?.display_name ?? alias
@@ -122,11 +134,13 @@ function eventsOf(r: DayRecord, view: PlayerView, publicHistory: PublicDayResult
     })
   }
   if (r.backlog_end > 0) {
+    const arrow = reputationArrow(r)
+    const reputation = arrow === null ? '' : `; reputation ${arrow}`
     events.push({
       key: 'backlog',
       icon: ClockAlert,
       tone: 'bad',
-      text: `${formatQty(r.backlog_end)} units of demand went into backlog (−${formatMoney(r.cost_backlog)} penalty; reputation ▼).`,
+      text: `${formatQty(r.backlog_end)} units of demand went into backlog (−${formatMoney(r.cost_backlog)} penalty${reputation}).`,
     })
   }
   if (r.shortfall_spot > 0) {

@@ -6,11 +6,13 @@
  */
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DecisionForm from '../components/game/DecisionForm'
+import { useGameStore } from '../store/gameStore'
 
 
 import type { Decision, PlayerView, PublicConfig, QualityGuideRow } from '../types/game'
+import { SERVER_LIMITS, seedServerLimits } from './fixtures/serverConfig'
 
 type Props = React.ComponentProps<typeof DecisionForm>
 
@@ -53,10 +55,10 @@ interface ViewOverrides {
 
 function makePlans(disabled: string[] = []) {
   const all = [
-    { tier: 'exw', label: 'EXW', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
-    { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
-    { tier: 'dap', label: 'DAP', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.55 },
-    { tier: 'ddp', label: 'DDP', enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 1.39 },
+    { tier: 'exw', label: 'EXW', enabled: true, refund_basis: 'none', refund_value_today: null, refund_shipment: null, fee_per_unit: 0 },
+    { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, refund_shipment: null, fee_per_unit: 0.55 },
+    { tier: 'dap', label: 'DAP', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, refund_shipment: null, fee_per_unit: 0.55 },
+    { tier: 'ddp', label: 'DDP', enabled: true, refund_basis: 'retail', refund_value_today: 30, refund_shipment: null, fee_per_unit: 1.39 },
   ]
   return all.map((p) => (disabled.includes(p.tier) ? { ...p, enabled: false } : p))
 }
@@ -194,6 +196,13 @@ function described(el: HTMLElement): string {
 
 const MSG_QTY = 'Orders must be whole numbers from 0 to 9,999.'
 
+// Spec §13.6: the form's upper bounds are the server's, loaded once the backend is awake.
+beforeEach(seedServerLimits)
+
+function RICH_VIEW(): PlayerView {
+  return makeView({ cash: 1e9 })
+}
+
 const FOCUSABLE =
   'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, a[href], [tabindex]:not([tabindex="-1"])'
 
@@ -230,6 +239,14 @@ describe('layout (acceptance criterion 1)', () => {
     for (const name of ['Buy from Supplier', 'Buy from Players', 'Futures', 'Shipping insurance', 'Conserve', 'Sell to Players', 'Equal Supply']) {
       expect(tipText(name).length).toBeGreaterThan(20)
     }
+  })
+
+  it('Buy from Players says only a spot shortfall can be bought from rivals, never a futures one (spec §5.7)', () => {
+    renderForm()
+    const tip = tipText('Buy from Players')
+    expect(tip).toContain(squash('If the supplier fills only part of your spot order, buy the missing spot units today'))
+    expect(tip).toContain(squash('Futures the supplier cannot ship are refunded, not bought from rivals.'))
+    expect(tip).not.toContain(squash('cannot fill your whole order'))
   })
 
   it('renders six rows without If short and Sell when the peer market is off', () => {
@@ -305,12 +322,44 @@ describe('layout (acceptance criterion 1)', () => {
     expect(screen.getByText('Last day to buy').closest('[class*="warning"]')).not.toBeNull()
   })
 
-  it('bounds the quantity fields at 0..9999', () => {
+  it("bounds the quantity fields at 0..MAX_ORDER, the server's limit (spec §13.6)", () => {
     renderForm()
+    expect(SERVER_LIMITS.MAX_ORDER).toBe(9999)
     expect(spot()).toHaveAttribute('min', '0')
     expect(spot()).toHaveAttribute('max', '9999')
     expect(futures()).toHaveAttribute('min', '0')
     expect(futures()).toHaveAttribute('max', '9999')
+  })
+
+  it('takes the upper bound from the store: a different server limit moves it, and none is shown before they load', () => {
+    useGameStore.setState({ limits: { ...SERVER_LIMITS, MAX_ORDER: 500 } })
+    const { unmount } = renderForm({ view: RICH_VIEW() })
+    expect(spot()).toHaveAttribute('max', '500')
+    setField(spot(), '501')
+    blur(spot())
+    expect(screen.getByText('Orders must be whole numbers from 0 to 500.')).toBeInTheDocument()
+    unmount()
+    useGameStore.setState({ limits: null })
+    renderForm({ view: RICH_VIEW() })
+    expect(spot()).not.toHaveAttribute('max')
+    setField(spot(), '10000')
+    blur(spot())
+    expect(spot()).not.toHaveAttribute('aria-invalid')
+    setField(spot(), '')
+    blur(spot())
+    expect(screen.getByText('Orders must be whole numbers, 0 or more.')).toBeInTheDocument()
+  })
+
+  it('refuses a negative quantity: a minus sign never reaches the spot, futures or peer fields', async () => {
+    const { onSubmit } = renderForm({ view: RICH_VIEW() })
+    for (const field of [spot(), futures()]) {
+      setField(field, '-5')
+      expect(field).not.toHaveValue('-5')
+    }
+    await userEvent.setup().click(submitBtn())
+    const sent = onSubmit.mock.calls[0][0] as Decision
+    expect(sent.order_spot).toBeGreaterThanOrEqual(0)
+    expect(sent.order_futures).toBeGreaterThanOrEqual(0)
   })
 })
 
@@ -592,7 +641,7 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
   })
 })
 
-const RICH = makeView({ cash: 1e9 }) // an order of 10,000 units must not also be over the cash
+const RICH = RICH_VIEW() // an order of 10,000 units must not also be over the cash
 
 describe('quantity validity (acceptance criteria 5 and 16)', () => {
   it.each([

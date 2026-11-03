@@ -83,10 +83,10 @@ function makeView(o: Overrides = {}): PlayerView {
     cash: 6120,
     cumulative_profit: 0,
     tier_plans: [
-      { tier: 'exw', label: 'No insurance — you carry the risk', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
-      { tier: 'cip', label: 'Paid-price insurance — refund what you paid', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
-      { tier: 'dap', label: 'Market-price insurance — refund at the arrival-day spot price', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.55 },
-      { tier: 'ddp', label: 'Retail-price insurance — refund at the retail price', enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 1.39 },
+      { tier: 'exw', label: 'No insurance — you carry the risk', enabled: true, refund_basis: 'none', refund_value_today: null, refund_shipment: null, fee_per_unit: 0 },
+      { tier: 'cip', label: 'Paid-price insurance — refund what you paid', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, refund_shipment: null, fee_per_unit: 0.55 },
+      { tier: 'dap', label: 'Market-price insurance — refund at the arrival-day spot price', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, refund_shipment: null, fee_per_unit: 0.55 },
+      { tier: 'ddp', label: 'Retail-price insurance — refund at the retail price', enabled: true, refund_basis: 'retail', refund_value_today: 30, refund_shipment: null, fee_per_unit: 1.39 },
     ],
     order_windows: {
       spot_open: true,

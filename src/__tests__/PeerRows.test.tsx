@@ -4,10 +4,14 @@
  */
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DecisionForm from '../components/game/DecisionForm'
 import { formatQualityGuide, QUALITY_GUIDE_NOTE } from '../utils/format'
 import type { Decision, PlayerView, PublicConfig, QualityGuideRow } from '../types/game'
+import { seedServerLimits } from './fixtures/serverConfig'
+
+// Spec §13.6: the form's upper bounds are the server's, loaded once the backend is awake.
+beforeEach(seedServerLimits)
 
 type Props = React.ComponentProps<typeof DecisionForm>
 
@@ -50,10 +54,10 @@ interface ViewOverrides {
 
 function makePlans(disabled: string[] = []) {
   const all = [
-    { tier: 'exw', label: 'No insurance — you carry the risk', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
-    { tier: 'cip', label: 'Paid-price insurance — refund what you paid', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
-    { tier: 'dap', label: 'Market-price insurance — refund at the arrival-day spot price', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, fee_per_unit: 0.55 },
-    { tier: 'ddp', label: 'Retail-price insurance — refund at the retail price', enabled: true, refund_basis: 'retail', refund_value_today: 30, fee_per_unit: 1.39 },
+    { tier: 'exw', label: 'No insurance — you carry the risk', enabled: true, refund_basis: 'none', refund_value_today: null, refund_shipment: null, fee_per_unit: 0 },
+    { tier: 'cip', label: 'Paid-price insurance — refund what you paid', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, refund_shipment: null, fee_per_unit: 0.55 },
+    { tier: 'dap', label: 'Market-price insurance — refund at the arrival-day spot price', enabled: true, refund_basis: 'arrival_spot', refund_value_today: null, refund_shipment: null, fee_per_unit: 0.55 },
+    { tier: 'ddp', label: 'Retail-price insurance — refund at the retail price', enabled: true, refund_basis: 'retail', refund_value_today: 30, refund_shipment: null, fee_per_unit: 1.39 },
   ]
   return all.map((p) => (disabled.includes(p.tier) ? { ...p, enabled: false } : p))
 }
@@ -346,6 +350,18 @@ describe('ticking and unticking (failure mode 10)', () => {
     expect(sellQuality()).toHaveAttribute('max', '100')
     expect(sellUnits()).toHaveAttribute('min', '1')
     expect(sellUnits()).toHaveAttribute('max', '9999')
+  })
+
+  it('refuses a negative price or unit count: a minus sign never reaches the peer fields', () => {
+    renderForm()
+    for (const box of [buyBox(), sellBox()]) if (!(box as HTMLInputElement).checked) fireEvent.click(box)
+    for (const field of [buyPrice(), sellPrice(), sellUnits()]) {
+      expect(field).toBeEnabled()
+      setField(field, '-15')
+      expect(field).not.toHaveValue('-15')
+      setField(field, '15')
+      expect(field).toHaveValue('15') // the field is live: only the minus was refused
+    }
   })
 })
 

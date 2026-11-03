@@ -9,13 +9,15 @@ vi.mock('../../firebase', () => ({ auth: { currentUser: null }, googleProvider: 
 import InsuranceCalculator from '../components/config/InsuranceCalculator'
 import { DOCS } from '../components/config/docs/entries'
 import type { ConfigDefaultsResponse, GameConfig } from '../types/game'
+import { withTypedRisks } from './fixtures/serverConfig'
 
 const defaults = JSON.parse(
   readFileSync(resolve(process.cwd(), 'src/__tests__/fixtures/config_defaults.json'), 'utf8'),
 ) as ConfigDefaultsResponse
 
+/** The defaults with the risk odds typed in by the host: every figure of the calculator can then be shown. */
 function cfg(mut: (c: GameConfig) => void = () => {}): GameConfig {
-  const c = structuredClone(defaults.config)
+  const c = withTypedRisks(structuredClone(defaults.config))
   mut(c)
   return c
 }
@@ -24,7 +26,9 @@ type Issues = Record<string, { kind: 'error' | 'warning'; message: string }>
 
 function mount(config: GameConfig, readOnly = false, issues?: Issues) {
   const onChange = vi.fn()
-  const view = render(<InsuranceCalculator config={config} onChange={onChange} readOnly={readOnly} issues={issues} />)
+  const view = render(
+    <InsuranceCalculator config={config} onChange={onChange} readOnly={readOnly} issues={issues} fields={defaults.fields} />,
+  )
   return { onChange, ...view }
 }
 
@@ -419,5 +423,44 @@ describe('heading (plan 25 §3.4a)', () => {
   it('the calculator card is headed Insurance calculator', () => {
     mount(cfg())
     expect(screen.getByText('Insurance calculator')).toBeInTheDocument()
+  })
+})
+
+describe('hidden risks (spec §6.4, §9.3)', () => {
+  const HIDDEN = 'Hidden until the game ends'
+
+  it('while the failure chance and loss share are hidden defaults, no figure that needs them is shown', () => {
+    const { onChange } = mount(structuredClone(defaults.config))
+    expect(defaults.config.transport.failure_probability).toBeNull()
+    for (const tier of ['CIP', 'DAP', 'DDP'] as Tier[]) {
+      for (const row of caseRows(tier)) expect(row.slice(1)).toEqual([HIDDEN, HIDDEN, HIDDEN])
+    }
+    expect(screen.getAllByText(HIDDEN).length).toBeGreaterThanOrEqual(2 + 18)
+    expect(document.body.textContent).not.toMatch(/NaN|Infinity|No risk configured/)
+    const button = screen.getByRole('button', { name: 'Set fees from margin' })
+    expect(button).toBeDisabled()
+    expect(screen.getByText('Type the failure chance and the loss share to use the calculator.')).toBeInTheDocument()
+    fireEvent.click(button)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('a typed failure chance shows the failure lines; the break-even still waits for the loss share', () => {
+    mount(
+      cfg((c) => {
+        c.transport.loss_fraction = null
+      }),
+    )
+    expect(screen.queryAllByText(HIDDEN).length).toBe(18)
+    expect(screen.getByRole('button', { name: 'Set fees from margin' })).toBeDisabled()
+  })
+
+  it("takes the inputs' bounds from the server's field entries, never a copy of its own", () => {
+    mount(cfg())
+    const ref = defaults.fields['insurance.reference_shipment']
+    const margin = defaults.fields['insurance.target_margin']
+    expect(screen.getByLabelText('Reference shipment (units)')).toHaveAttribute('max', String(ref.max))
+    expect(screen.getByLabelText('Target margin')).toHaveAttribute('min', String(margin.min))
+    const fee = defaults.fields['insurance.tiers.cip.fee']
+    expect(within(blockFor('CIP')).getByRole('textbox')).toHaveAttribute('max', String(fee.max))
   })
 })

@@ -150,8 +150,8 @@ export function makeView(over: ViewOver = {}): PlayerView {
     cash: 6120,
     cumulative_profit: 0,
     tier_plans: [
-      { tier: 'exw', label: 'EXW', enabled: true, refund_basis: 'none', refund_value_today: null, fee_per_unit: 0 },
-      { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, fee_per_unit: 0.55 },
+      { tier: 'exw', label: 'EXW', enabled: true, refund_basis: 'none', refund_value_today: null, refund_shipment: null, fee_per_unit: 0 },
+      { tier: 'cip', label: 'CIP', enabled: true, refund_basis: 'paid', refund_value_today: 13.4, refund_shipment: null, fee_per_unit: 0.55 },
     ],
     order_windows: {
       spot_open: true,
@@ -594,9 +594,17 @@ describe('InTransit and FuturesBook', () => {
     expect(screen.queryByText('Nothing in transit.')).toBeNull()
   })
 
-  it('shows the empty line when nothing is in transit', () => {
+  it('shows the empty line when nothing is in transit (a lead time of 1 or more)', () => {
     renderBoard()
     expect(screen.getByText('Nothing in transit.')).toBeInTheDocument()
+  })
+
+  it('leaves In transit out when the lead time is 0: every shipment arrives the day it ships (spec §13.7)', () => {
+    const base = makeBrief()
+    renderBoard({ view: makeView({ brief: { ...base, supplier: { ...base.supplier, lead_time_days: 0 } } }) })
+    expect(screen.queryByText('In transit')).toBeNull()
+    expect(screen.queryByText('Nothing in transit.')).toBeNull()
+    expect(screen.getByText('No open futures.')).toBeInTheDocument() // the rest of the cellar is unchanged
   })
 
   it('lists open futures with Day cells', () => {
