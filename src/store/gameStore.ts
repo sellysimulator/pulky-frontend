@@ -71,6 +71,8 @@ export interface GameState {
   ownHistory: DayRecord[]
   publicHistory: PublicDayResults[]
   hostHistories: Record<string, DayRecord[]>
+  /** Each player's profit so far after each day, as the server sent it (spec §12.5): the host's profit race. */
+  hostRace: Record<string, number[]>
   marketHistory: MarketDay[]
   finished: GameFinishedPayload | null
   gamePublicId: string | null
@@ -142,6 +144,7 @@ export const INITIAL_STATE: GameState = {
   ownHistory: [],
   publicHistory: [],
   hostHistories: {},
+  hostRace: {},
   marketHistory: [],
   finished: null,
   gamePublicId: null,
@@ -250,20 +253,28 @@ export const useGameStore = create<GameState & GameActions>()((set, get) => {
         }
         if (p.full) {
           const histories: Record<string, DayRecord[]> = {}
+          const race: Record<string, number[]> = {}
           for (const [alias, row] of Object.entries(p.players)) {
             histories[alias] = row.own_history ?? []
+            race[alias] = row.cumulative_profit_by_day ?? []
           }
           next.hostHistories = histories
+          next.hostRace = race
           next.publicHistory = p.public_history ?? []
           next.marketHistory = p.market_history ?? []
         } else {
           const histories = { ...state.hostHistories }
+          const race = { ...state.hostRace }
           for (const [alias, row] of Object.entries(p.players)) {
             if (row.last_record) {
               histories[alias] = appendByDay(histories[alias] ?? [], row.last_record)
+              // The day's point is the server's cumulative profit; a gap waits for the next full state.
+              const points = race[alias] ?? []
+              if (points.length === row.last_record.day - 1) race[alias] = [...points, row.cumulative_profit]
             }
           }
           next.hostHistories = histories
+          next.hostRace = race
           if (p.last_market_day) {
             next.marketHistory = appendByDay(state.marketHistory, p.last_market_day)
           }

@@ -118,6 +118,7 @@ describe('INITIAL_STATE and reset (criterion 1)', () => {
     ownHistory: [],
     publicHistory: [],
     hostHistories: {},
+    hostRace: {},
     marketHistory: [],
     finished: null,
     gamePublicId: null,
@@ -700,8 +701,8 @@ describe('host_state (spec 3.2, 12.5, 12.6)', () => {
   const fullHostState = (seq: number) =>
     hostState(seq, 3, true, {
       players: {
-        P1: hostPlayer('P1', { own_history: recs(1, 2) }),
-        P2: hostPlayer('P2', { own_history: recs(1, 2, 3) }),
+        P1: hostPlayer('P1', { own_history: recs(1, 2), cumulative_profit_by_day: [10, 25] }),
+        P2: hostPlayer('P2', { own_history: recs(1, 2, 3), cumulative_profit_by_day: [5, 7, 12.5] }),
       },
       public_history: pubs(1, 2),
       market_history: [mkt(1), mkt(2)],
@@ -742,6 +743,24 @@ describe('host_state (spec 3.2, 12.5, 12.6)', () => {
     expect(days(S().marketHistory)).toEqual([1, 2])
     expect(days(S().publicHistory)).toEqual([1, 2])
     expect(days(S().hostHistories.P1)).toEqual([1, 2])
+  })
+
+  it("keeps the server's profit race: replaced by a full state, one point per new day from a daily state", () => {
+    call('applyHostState', fullHostState(1))
+    expect(S().hostRace).toEqual({ P1: [10, 25], P2: [5, 7, 12.5] })
+    const daily = (seq: number) =>
+      hostState(seq, 3, false, {
+        players: {
+          P1: hostPlayer('P1', { last_record: rec(3), cumulative_profit: 40.75 }),
+          P2: hostPlayer('P2', { last_record: null, cumulative_profit: 99 }),
+        },
+        last_market_day: mkt(3),
+      })
+    call('applyHostState', daily(2))
+    // the day's point is the server's cumulative_profit, never a sum the client makes
+    expect(S().hostRace).toEqual({ P1: [10, 25, 40.75], P2: [5, 7, 12.5] })
+    call('applyHostState', daily(3))
+    expect(S().hostRace.P1).toEqual([10, 25, 40.75])
   })
 
   it('day_closed appends to the host public history under the append rule', () => {

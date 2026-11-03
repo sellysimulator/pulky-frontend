@@ -16,14 +16,25 @@ npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build   # the
 
 - **No copied limits.** `MAX_ORDER`, `MAX_PEER_PRICE`, `MAX_DISPLAY_NAME` and every other hard limit come from `GET /config/defaults`:
   `RequireBackend` runs `loadLimits()` once the backend is awake, and components read `useLimits()` (`src/api/config.ts`), which
-  never requests anything. Until they load a form checks only its lower bounds. Config controls take their bounds from the same
+  never requests anything; they set the inputs' bounds, while the field messages come from the server's preview. Config controls take their bounds from the same
   response's `fields`. Tests seed them from `src/__tests__/fixtures/config_defaults.json`, which is that response, regenerated from
   the backend's `config_schema()` whenever it changes.
 - **Hidden defaults** (spec §9.3): a host config holds null for each risk whose field has `hidden_default`; the form shows
   **Default (hidden)**, and the calculator and help examples say **Hidden until the game ends** where they would need it. The
   results' `config` reveals the values; **Play again** copies the host's config from the store, never that one.
-- **Server figures only**: the tier cards show `refund_value_today` as sent (the Paid-price figure is the shipment's average price,
-  computed by the backend); the client computes no refund.
+- **Server figures only** (spec §0.5 invariant 7, D54): the client holds no copy of any game formula. Every figure comes from a
+  payload, or from a preview request that runs the engine's own functions for what the user is typing:
+  - the decision form asks `preview_decision` (a socket acknowledgement, `src/api/games.ts`, hook `src/game/useDecisionPreview.ts`)
+    250 ms after the last edit, and shows its outlay, affordability, tier cards (the Paid-price card follows the spot order),
+    "now in your cellar" line and field messages, with **…** until the answer for the draft on screen arrives;
+  - the host config panel asks `POST /config/preview` (`src/api/config.ts`, `src/components/config/configPreview.ts`) 300 ms after
+    the last edit and shares the answer with the previews, the insurance calculator and every help entry; **Set fees from margin**
+    sends the server's `fee_from_margin`;
+  - charts plot server series (the profit races use `series.cumulative_profit` and the host's `cumulative_profit_by_day`; the
+    console's spot band is `host_view.spot_range`).
+  A new figure is a new server field, never a client formula. Tests drive the form with a double of the server's answer
+  (`src/__tests__/fixtures/fakeDecisionServer.ts`) and the config screen with the backend's recorded answers
+  (`src/__tests__/fixtures/config_preview.json`, regenerated from the backend's `config_preview()` whenever a figure changes).
 
 ## Charts
 

@@ -51,16 +51,18 @@ export function makeLot(id: string, qty: number, quality: number, extra: Partial
     initial_quality: 100,
     conserved: false,
     quality,
+    days_left: 3, // through day 7, from day 5
     last_day: 7,
     risk_tonight: (100 - quality) / 100,
     expected_loss_tonight: (qty * (100 - quality)) / 100,
+    conservation_cost: extra.conserved === true ? null : qty, // $1.00 a unit
     ...extra,
   }
 }
 
 function guide(): QualityGuideRow[] {
   const rows: QualityGuideRow[] = []
-  for (let q = 100; q >= 0; q -= 5) rows.push({ quality: q, half_spoiled_day: 6, last_day: q === 0 ? 5 : 8 })
+  for (let q = 100; q >= 0; q -= 5) rows.push({ quality: q, half_spoiled_day: 6, days_left: q === 0 ? 1 : 4, last_day: q === 0 ? 5 : 8 })
   return rows
 }
 
@@ -79,8 +81,8 @@ export function makeBrief(over: Partial<Brief> = {}, day = 5): Brief {
       base_price: 12,
       lead_time_days: 1,
     },
-    spot: { open: true, arrives_day: day + 1 },
-    futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, last_day_to_buy: 7, days_left_to_buy: 3 },
+    spot: { open: true, arrives_day: day + 1, arrives_weekday: (['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const)[day % 7] },
+    futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, delivery_weekday: 'fri', last_day_to_buy: 7, days_left_to_buy: 3 },
     transport: { shared: false },
     reputation: { P1: 0.62 },
     ...over,
@@ -500,10 +502,11 @@ describe('CellarChart by age', () => {
 
 // Day 5: L3 and L4 are plain on the ramp, L6 is plain and fresh, L5 is conserved.
 const LOTS = [
-  makeLot('L3', 12, 33, { last_day: 5 }),
-  makeLot('L4', 30, 57, { last_day: 6 }),
-  makeLot('L6', 4, 95, { last_day: 7 }),
-  makeLot('L5', 8, 100, { conserved: true, last_day: 9 }),
+  // the server's days_left with each last day, on day 5 (spec 3.5)
+  makeLot('L3', 12, 33, { days_left: 1, last_day: 5 }),
+  makeLot('L4', 30, 57, { days_left: 2, last_day: 6 }),
+  makeLot('L6', 4, 95, { days_left: 3, last_day: 7 }),
+  makeLot('L5', 8, 100, { conserved: true, days_left: 5, last_day: 9 }),
 ]
 
 function grouped(view: string) {

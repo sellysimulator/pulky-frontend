@@ -167,42 +167,48 @@ describe('quality and risk shown together (spec 3.5)', () => {
 
 describe('formatQualityGuide (spec 3.5)', () => {
   it('writes the "half spoiled by day" variant', () => {
-    expect(formatQualityGuide({ quality: 90, half_spoiled_day: 7, last_day: 8 }, 5)).toBe(
+    expect(formatQualityGuide({ quality: 90, half_spoiled_day: 7, days_left: 4, last_day: 8 }, 5)).toBe(
       '90%: 10% risk tonight · half spoiled by day 7 · lasts at most 4 days (through day 8)',
     )
-    expect(formatQualityGuide({ quality: 70, half_spoiled_day: 6, last_day: 9 }, 5)).toBe(
+    expect(formatQualityGuide({ quality: 70, half_spoiled_day: 6, days_left: 5, last_day: 9 }, 5)).toBe(
       '70%: 30% risk tonight · half spoiled by day 6 · lasts at most 5 days (through day 9)',
     )
-    expect(formatQualityGuide({ quality: 100, half_spoiled_day: 9, last_day: 11 }, 5)).toBe(
+    expect(formatQualityGuide({ quality: 100, half_spoiled_day: 9, days_left: 7, last_day: 11 }, 5)).toBe(
       '100%: 0% risk tonight · half spoiled by day 9 · lasts at most 7 days (through day 11)',
     )
   })
 
   it('writes the "half spoiled tonight" variant when half_spoiled_day equals the view day', () => {
-    expect(formatQualityGuide({ quality: 50, half_spoiled_day: 5, last_day: 7 }, 5)).toBe(
+    expect(formatQualityGuide({ quality: 50, half_spoiled_day: 5, days_left: 3, last_day: 7 }, 5)).toBe(
       '50%: 50% risk tonight · half spoiled tonight · lasts at most 3 days (through day 7)',
     )
   })
 
   it('compares half_spoiled_day with the day it is given, not a fixed day', () => {
-    const row = { quality: 90, half_spoiled_day: 7, last_day: 8 }
+    // the server's row for day 7: two days left, counting day 7
+    const row = { quality: 90, half_spoiled_day: 7, days_left: 2, last_day: 8 }
     expect(formatQualityGuide(row, 7)).toBe(
       '90%: 10% risk tonight · half spoiled tonight · lasts at most 2 days (through day 8)',
     )
     expect(formatQualityGuide(row, 5)).toContain('half spoiled by day 7')
   })
 
+  it("counts the days from the server's days_left, never from last_day and the day", () => {
+    // A row whose days_left disagrees with last_day - day + 1 shows the server's figure.
+    expect(formatQualityGuide({ quality: 90, half_spoiled_day: 7, days_left: 3, last_day: 8 }, 5)).toContain('lasts at most 3 days')
+  })
+
   it('says "1 day", singular, when one day is left', () => {
-    expect(formatQualityGuide({ quality: 30, half_spoiled_day: 5, last_day: 5 }, 5)).toBe(
+    expect(formatQualityGuide({ quality: 30, half_spoiled_day: 5, days_left: 1, last_day: 5 }, 5)).toBe(
       '30%: 70% risk tonight · half spoiled tonight · lasts at most 1 day (through day 5)',
     )
   })
 
   it('picks the quality-0 variant from the quality alone, even when other fields would match', () => {
-    expect(formatQualityGuide({ quality: 0, half_spoiled_day: 5, last_day: 5 }, 5)).toBe(
+    expect(formatQualityGuide({ quality: 0, half_spoiled_day: 5, days_left: 1, last_day: 5 }, 5)).toBe(
       '0%: spoils tonight · sell it today',
     )
-    expect(formatQualityGuide({ quality: 0, half_spoiled_day: 9, last_day: 9 }, 5)).toBe(
+    expect(formatQualityGuide({ quality: 0, half_spoiled_day: 9, days_left: 5, last_day: 9 }, 5)).toBe(
       '0%: spoils tonight · sell it today',
     )
   })

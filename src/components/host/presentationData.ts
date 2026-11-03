@@ -24,6 +24,8 @@ export interface PresentationData {
 
 export interface HostHistories {
   players: Record<string, DayRecord[]>
+  /** The server's profit so far after each day, per player (spec §12.5). */
+  race: Record<string, number[]>
   publicHistory: PublicDayResults[]
   marketHistory: MarketDay[]
 }
@@ -110,6 +112,7 @@ export function selectPresentationData(state: GameState): PresentationData | nul
         price: brief.futures.price,
         horizon_days: brief.futures.horizon_days,
         delivery_day: brief.futures.delivery_day,
+        delivery_weekday: brief.futures.delivery_weekday,
         last_day_to_buy: brief.futures.last_day_to_buy,
         days_left_to_buy: brief.futures.days_left_to_buy,
       },
@@ -125,6 +128,7 @@ export function selectPresentationData(state: GameState): PresentationData | nul
 export function selectHostHistories(state: GameState): HostHistories {
   return {
     players: state.hostHistories,
+    race: state.hostRace,
     publicHistory: state.publicHistory,
     marketHistory: state.marketHistory,
   }

@@ -9,8 +9,8 @@ export default function DemandSection(props: SectionProps): ReactElement {
       knobs={<Knobs paths={SECTION_PATHS.demand} {...props} />}
       preview={
         <>
-          <WeekdayPreview config={props.config} />
-          <DemandCapacityPreview config={props.config} />
+          <WeekdayPreview />
+          <DemandCapacityPreview />
         </>
       }
     />

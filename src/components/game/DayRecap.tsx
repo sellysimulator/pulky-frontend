@@ -89,15 +89,17 @@ function eventsOf(r: DayRecord, view: PlayerView, publicHistory: PublicDayResult
 
   if (r.futures_filled > 0) {
     const base = view.brief?.supplier.base_price ?? 0
-    const spot = publicHistory.find((p) => p.day === r.day)?.spot_price ?? base + r.futures_vs_spot / r.futures_filled
+    // The day's spot price comes from the public results; without them the clause is left out (no client maths).
+    const spot = publicHistory.find((p) => p.day === r.day)?.spot_price
     const outcome =
       r.futures_vs_spot < 0
         ? `they cost ${formatMoney(-r.futures_vs_spot)} more`
         : `you saved ${formatMoney(r.futures_vs_spot)}`
+    const against = spot === undefined ? '' : ` — spot was ${formatMoney(spot)}`
     events.push({
       key: 'futures',
       icon: FileClock,
-      text: `Futures shipped ${formatQty(r.futures_filled)} units at ${formatMoney(base)} — spot was ${formatMoney(spot)}, ${outcome}.`,
+      text: `Futures shipped ${formatQty(r.futures_filled)} units at ${formatMoney(base)}${against}, ${outcome}.`,
     })
   }
   if (r.futures_unfilled > 0) {

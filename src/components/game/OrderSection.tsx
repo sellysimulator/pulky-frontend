@@ -1,16 +1,11 @@
 import { FileClock, ShoppingCart, type LucideIcon } from 'lucide-react'
 import type { ReactElement, ReactNode } from 'react'
 import { useLimits } from '../../api/config'
-import { WEEKDAYS, type DecidingView, type PlayerView, type Weekday } from '../../types/game'
+import type { DecidingView, PlayerView, Weekday } from '../../types/game'
 import { formatMoney, weekdayLong } from '../../utils/format'
 import Badge from '../shared/Badge'
 import InfoTip from '../shared/InfoTip'
 import NumberField from '../shared/NumberField'
-
-function weekdayOn(view: PlayerView, day: number): Weekday {
-  const start = WEEKDAYS.indexOf(view.weekday)
-  return WEEKDAYS[(((start + day - view.day) % 7) + 7) % 7]
-}
 
 interface FormRowProps {
   icon: LucideIcon
@@ -44,8 +39,9 @@ interface OrderSectionProps {
   locked: boolean
 }
 
-function dayLabel(view: PlayerView, day: number): string {
-  return `day ${day} (${weekdayLong(weekdayOn(view, day))})`
+/** A day and its weekday, both from the server's brief (spec §4.2). */
+function dayLabel(day: number, weekday: Weekday): string {
+  return `day ${day} (${weekdayLong(weekday)})`
 }
 
 function countdown(daysLeft: number): string {
@@ -58,7 +54,7 @@ function SpotInfo({ view }: { view: PlayerView }): ReactElement {
     <InfoTip label="Buy from Supplier">
       <span>
         Bought at today&apos;s spot price
-        {brief ? `, arriving on ${dayLabel(view, brief.spot.arrives_day)}` : ''}. You pay only for the units the supplier fills.
+        {brief ? `, arriving on ${dayLabel(brief.spot.arrives_day, brief.spot.arrives_weekday)}` : ''}. You pay only for the units the supplier fills.
       </span>
       <span>On a short day the largest orders are filled first, unless every pulquería votes for equal supply.</span>
     </InfoTip>
@@ -71,7 +67,7 @@ function FuturesInfo({ view }: { view: PlayerView }): ReactElement {
     <InfoTip label="Futures">
       <span>
         Bought at the base price{brief ? ` of ${formatMoney(brief.futures.price)}` : ''} and paid today
-        {brief ? `, delivered on ${dayLabel(view, brief.futures.delivery_day)}` : ''}.
+        {brief ? `, delivered on ${dayLabel(brief.futures.delivery_day, brief.futures.delivery_weekday)}` : ''}.
       </span>
       <span>On a short day futures are filled first, and units the supplier cannot ship are refunded.</span>
     </InfoTip>
@@ -88,8 +84,8 @@ export default function OrderSection({ kind, view, value, onChange, error, onFie
     context = spot ? view.order_windows.spot_message : view.order_windows.futures_message
   } else if (brief) {
     context = spot
-      ? `${formatMoney(brief.supplier.spot_price)} · arrives ${dayLabel(view, brief.spot.arrives_day)}`
-      : `${formatMoney(brief.futures.price)} · delivered ${dayLabel(view, brief.futures.delivery_day)}`
+      ? `${formatMoney(brief.supplier.spot_price)} · arrives ${dayLabel(brief.spot.arrives_day, brief.spot.arrives_weekday)}`
+      : `${formatMoney(brief.futures.price)} · delivered ${dayLabel(brief.futures.delivery_day, brief.futures.delivery_weekday)}`
   }
   const daysLeft = brief?.futures.days_left_to_buy ?? 0
   const shown = open ? value : 0

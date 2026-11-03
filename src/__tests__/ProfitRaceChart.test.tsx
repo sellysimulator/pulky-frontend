@@ -28,7 +28,6 @@ import { resultsViewFromLive, resultsViewFromResponse } from '../components/resu
 import { emphasisOf, pulqueriaLine } from '../components/charts/chartSetup'
 import type { GameFinishedPayload, ResultsResponse } from '../types/game'
 import { formatMoney } from '../utils/format'
-import { roundCents } from '../utils/money'
 import { DAYS, ROOM, makeFinished, makeResponse, makeView } from './fixtures/results'
 import { EXAMPLE_PROFILES, makeSmallView } from './fixtures/resultsFlow'
 import { allCharts, chartWithDataset } from './fixtures/resultsHelpers'
@@ -42,7 +41,7 @@ describe('buildRaceConfig', () => {
   const input = (over: Partial<RaceInput> = {}): RaceInput => ({
     weekdays: ['mon', 'tue', 'wed'],
     peak: [false, true, true],
-    lines: EXAMPLE_PROFILES.map((p) => ({ alias: p.alias, name: p.name, profit: p.profit })),
+    lines: EXAMPLE_PROFILES.map((p) => ({ alias: p.alias, name: p.name, cumulative: p.cumulative })),
     ...over,
   })
 
@@ -55,7 +54,7 @@ describe('buildRaceConfig', () => {
   })
 
   it('adds End (label and point) only when every line has a total', () => {
-    const lines = EXAMPLE_PROFILES.map((p) => ({ alias: p.alias, name: p.name, profit: p.profit, total: p.total }))
+    const lines = EXAMPLE_PROFILES.map((p) => ({ alias: p.alias, name: p.name, cumulative: p.cumulative, total: p.total }))
     const all = buildRaceConfig(input({ lines }), null) as Dict
     expect(all.data.labels.at(-1)).toEqual(['End'])
     expect(dataOf(all, 'La Chula')).toEqual([100.1, 150.3, 180.6, 200.6])
@@ -65,17 +64,14 @@ describe('buildRaceConfig', () => {
     for (const d of partial.data.datasets) expect(d.data).toHaveLength(3)
   })
 
-  it('failure mode 1: sums the day figures unrounded and rounds the running total once, never day by day', () => {
-    const cfg = buildRaceConfig(
-      input({ lines: [{ alias: 'P1', name: 'A', profit: [0.005, 0.005, 0.005] }] }),
-      null,
-    ) as Dict
-    // 0.005 -> 0.01, 0.010 -> 0.01, 0.015 -> 0.02. Rounding each day first would give 0.01, 0.02, 0.03.
+  it('failure mode 1: plots the server running totals as sent and sums nothing itself', () => {
+    // The server rounds the running total once (spec 8.6); re-summing on the client would drift from it.
+    const cfg = buildRaceConfig(input({ lines: [{ alias: 'P1', name: 'A', cumulative: [0.01, 0.01, 0.02] }] }), null) as Dict
     expect(dataOf(cfg, 'A')).toEqual([0.01, 0.01, 0.02])
   })
 
   it('stops a line shorter than the weekdays early', () => {
-    const cfg = buildRaceConfig(input({ lines: [{ alias: 'P1', name: 'A', profit: [5, 5] }] }), null) as Dict
+    const cfg = buildRaceConfig(input({ lines: [{ alias: 'P1', name: 'A', cumulative: [5, 10] }] }), null) as Dict
     expect(dataOf(cfg, 'A')).toEqual([5, 10])
   })
 
@@ -109,7 +105,7 @@ describe('buildRaceConfig', () => {
   })
 
   it('labels line ends and pads the plot for 6 lines or fewer, and neither for 7', () => {
-    const lines = (n: number) => Array.from({ length: n }, (_, i) => ({ alias: `P${i + 1}`, name: `N${i + 1}`, profit: [1, 2, 3] }))
+    const lines = (n: number) => Array.from({ length: n }, (_, i) => ({ alias: `P${i + 1}`, name: `N${i + 1}`, cumulative: [1, 3, 6] }))
     const six = buildRaceConfig(input({ lines: lines(6) }), null) as Dict
     expect(six.options.plugins.lineEndLabels.display).toBe(true)
     expect(six.options.layout.padding.right).toBe(112)
@@ -147,7 +143,7 @@ describe('buildProfitRaceConfig (section 4, criterion 1, failure mode 1)', () =>
       {
         weekdays: ['mon', 'tue', 'wed'],
         peak: [false, true, true],
-        lines: EXAMPLE_PROFILES.map((p) => ({ alias: p.alias, name: p.name, profit: p.profit, total: p.total })),
+        lines: EXAMPLE_PROFILES.map((p) => ({ alias: p.alias, name: p.name, cumulative: p.cumulative, total: p.total })),
       },
       'P3',
     )
@@ -166,7 +162,7 @@ describe('buildProfitRaceConfig (section 4, criterion 1, failure mode 1)', () =>
     ])
   })
 
-  it('criterion 1 and 8: End is total_profit and the last day is roundCents of the sum, live and by URL, for every pulquería', () => {
+  it("criterion 1 and 8: End is total_profit and the days are the server's cumulative_profit, live and by URL, for every pulquería", () => {
     const live = resultsViewFromLive(makeFinished() as unknown as GameFinishedPayload, { roomCode: ROOM, durationDays: DAYS })
     const stored = resultsViewFromResponse(makeResponse() as unknown as ResultsResponse)
     const a = buildProfitRaceConfig(live, null) as Dict
@@ -176,7 +172,7 @@ describe('buildProfitRaceConfig (section 4, criterion 1, failure mode 1)', () =>
       const data = dataOf(a, p.display_name)
       expect(data).toHaveLength(DAYS + 1)
       expect(data.at(-1)).toBe(p.total_profit)
-      expect(data.at(-2)).toBe(roundCents(p.series.profit.reduce((s, v) => s + v, 0)))
+      expect(data.slice(0, -1)).toEqual(p.series.cumulative_profit)
     }
   })
 })

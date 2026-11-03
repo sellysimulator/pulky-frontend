@@ -307,7 +307,7 @@ describe('the projector charts take public data only (acceptance 1, failure mode
       weekday_multiplier: 1,
       expected_demand: 100,
       supplier: { disrupted: false, disruption_message: null, spot_price: 13.4, base_price: 12, lead_time_days: 1 },
-      futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, last_day_to_buy: 7, days_left_to_buy: 3 },
+      futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, delivery_weekday: 'fri', last_day_to_buy: 7, days_left_to_buy: 3 },
       transport: { shared: false },
       reputation: { P1: 0.6, P2: 0.6 },
     } as unknown as Brief
@@ -444,7 +444,8 @@ describe('the projector charts take public data only (acceptance 1, failure mode
 
 describe('the live race matches the results race (acceptance 3, builders)', () => {
   it('buildRaceConfig without totals has the day points of buildProfitRaceConfig and no End label', () => {
-    const profits: Record<string, number[]> = { P1: [100, -10, 40.25], P2: [80, 30, 20] }
+    // the server's profit so far after each day (spec 8.6 cumulative_profit, 12.5)
+    const running: Record<string, number[]> = { P1: [100, 90, 130.25], P2: [80, 110, 130] }
     const names: Record<string, string> = { P1: 'Don Agave', P2: 'La Chula' }
     const weekdays: Weekday[] = ['mon', 'tue', 'wed']
     const view = {
@@ -453,15 +454,15 @@ describe('the live race matches the results race (acceptance 3, builders)', () =
       players: ['P1', 'P2'].map((a) => ({
         alias: a,
         display_name: names[a],
-        series: { profit: profits[a] },
-        total_profit: profits[a].reduce((s, v) => s + v, 0),
+        series: { cumulative_profit: running[a] },
+        total_profit: running[a][2],
       })),
     } as unknown as ResultsView
     const live = buildRaceConfig(
       {
         weekdays,
         peak: [false, true, true],
-        lines: ['P1', 'P2'].map((a) => ({ alias: a, name: names[a], profit: profits[a] })),
+        lines: ['P1', 'P2'].map((a) => ({ alias: a, name: names[a], cumulative: running[a] })),
       },
       null,
     ) as Obj

@@ -73,6 +73,7 @@ function hostView(peer = true, over: Obj = {}): HostView {
     phase: 'deciding',
     seed: 987654321,
     config: config(peer),
+    spot_range: { low: 7.96, high: 16.04 },
     awaiting: ['P2', 'P3'],
     players,
     leaderboard: [],
@@ -189,11 +190,12 @@ function histories(over: Partial<HostHistories> = {}): HostHistories {
       market(4, { peer_units: 16, peer_avg_price: 14.25 }),
       market(5, { disrupted: true, refrigeration_failure: true, cooperation: true, peer_units: 18, peer_avg_price: 15.3 }),
     ],
+    race: { P1: [5, 9, 12, 20, 31], P2: [4, 8, 11, 15, 26], P3: [1, 2, 3, 4, 9] },
     ...over,
   }
 }
 
-const EMPTY: HostHistories = { players: {}, publicHistory: [], marketHistory: [] }
+const EMPTY: HostHistories = { players: {}, race: {}, publicHistory: [], marketHistory: [] }
 
 let emit: ReturnType<typeof vi.spyOn>
 beforeEach(() => {
@@ -445,6 +447,15 @@ describe('MarketCharts (acceptance 5)', () => {
     expect(tableOf('Spot price').textContent).toContain('13.40')
   })
 
+  it("Spot price shades the server's spot range, never one it works out from the spread", () => {
+    renderConsole()
+    const spot = chartOf('Spot price')
+    const low = spot.data.datasets.find((d) => d.label === 'Spot range low')
+    const high = spot.data.datasets.find((d) => d.label === 'Spot range')
+    expect((low?.data as number[]).every((v) => v === 7.96)).toBe(true)
+    expect((high?.data as number[]).every((v) => v === 16.04)).toBe(true)
+  })
+
   it('Capacity vs orders sums spot orders and futures due over every pulquería, per day', () => {
     renderConsole()
     const text = tableOf('Capacity vs orders').textContent ?? ''
@@ -564,6 +575,7 @@ describe('EventHistory (acceptance 6, failure mode 9)', () => {
     renderConsole({
       histories: {
         players: { P1: [rec(1) as unknown as DayRecord] } as unknown as HostHistories['players'],
+        race: { P1: [0] },
         publicHistory: [pub(1)],
         marketHistory: [market(1), market(2)],
       },
@@ -604,7 +616,8 @@ function section4(over: { omitP2Day1?: boolean } = {}): { view: HostView; hist: 
   const marketHistory = [0, 1, 2].map((i) => market(i + 1, { weekday: wd[i], weekday_multiplier: mult[i] }))
   return {
     view: hostView(true, { players }),
-    hist: { players: records, publicHistory, marketHistory } as unknown as HostHistories,
+    // the server's profit so far after each day (host_view cumulative_profit_by_day, spec §12.5)
+    hist: { players: records, race: { P1: [100, 90, 130.25], P2: [80, 110, 130] }, publicHistory, marketHistory } as unknown as HostHistories,
   }
 }
 
@@ -621,6 +634,7 @@ function scenario(n: number): { view: HostView; hist: HostHistories } {
     view: hostView(true, { players }),
     hist: {
       players: records,
+      race: Object.fromEntries(Object.keys(records).map((a, k) => [a, [k + 1, 2 * (k + 1)]])),
       publicHistory: [1, 2].map((d) => ({ ...pub(d), players: p }) as unknown as PublicDayResults),
       marketHistory: [market(1), market(2)],
     } as unknown as HostHistories,
@@ -666,7 +680,7 @@ describe('Profit race (plan 37 §3.3, acceptance 3, 6, failure mode 3)', () => {
     ).toBeInTheDocument()
   })
 
-  it('plots the running profit per day (worked example) and nothing else', () => {
+  it("plots the server's running profit per day (worked example) and nothing else", () => {
     mount(section4())
     const c = chart('Profit race')
     expect(c.data.datasets.map((d) => d.label)).toEqual(['Don Agave', 'La Chula'])
@@ -694,11 +708,11 @@ describe('Profit race (plan 37 §3.3, acceptance 3, 6, failure mode 3)', () => {
   it('acceptance 3: its day points equal the results race for the same records', () => {
     const s = section4()
     mount(s)
-    const profit = { P1: [100, -10, 40.25], P2: [80, 30, 20] } as Record<string, number[]>
+    const cumulative = { P1: [100, 90, 130.25], P2: [80, 110, 130] } as Record<string, number[]>
     const view = {
       days_played: 3,
       market: { weekday: ['mon', 'tue', 'wed'], weekday_multiplier: [0.5, 1, 1] },
-      players: ['P1', 'P2'].map((a) => ({ alias: a, display_name: M2[a], series: { profit: profit[a] }, total_profit: 999 })),
+      players: ['P1', 'P2'].map((a) => ({ alias: a, display_name: M2[a], series: { cumulative_profit: cumulative[a] }, total_profit: 999 })),
     } as never
     const results = buildProfitRaceConfig(view, null) as unknown as { data: { datasets: Array<{ data: number[] }> } }
     chart('Profit race').data.datasets.forEach((d, i) => expect(d.data).toEqual(results.data.datasets[i].data.slice(0, 3)))

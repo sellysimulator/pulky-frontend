@@ -31,7 +31,7 @@ import { allCharts } from './fixtures/resultsHelpers'
 type Dict = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const profile = (alias: string, name: string, total: number, fill: number | null, waste: number | null) => ({
-  alias, name, profit: [0], total, fill, waste,
+  alias, name, profit: [0], cumulative: [0], total, fill, waste,
 })
 const viewOf = (...p: ReturnType<typeof profile>[]) => makeSmallView(p)
 const ds = (cfg: Dict, label: string): Dict => cfg.data.datasets.find((d: Dict) => d.label === label)

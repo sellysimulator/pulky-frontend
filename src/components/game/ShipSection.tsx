@@ -1,6 +1,6 @@
 import { ShieldCheck } from 'lucide-react'
 import type { ReactElement } from 'react'
-import type { IncotermTier, PlayerView } from '../../types/game'
+import type { DraftTierPlan, IncotermTier, PlayerView } from '../../types/game'
 import { formatMoney } from '../../utils/format'
 import InfoTip from '../shared/InfoTip'
 import RadioCards from '../shared/RadioCards'
@@ -9,14 +9,16 @@ import TierDetails from './TierDetails'
 
 interface ShipSectionProps {
   view: PlayerView
+  /** The server's tier cards for the draft's shipment (spec §12.4); null while they load. */
+  plans: DraftTierPlan[] | null
+  pending: boolean
   incoterm_tier: IncotermTier
   onChange(incoterm_tier: IncotermTier): void
-  shipmentMax: number
   locked: boolean
 }
 
-export default function ShipSection({ view, incoterm_tier, onChange, shipmentMax, locked }: ShipSectionProps): ReactElement {
-  const plans = view.tier_plans.filter((p) => p.enabled)
+export default function ShipSection({ view, plans, pending, incoterm_tier, onChange, locked }: ShipSectionProps): ReactElement {
+  const cards = view.tier_plans.filter((p) => p.enabled)
   return (
     <FormRow
       icon={ShieldCheck}
@@ -42,11 +44,11 @@ export default function ShipSection({ view, incoterm_tier, onChange, shipmentMax
         value={incoterm_tier}
         locked={locked}
         onChange={onChange}
-        options={plans.map((plan) => ({
+        options={cards.map((plan) => ({
           value: plan.tier,
           label: plan.label,
           lines: [`Fee ${formatMoney(plan.fee_per_unit)}/unit`],
-          info: <TierDetails plan={plan} shipmentMax={shipmentMax} />,
+          info: <TierDetails plan={plans?.find((p) => p.tier === plan.tier) ?? plan} today pending={pending || plans === null} />,
         }))}
       />
     </FormRow>

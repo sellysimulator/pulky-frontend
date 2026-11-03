@@ -1,9 +1,8 @@
 import { ArrowLeftRight } from 'lucide-react'
 import type { ReactElement } from 'react'
 import { useLimits } from '../../api/config'
-import type { PlayerView, PublicConfig } from '../../types/game'
-import { unitsOnOffer } from '../../game/estimates'
-import { formatMoney, formatUnits, lotLabel } from '../../utils/format'
+import type { DecisionPreview, PlayerView, PublicConfig } from '../../types/game'
+import { PREVIEW_PLACEHOLDER, formatMoney, formatUnits, lotLabel } from '../../utils/format'
 import Checkbox from '../shared/Checkbox'
 import InfoTip from '../shared/InfoTip'
 import NumberField from '../shared/NumberField'
@@ -13,7 +12,9 @@ import { QualityField } from './PeerBuySection'
 interface PeerSellSectionProps {
   view: PlayerView
   config: PublicConfig
-  conserveLots: string[]
+  /** The server's "now in your cellar" figure for the draft (spec §12.4); null while it loads. */
+  offer: DecisionPreview['offer']
+  pending: boolean
   ticked: boolean
   onTick(ticked: boolean): void
   price: number | null
@@ -32,7 +33,8 @@ interface PeerSellSectionProps {
 export default function PeerSellSection({
   view,
   config,
-  conserveLots,
+  offer,
+  pending,
   ticked,
   onTick,
   price,
@@ -50,12 +52,15 @@ export default function PeerSellSection({
   const limits = useLimits()
   const fieldsOff = !ticked
   let context: string | null = null
-  if (maxQuality !== null) {
-    const offer = unitsOnOffer(maxQuality, maxUnits ?? Number.MAX_SAFE_INTEGER, conserveLots, view)
-    context =
-      offer.lotIds.length === 0
-        ? `now in your cellar: no lots at ${maxQuality}% or less`
-        : `now in your cellar: ${formatUnits(offer.units)} at ${maxQuality}% or less (${offer.lotIds.map(lotLabel).join(', ')})`
+  if (maxQuality !== null && ticked) {
+    if (offer === null) {
+      context = pending ? `now in your cellar: ${PREVIEW_PLACEHOLDER}` : null
+    } else {
+      context =
+        offer.lot_ids.length === 0
+          ? `now in your cellar: no lots at ${maxQuality}% or less`
+          : `now in your cellar: ${formatUnits(offer.units)} at ${maxQuality}% or less (${offer.lot_ids.map(lotLabel).join(', ')})`
+    }
   }
   return (
     <FormRow

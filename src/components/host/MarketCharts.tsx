@@ -211,7 +211,7 @@ function ProfitRaceChart({ hostView, histories, market, days, aliases }: Shared)
       lines: aliases.map((a) => ({
         alias: a,
         name: hostView.players[a].display_name,
-        profit: (histories.players[a] ?? []).map((r) => r.profit),
+        cumulative: histories.race[a] ?? [],
       })),
     },
     focus,
@@ -295,12 +295,18 @@ function DemandChart({ market, days, labels }: Shared): ReactElement {
   )
 }
 
-function SpotPriceChart({ market, days, labels, config }: Shared & { config: GameConfig | null }): ReactElement {
+function SpotPriceChart({
+  market,
+  days,
+  labels,
+  config,
+  range,
+}: Shared & { config: GameConfig | null; range: HostView['spot_range'] | undefined }): ReactElement {
   const spot = market.map((m) => m.spot_price)
   const base = config === null ? null : config.supplier.base_price
-  const spread = config === null ? null : config.supplier.spot_spread
-  const low = base === null || spread === null ? null : market.map(() => base * (1 - spread))
-  const high = base === null || spread === null ? null : market.map(() => base * (1 + spread))
+  // The server's spot range (spec §5.1): the cheapest and dearest price the supplier can draw.
+  const low = range === undefined ? null : market.map(() => range.low)
+  const high = range === undefined ? null : market.map(() => range.high)
   const band = CHART_COLORS['p1'] + BAND_ALPHA
 
   const datasets: ChartData<'line'>['datasets'] = []
@@ -500,7 +506,7 @@ export default function MarketCharts({ hostView, histories, config }: MarketChar
       <MarketShareChart {...shared} />
       <ReputationChart {...shared} />
       <DemandChart {...shared} />
-      <SpotPriceChart {...shared} config={config} />
+      <SpotPriceChart {...shared} config={config} range={hostView.spot_range} />
       <CapacityChart {...shared} />
       <SpoilageChart {...shared} />
       {hostView.config.peer_market.enabled ? <PeerUnitsChart {...shared} /> : null}

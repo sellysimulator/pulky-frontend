@@ -12,6 +12,7 @@ import LoadingSpinner from '../shared/LoadingSpinner'
 import SectionCard from '../shared/SectionCard'
 import type { SectionProps } from './ConfigField'
 import { SECTION_PATHS, diffPatch, getAt, leafPaths, sectionOf, setAt, type SectionId } from './configDraft'
+import { ConfigPreviewContext, useConfigPreviewRequest } from './configPreview'
 import { DOCS } from './docs/entries'
 import DemandSection from './sections/DemandSection'
 import GameSection from './sections/GameSection'
@@ -135,6 +136,8 @@ export default function ConfigPanel({ roomCode, hostSecret, locked }: ConfigPane
   const runRef = useRef(0)
 
   const readOnly = locked || hostSecret === null
+  // Every figure the panel shows comes from the server, for the draft on screen (spec §13.4, §13.10).
+  const previewState = useConfigPreviewRequest(draft)
 
   // The draft follows the store while it holds no unsent edit.
   if (storeConfig !== seenStore) {
@@ -270,39 +273,41 @@ export default function ConfigPanel({ roomCode, hostSecret, locked }: ConfigPane
   const warningOrphans = orphans(warnings)
 
   return (
-    <div className="flex flex-col gap-6">
-      {failure !== null ? <InlineAlert tone="danger">{failure}</InlineAlert> : null}
-      {checkError !== null ? <InlineAlert tone="danger">{checkError}</InlineAlert> : null}
-      <IssueAlerts errors={errorOrphans.get(null) ?? []} warnings={warningOrphans.get(null) ?? []} />
-      {readOnly ? null : (
-        <div>
-          <Button variant="secondary" icon={RotateCcw} onClick={reset}>
-            Reset to defaults
-          </Button>
-        </div>
-      )}
-      <nav aria-label="Settings sections" className="flex flex-wrap gap-2">
-        {SECTIONS.map((s) => (
-          <Button key={s.id} variant="ghost" size="sm" onClick={() => jumpTo(s.id)}>
-            {s.title}
-          </Button>
+    <ConfigPreviewContext.Provider value={previewState}>
+      <div className="flex flex-col gap-6">
+        {failure !== null ? <InlineAlert tone="danger">{failure}</InlineAlert> : null}
+        {checkError !== null ? <InlineAlert tone="danger">{checkError}</InlineAlert> : null}
+        <IssueAlerts errors={errorOrphans.get(null) ?? []} warnings={warningOrphans.get(null) ?? []} />
+        {readOnly ? null : (
+          <div>
+            <Button variant="secondary" icon={RotateCcw} onClick={reset}>
+              Reset to defaults
+            </Button>
+          </div>
+        )}
+        <nav aria-label="Settings sections" className="flex flex-wrap gap-2">
+          {SECTIONS.map((s) => (
+            <Button key={s.id} variant="ghost" size="sm" onClick={() => jumpTo(s.id)}>
+              {s.title}
+            </Button>
+          ))}
+        </nav>
+        {SECTIONS.map(({ id, title, icon, Body }) => (
+          <SectionCard key={id} id={sectionElementId(id)} title={title} icon={icon}>
+            <IssueAlerts errors={errorOrphans.get(id) ?? []} warnings={warningOrphans.get(id) ?? []} />
+            <Body
+              config={draft}
+              fields={defaults.fields}
+              readOnly={readOnly}
+              errors={errorsByPath}
+              warnings={warningsByPath}
+              onEdit={onEdit}
+              onPatch={onPatch}
+              insuranceIssues={insurance}
+            />
+          </SectionCard>
         ))}
-      </nav>
-      {SECTIONS.map(({ id, title, icon, Body }) => (
-        <SectionCard key={id} id={sectionElementId(id)} title={title} icon={icon}>
-          <IssueAlerts errors={errorOrphans.get(id) ?? []} warnings={warningOrphans.get(id) ?? []} />
-          <Body
-            config={draft}
-            fields={defaults.fields}
-            readOnly={readOnly}
-            errors={errorsByPath}
-            warnings={warningsByPath}
-            onEdit={onEdit}
-            onPatch={onPatch}
-            insuranceIssues={insurance}
-          />
-        </SectionCard>
-      ))}
-    </div>
+      </div>
+    </ConfigPreviewContext.Provider>
   )
 }

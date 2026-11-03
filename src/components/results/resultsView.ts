@@ -50,6 +50,7 @@ export interface PulqueriaResultView {
     closing_stock: number[]
     reputation: number[]
     profit: number[]
+    cumulative_profit: number[]
     cooperate: boolean[]
   }
 }
@@ -133,6 +134,7 @@ const SERIES_KEYS = [
   'closing_stock',
   'reputation',
   'profit',
+  'cumulative_profit',
   'cooperate',
 ] as const
 

@@ -3,8 +3,10 @@ import { resolve } from 'node:path'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { ConfigPreviewContext } from '../components/config/configPreview'
 import InfoButton from '../components/config/docs/InfoButton'
 import type { ConfigDefaultsResponse } from '../types/game'
+import { CONFIG_PREVIEWS, previewState } from './fixtures/serverConfig'
 
 vi.mock('react-chartjs-2', () => ({
   Bar: () => <canvas />,
@@ -60,14 +62,17 @@ describe('InfoButton (AC 6)', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
-  it('the dialog follows the config prop', async () => {
+  it("the dialog follows the server's figures for the config being edited", async () => {
     const user = userEvent.setup()
-    const { rerender } = render(<InfoButton entryKey="stock.holding_cost" config={config} />)
+    const at = (name: string) => (
+      <ConfigPreviewContext.Provider value={previewState(name)}>
+        <InfoButton entryKey="stock.holding_cost" config={CONFIG_PREVIEWS[name].config} />
+      </ConfigPreviewContext.Provider>
+    )
+    const { rerender } = render(at('typed'))
     await user.click(screen.getByRole('button', { name: 'About Holding cost' }))
     expect(screen.getByRole('dialog')).toHaveTextContent('$10.00')
-    const next = structuredClone(config)
-    next.stock.holding_cost = 0.5
-    rerender(<InfoButton entryKey="stock.holding_cost" config={next} />)
+    rerender(at('holding05'))
     expect(screen.getByRole('dialog')).toHaveTextContent('$25.00')
   })
 })

@@ -1,6 +1,6 @@
 import http from './http'
 import { useGameStore } from '../store/gameStore'
-import type { ConfigDefaultsResponse, GameConfig, Limits, ValidateConfigResponse } from '../types/game'
+import type { ConfigDefaultsResponse, ConfigPreviewResponse, GameConfig, Limits, ValidateConfigResponse } from '../types/game'
 
 export async function getConfigDefaults(): Promise<ConfigDefaultsResponse> {
   const res = await http.get<ConfigDefaultsResponse>('/config/defaults')
@@ -9,6 +9,16 @@ export async function getConfigDefaults(): Promise<ConfigDefaultsResponse> {
 
 export async function validateConfig(config: GameConfig): Promise<ValidateConfigResponse> {
   const res = await http.post<ValidateConfigResponse>('/config/validate', { config })
+  return res.data
+}
+
+/**
+ * Spec §13.4: the host screen's previews, calculator and help examples for a draft config, computed by the
+ * server from the engine's own functions. Null while the draft has an error; a figure that needs a hidden
+ * default the draft leaves blank is null (spec §9.3).
+ */
+export async function previewConfig(config: GameConfig): Promise<ConfigPreviewResponse> {
+  const res = await http.post<ConfigPreviewResponse>('/config/preview', { config })
   return res.data
 }
 

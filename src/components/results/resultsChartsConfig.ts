@@ -2,7 +2,6 @@ import type { ChartConfiguration, ChartOptions } from 'chart.js'
 import type { SankeyDataPoint, SankeyScriptableContext } from 'chartjs-chart-sankey'
 import type { Weekday } from '../../types/game'
 import { formatPercent, formatQty, weekdayShort } from '../../utils/format'
-import { roundCents } from '../../utils/money'
 import { CHART_COLORS, emphasisOf, hatchPattern, hatched, pulqueriaLine, pulqueriaStyle } from '../charts/chartSetup'
 import type { ResultsView } from './resultsView'
 
@@ -11,7 +10,8 @@ import type { ResultsView } from './resultsView'
 export interface RaceLine {
   alias: string
   name: string
-  profit: number[]
+  /** The server's profit so far after each day (spec §8.6 `cumulative_profit`, §12.5). */
+  cumulative: number[]
   total?: number
 }
 
@@ -24,7 +24,7 @@ export interface RaceInput {
 const END_LABEL_MAX_LINES = 6
 const END_LABEL_PADDING_PX = 112
 
-/** Running totals of each line's daily profit, one point per day, then the final total as End when every line has one. */
+/** Each line's profit so far, one point per day as the server sent it, then the final total as End when every line has one. */
 export function buildRaceConfig(input: RaceInput, focus: string | null): ChartConfiguration<'line'> {
   const { weekdays, peak, lines } = input
   const withEnd = lines.length > 0 && lines.every((line) => line.total !== undefined)
@@ -32,12 +32,7 @@ export function buildRaceConfig(input: RaceInput, focus: string | null): ChartCo
   if (withEnd) labels.push(['End'])
 
   const datasets = lines.map((line) => {
-    const data: number[] = []
-    let running = 0
-    for (let i = 0; i < weekdays.length && i < line.profit.length; i += 1) {
-      running += line.profit[i]
-      data.push(roundCents(running))
-    }
+    const data: number[] = line.cumulative.slice(0, weekdays.length)
     if (withEnd && line.total !== undefined) data.push(line.total)
     return { label: line.name, data, ...pulqueriaLine(line.alias, emphasisOf(line.alias, focus)) }
   })
@@ -68,7 +63,7 @@ export function buildProfitRaceConfig(view: ResultsView, focus: string | null): 
       lines: view.players.map((p) => ({
         alias: p.alias,
         name: p.display_name,
-        profit: p.series.profit,
+        cumulative: p.series.cumulative_profit,
         total: p.total_profit,
       })),
     },

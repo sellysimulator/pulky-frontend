@@ -9,6 +9,7 @@ import Switch from '../shared/Switch'
 import { DOCS } from './docs/entries'
 import InfoButton from './docs/InfoButton'
 import { getAt } from './configDraft'
+import { useConfigPreview } from './configPreview'
 import { HIDDEN_HELPER, HIDDEN_PLACEHOLDER, PIPELINE_WITHOUT_LEAD_TIME } from './hiddenDefaults'
 import ShownToPlayersBadge from './ShownToPlayersBadge'
 
@@ -87,8 +88,9 @@ export default function ConfigField({ path, config, meta, readOnly, error, warni
   const type = meta?.type ?? (typeof value === 'boolean' ? 'bool' : typeof value === 'string' ? 'weekday' : 'float')
   const shown = meta?.players === 'shown'
   const hidden = meta?.hidden_default === true
-  // Spec §13.9: the initial pipeline has no slot to fill without a lead time.
-  const noEffect = path === 'supplier.initial_pipeline_qty' && config.supplier.lead_time_days === 0
+  // Spec §13.9: the initial pipeline has no slot to fill without a lead time; the server says when it is used.
+  const { latest } = useConfigPreview()
+  const noEffect = path === 'supplier.initial_pipeline_qty' && latest?.supplier.initial_pipeline.used === false
   const helper =
     meta && meta.min !== null && meta.max !== null ? `Between ${bound(meta.min)} and ${bound(meta.max)}` : null
 

@@ -19,8 +19,8 @@ function brief(over: Partial<Brief> = {}): Brief {
     weekday_multipliers: { mon: 0.25, tue: 0.5, wed: 0.75, thu: 1, fri: 1, sat: 1, sun: 0.75 },
     expected_demand: 100,
     supplier: { disrupted: false, disruption_message: null, spot_price: 13.4, base_price: 12, lead_time_days: 1 },
-    spot: { open: true, arrives_day: 6 },
-    futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, last_day_to_buy: 7, days_left_to_buy: 3 },
+    spot: { open: true, arrives_day: 6, arrives_weekday: 'sat' },
+    futures: { open: true, price: 12, horizon_days: 7, delivery_day: 12, delivery_weekday: 'fri', last_day_to_buy: 7, days_left_to_buy: 3 },
     transport: { shared: false },
     reputation: { P1: 0.62, P2: 0.55, P3: 0.5 },
     ...over,
@@ -241,19 +241,20 @@ describe('selectPresentationData', () => {
 })
 
 describe('selectHostHistories', () => {
-  it('returns the store hostHistories, publicHistory and marketHistory', () => {
+  it('returns the store hostHistories, hostRace, publicHistory and marketHistory', () => {
     seed()
     const s = useGameStore.getState()
     const h = selectHostHistories(s)
-    expect(Object.keys(h).sort()).toEqual(['marketHistory', 'players', 'publicHistory'])
+    expect(Object.keys(h).sort()).toEqual(['marketHistory', 'players', 'publicHistory', 'race'])
     expect(h.players).toEqual(s.hostHistories)
+    expect(h.race).toEqual(s.hostRace)
     expect(h.publicHistory).toEqual(s.publicHistory)
     expect(h.marketHistory).toEqual(s.marketHistory)
   })
 
   it('is empty-but-defined before anything has closed', () => {
-    seed({ publicHistory: [], marketHistory: [], hostHistories: {} })
-    expect(selectHostHistories(useGameStore.getState())).toEqual({ players: {}, publicHistory: [], marketHistory: [] })
+    seed({ publicHistory: [], marketHistory: [], hostHistories: {}, hostRace: {} })
+    expect(selectHostHistories(useGameStore.getState())).toEqual({ players: {}, race: {}, publicHistory: [], marketHistory: [] })
   })
 
   it('a daily host_state (full: false) does not empty the histories', () => {

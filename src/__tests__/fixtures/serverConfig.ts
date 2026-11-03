@@ -10,7 +10,8 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { useGameStore } from '../../store/gameStore'
-import type { ConfigDefaultsResponse, GameConfig, Limits } from '../../types/game'
+import type { ConfigPreviewState } from '../../components/config/configPreview'
+import type { ConfigDefaultsResponse, ConfigPreview, GameConfig, Limits } from '../../types/game'
 
 function fixture<T>(name: string): T {
   return JSON.parse(readFileSync(resolve(process.cwd(), 'src/__tests__/fixtures', name), 'utf8')) as T
@@ -45,4 +46,17 @@ export function withTypedRisks(config: GameConfig): GameConfig {
       loss_fraction: config.transport.loss_fraction ?? at('transport.loss_fraction'),
     },
   }
+}
+
+/**
+ * `config_preview.json` is `POST /config/preview` (backend `config_preview()`) for named host configs: `hidden`
+ * (a new room, the risks blank), `typed` (the risks typed in with the backend's values) and variants of `typed`
+ * (see the generator in the build log). Tests render what the server sent; they never compute a figure.
+ */
+export const CONFIG_PREVIEWS = fixture<Record<string, { config: GameConfig; preview: ConfigPreview }>>('config_preview.json')
+
+/** The panel's preview state for a named server answer. */
+export function previewState(name: string, over: Partial<ConfigPreviewState> = {}): ConfigPreviewState {
+  const preview = CONFIG_PREVIEWS[name].preview
+  return { preview, latest: preview, pending: false, ...over }
 }

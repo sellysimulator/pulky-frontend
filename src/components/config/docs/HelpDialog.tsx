@@ -2,6 +2,7 @@ import { X } from 'lucide-react'
 import { useEffect, useId, useRef, type KeyboardEvent, type MouseEvent, type ReactElement } from 'react'
 import type { GameConfig } from '../../../types/game'
 import Button from '../../shared/Button'
+import { useConfigPreview } from '../configPreview'
 import { DOCS } from './entries'
 
 interface HelpDialogProps {
@@ -19,6 +20,8 @@ export default function HelpDialog({ entryKey, config, open, onClose }: HelpDial
   const ref = useRef<HTMLDialogElement>(null)
   const titleId = useId()
   const entry = DOCS[entryKey] as (typeof DOCS)[string] | undefined
+  // The example's figures are the server's, for the config being edited (spec §13.10).
+  const preview = useConfigPreview()
 
   useEffect(() => {
     const dialog = ref.current
@@ -74,7 +77,7 @@ export default function HelpDialog({ entryKey, config, open, onClose }: HelpDial
           <div className="flex flex-col gap-5 overflow-y-auto px-5 py-4">
             <section className="flex flex-col gap-2">
               <h3 className="text-base font-semibold">Formula</h3>
-              {entry.formula(config)}
+              {entry.formula(config, preview.preview)}
             </section>
             <section className="flex flex-col gap-2">
               <h3 className="text-base font-semibold">How it changes the game</h3>
@@ -82,7 +85,7 @@ export default function HelpDialog({ entryKey, config, open, onClose }: HelpDial
             </section>
             <section className="flex flex-col gap-2">
               <h3 className="text-base font-semibold">Example</h3>
-              {entry.example(config)}
+              {entry.example(config, preview)}
             </section>
           </div>
         </div>

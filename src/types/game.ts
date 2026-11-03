@@ -177,12 +177,13 @@ export interface Brief {
     base_price: number
     lead_time_days: number
   }
-  spot: { open: boolean; arrives_day: number }
+  spot: { open: boolean; arrives_day: number; arrives_weekday: Weekday }
   futures: {
     open: boolean
     price: number
     horizon_days: number
     delivery_day: number
+    delivery_weekday: Weekday
     last_day_to_buy: number
     days_left_to_buy: number
   }
@@ -389,9 +390,13 @@ export interface CellarLot {
   initial_quality: number
   conserved: boolean
   quality: number
+  /** Days the lot can still be sold, counting today (spec §3.5). */
+  days_left: number
   last_day: number
   risk_tonight: number
   expected_loss_tonight: number
+  /** What conserving the lot costs today, null once it is conserved (spec §3.4). */
+  conservation_cost: number | null
 }
 
 export interface StockByAge {
@@ -421,6 +426,8 @@ export interface FuturesContract {
 export interface QualityGuideRow {
   quality: number
   half_spoiled_day: number
+  /** Days a unit of this quality can still be sold, counting the guide's day (spec §3.5). */
+  days_left: number
   last_day: number
 }
 
@@ -490,6 +497,8 @@ export interface HostPlayerRow {
   last_peer_bought: number | null
   last_peer_sold: number | null
   own_history?: DayRecord[]
+  /** The profit race's points, full form only (spec §12.5): profit so far after each day. */
+  cumulative_profit_by_day?: number[]
   last_record?: DayRecord | null
 }
 
@@ -504,6 +513,8 @@ export interface HostView {
   brief: Brief | null
   seed: number
   config: GameConfig
+  /** The cheapest and dearest spot price the supplier can draw (spec §5.1). */
+  spot_range: { low: number; high: number }
   awaiting: string[]
   players: Record<string, HostPlayerRow>
   public_history?: PublicDayResults[]
@@ -585,6 +596,8 @@ export interface PlayerStats {
     closing_stock: number[]
     reputation: number[]
     profit: number[]
+    /** Profit so far after each day, in cents: the profit race's points (spec §8.6). */
+    cumulative_profit: number[]
     cooperate: boolean[]
   }
   final_settlement: FinalSettlement
@@ -823,4 +836,164 @@ export interface ServerError {
   code: ErrorCode | string
   message: string
   field?: string
+}
+
+// --------------------------------------------------------- server previews
+
+/** The decision form's draft, as typed: a field may be null or not yet valid (spec §12.4). */
+export interface DecisionDraft {
+  day: number
+  order_spot: number | null
+  order_futures: number | null
+  incoterm_tier: IncotermTier
+  conserve_lots: string[]
+  cooperate: boolean
+  peer_buy: { max_price: number | null; min_quality: number | null } | null
+  peer_sell: { price: number | null; max_quality: number | null; max_units: number | null } | null
+}
+
+/** A tier card for the draft's shipment, with the fee on it (spec §6.3, §12.4). */
+export interface DraftTierPlan extends IncotermTierPlan {
+  fee_for_shipment: number
+}
+
+/** `preview_decision`'s figures for a draft (spec §12.1, §12.4); a part is null while a field it needs is in error. */
+export interface DecisionPreview {
+  day: number
+  outlay: { spot: number; futures: number; shipping: number; conservation: number; total: number } | null
+  affordable: boolean | null
+  unaffordable_message: string | null
+  shipment_units: number | null
+  tier_plans: DraftTierPlan[] | null
+  offer: { units: number; lot_ids: string[] } | null
+  errors: FieldIssue[]
+}
+
+/** The acknowledgement of `preview_decision`: the preview, or why there is none. */
+export type DecisionPreviewAnswer = { preview: DecisionPreview } | { code: string; message: string }
+
+export type RatioBadge = 'worth_it' | 'break_even' | 'not_worth_it' | 'no_risk'
+
+/** Quality and spoil risk at the check of one night; null once the lot is certainly gone. */
+export interface PreviewNight {
+  night: number
+  quality: number | null
+  risk: number | null
+}
+
+export interface PreviewLot {
+  role: 'lowest' | 'middle' | 'highest' | 'plain' | 'conserved'
+  initial_quality: number
+  conserved: boolean
+  nights: PreviewNight[]
+}
+
+export interface CalculatorCase {
+  break_even: number
+  ratio: number | null
+  badge: RatioBadge
+  worst_single_failure: number
+  fee_from_margin: number
+}
+
+export interface CalculatorTier {
+  tier: InsuredTier
+  enabled: boolean
+  fee: number
+  refund_value: number
+  /** Null while the failure chance or the loss share is a hidden default (spec §6.4). */
+  solo: CalculatorCase | null
+  shared: CalculatorCase | null
+  current: CalculatorCase | null
+  in_sync: boolean | null
+}
+
+export interface LossPair {
+  units: number
+  alone: number
+  shared: number
+}
+
+/** `POST /config/preview`: every figure of the host config screen, from the engine's own functions (spec §13.4, §13.10). */
+export interface ConfigPreview {
+  /** The hidden defaults the draft leaves blank; every figure that needs one is null (spec §9.3). */
+  hidden: string[]
+  weekdays: {
+    days: { weekday: Weekday; multiplier: number; in_peak: boolean; market_demand: number }[]
+    reach: number
+    average_multiplier: number
+    peak_demand_by_seats: { seats: number; units: number }[]
+  }
+  game: {
+    weekly_cycles: number
+    last_weekday: Weekday
+    own_demand_per_day: number
+    cost_per_day: number
+    days_covered: number
+  }
+  prices: {
+    spot_low: number
+    spot_high: number
+    margin_at_low: number
+    margin_at_high: number
+    backlog_cost: { days: number; cost: number }[]
+  }
+  reputation: {
+    starting_shares: { alias: string; share: number }[]
+    clean_days: number[]
+    day_scores: { fill: number; scores: { waste: number; score: number }[] }[]
+    split: { reputation: number; share: number; units: number }[]
+  }
+  supplier: {
+    expected_capacity: number
+    disrupted_capacity: number
+    capacity_band: { low: number; high: number } | null
+    disruptions: { chance_any: number; expected: number } | null
+    lead_time: { arrival_day: number; arrival_weekday: Weekday; last_spot_day: number }
+    initial_pipeline: { used: boolean; arrivals: { day: number; units: number }[] }
+    futures: { delivery_day: number; last_day_to_buy: number }
+  }
+  stock: {
+    quality_step_per_night: number
+    quality_range: PreviewLot[]
+    highest_lot: PreviewLot
+    plain_vs_conserved: PreviewLot[]
+    spoil_risk: PreviewLot[]
+    holding: { units: number; cost: number }
+    salvage: { units: number; revenue: number }
+    conservation: { units: number; cost: number; risk_after_fresh: number; units_saved: number }
+    quality_guide: QualityGuideRow[]
+  }
+  transport: {
+    shipping: { units: number; cost: number }
+    failures: { chance_any: number; expected: number } | null
+    loss_example: LossPair | null
+    loss_table: {
+      shared_by: number
+      shared_fraction: number
+      rows: { alias: string; shipped: number; alone: number; shared: number }[]
+      total_alone: number
+      total_shared: number
+    } | null
+    reference_losses: LossPair | null
+  }
+  calculator: {
+    known: boolean
+    shared_seats: number
+    target_ratio: number
+    tiers: CalculatorTier[]
+  }
+  examples: {
+    allocation: {
+      capacity: number
+      orders: Record<string, number>
+      largest_first: Record<string, number>
+      cooperative: Record<string, number>
+    }
+    peer_trades: { buyer: string; seller: string; seller_lot: string; units: number; price: number; total: number }[]
+  }
+}
+
+export interface ConfigPreviewResponse {
+  preview: ConfigPreview | null
 }

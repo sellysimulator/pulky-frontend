@@ -70,13 +70,14 @@ export function expectedBands(f: PulqueFlow): Array<{ from: string; to: string; 
   return BAND_TABLE.filter((b) => f[b.field] > 0).map((b) => ({ from: b.from, to: b.to, flow: f[b.field] }))
 }
 
-type Profile = { alias: string; name: string; profit: number[]; total: number; fill: number | null; waste: number | null }
+/** `cumulative` is the server's `series.cumulative_profit`: profit so far after each day, in cents. */
+type Profile = { alias: string; name: string; profit: number[]; cumulative: number[]; total: number; fill: number | null; waste: number | null }
 
 /** Section 35 section 4: three pulquerías by rank P2, P1, P3; 3 days, Mon-Wed, multiplier [0.5, 1, 1]. */
 export const EXAMPLE_PROFILES: Profile[] = [
-  { alias: 'P2', name: 'La Chula', profit: [100.1, 50.2, 30.3], total: 200.6, fill: 0.9, waste: 0.1 },
-  { alias: 'P1', name: 'Don Agave', profit: [80, -20.5, 60], total: 139.5, fill: 0.8, waste: 0.3 },
-  { alias: 'P3', name: 'El Tinacal', profit: [10, 10, 10], total: 30, fill: null, waste: 0.2 },
+  { alias: 'P2', name: 'La Chula', profit: [100.1, 50.2, 30.3], cumulative: [100.1, 150.3, 180.6], total: 200.6, fill: 0.9, waste: 0.1 },
+  { alias: 'P1', name: 'Don Agave', profit: [80, -20.5, 60], cumulative: [80, 59.5, 119.5], total: 139.5, fill: 0.8, waste: 0.3 },
+  { alias: 'P3', name: 'El Tinacal', profit: [10, 10, 10], cumulative: [10, 20, 30], total: 30, fill: null, waste: 0.2 },
 ]
 
 /** A minimal view for the builders: only the fields section 35's builders and charts read. */
@@ -86,7 +87,7 @@ export function makeSmallView(profiles: Profile[] = EXAMPLE_PROFILES, multiplier
     const out: Record<string, unknown> = {
       alias: p.alias, display_name: p.name, rank: i + 1, total_profit: p.total,
       fill_rate: p.fill, waste_rate: p.waste,
-      series: { profit: p.profit },
+      series: { profit: p.profit, cumulative_profit: p.cumulative },
     }
     if (flows?.[p.alias]) out.flow = flows[p.alias]
     return out as unknown as PulqueriaResultView
