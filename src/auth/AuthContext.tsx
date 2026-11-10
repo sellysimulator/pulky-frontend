@@ -21,7 +21,7 @@ import { socket } from '../api/socket'
 import { upsertUser } from '../api/users'
 import { useBackendStatus } from '../contexts/BackendStatusContext'
 import { useGameStore } from '../store/gameStore'
-import { getGuestMode, setGuestMode } from '../utils/storage'
+import { clearPulkyStorage, getGuestMode, setGuestMode } from '../utils/storage'
 
 interface AuthUser {
   displayName: string | null
@@ -84,10 +84,16 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactElemen
     setConnectRequests((n) => n + 1)
   }, [])
 
+  // Nothing of this person stays behind in storage, the store or the socket (a shared classroom machine).
   const signOut = useCallback(async () => {
-    setGuestMode(false)
+    // Cleared first, so the reconnect's handshake already mints a fresh guest id.
+    clearPulkyStorage()
+    useGameStore.getState().reset()
     setGuest(false)
+    const signedIn = auth.currentUser !== null
     await firebaseSignOut(auth)
+    // A Firebase sign-out reconnects through onAuthStateChanged; a guest's sign-out fires no such event.
+    if (!signedIn) setConnectRequests((n) => n + 1)
   }, [])
 
   const value = useMemo<AuthContextValue>(

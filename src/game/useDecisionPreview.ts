@@ -20,6 +20,7 @@ interface Answer {
 /**
  * Spec §12.4: the decision form's figures come from the server (`preview_decision`), never from the client.
  * Each edit waits `PREVIEW_DEBOUNCE_MS`, then asks once; an answer for an older draft is dropped.
+ * A null acknowledgement keeps the last figures shown; a timeout leaves them blank.
  */
 export function useDecisionPreview(roomCode: string | null, draft: DecisionDraft): DecisionPreviewState {
   const key = JSON.stringify(draft)
@@ -31,7 +32,10 @@ export function useDecisionPreview(roomCode: string | null, draft: DecisionDraft
     const timer = setTimeout(() => {
       previewDecision(roomCode, JSON.parse(key) as DecisionDraft)
         .then((reply) => {
-          if (!cancelled) setAnswer({ key, preview: 'preview' in reply ? reply.preview : null })
+          if (cancelled) return
+          // No answer (the event failed or was over an abuse limit): keep the last figures, quietly.
+          if (reply === null || reply === undefined) setAnswer((last) => ({ key, preview: last?.preview ?? null }))
+          else setAnswer({ key, preview: 'preview' in reply ? reply.preview : null })
         })
         .catch(() => {
           if (!cancelled) setAnswer({ key, preview: null })

@@ -30,7 +30,8 @@ npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build   # the
   payload, or from a preview request that runs the engine's own functions for what the user is typing:
   - the decision form asks `preview_decision` (a socket acknowledgement, `src/api/games.ts`, hook `src/game/useDecisionPreview.ts`)
     250 ms after the last edit, and shows its outlay, affordability, tier cards (the Paid-price card follows the spot order),
-    "now in your cellar" line and field messages, with **…** until the answer for the draft on screen arrives;
+    "now in your cellar" line and field messages, with **…** until the answer for the draft on screen arrives (a `null`
+    acknowledgement, the server's fallback when the event failed or was rate limited, keeps the last figures);
   - the host config panel asks `POST /config/preview` (`src/api/config.ts`, `src/components/config/configPreview.ts`) 300 ms after
     the last edit and shares the answer with the previews, the insurance calculator and every help entry; **Set fees from margin**
     sends the server's `fee_from_margin`;

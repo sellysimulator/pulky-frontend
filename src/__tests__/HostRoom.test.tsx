@@ -272,7 +272,7 @@ describe('HostRoom states (acceptance 1, 2)', () => {
   it('a join error before the claim: a danger alert with the message and a Back to home link', () => {
     mount()
     act(() => useGameStore.getState().applyJoinError({ message: 'No room with that code.' }))
-    expect(screen.getByText('No room with that code.')).toBeInTheDocument()
+    expect(screen.getByText('This room has expired or does not exist.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Back to home' })).toBeInTheDocument()
     expect(screen.queryByText('Opening the room')).toBeNull()
   })

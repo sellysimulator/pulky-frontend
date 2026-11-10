@@ -5,6 +5,7 @@
  */
 import { create } from 'zustand'
 import { v4 as uuidv4 } from 'uuid'
+import { RATE_LIMITED_MESSAGE, socketErrorText } from '../api/friendlyErrors'
 import type {
   ConfigUpdatedPayload,
   DayClosedPayload,
@@ -182,6 +183,12 @@ export const useGameStore = create<GameState & GameActions>()((set, get) => {
     set({ ...fn(state), lastSeq: seq })
   }
 
+  // Over the abuse limits every event is refused (spec §0.6): one alert says so, not one per event.
+  const errorAlert = (message: string): void => {
+    if (message === RATE_LIMITED_MESSAGE && get().alerts.some((a) => a.message === message)) return
+    get().addAlert({ kind: 'error', message })
+  }
+
   return {
     ...INITIAL_STATE,
 
@@ -198,8 +205,9 @@ export const useGameStore = create<GameState & GameActions>()((set, get) => {
     applyHostClaimed: () => set({ hostClaimed: true, joinError: null }),
 
     applyJoinError: (p) => {
-      set({ joinError: p.message })
-      get().addAlert({ kind: 'error', message: p.message })
+      const message = socketErrorText(p)
+      set({ joinError: message })
+      errorAlert(message)
     },
 
     clearJoinError: () => set({ joinError: null }),
@@ -328,7 +336,8 @@ export const useGameStore = create<GameState & GameActions>()((set, get) => {
     applyError: (p) => {
       set({ lastError: p })
       if (p.code === 'GAME_FINISHED') return
-      get().addAlert({ kind: p.code === 'STALE_DAY' ? 'success' : 'error', message: p.message })
+      if (p.code === 'STALE_DAY') get().addAlert({ kind: 'success', message: p.message })
+      else errorAlert(socketErrorText(p))
     },
 
     clearLastError: () => set({ lastError: null }),

@@ -346,4 +346,45 @@ describe('signOut', () => {
     expect(h.state.signOutCalls).toHaveLength(1)
     expect(h.state.signOutCalls[0][0]).toBe(h.authObject)
   })
+
+  it('clears every pulky.* key in both storages, resets the game store and keeps other keys', async () => {
+    localStorage.setItem('pulky.guest_id', 'guest_00000000-0000-0000-0000-000000000000')
+    localStorage.setItem('pulky.guest_mode', '1')
+    localStorage.setItem('pulky.session_token.ABC234', 'tok')
+    localStorage.setItem('pulky.display_name', 'Ana')
+    localStorage.setItem('other.app', 'keep')
+    sessionStorage.setItem('pulky.host_secret.ABC234', 'secret')
+    sessionStorage.setItem('other.session', 'keep')
+    useGameStore.getState().setRoom('ABC234', true)
+    useGameStore.getState().addAlert({ kind: 'error', message: 'x' })
+
+    const { result } = await mountAwake()
+    act(() => h.state.authCb?.(null))
+    await act(async () => {
+      await result.current.signOut()
+    })
+
+    const pulkyKeys = (s: Storage) => Array.from({ length: s.length }, (_, i) => s.key(i)).filter((k) => k?.startsWith('pulky.'))
+    expect(pulkyKeys(localStorage)).toEqual([])
+    expect(pulkyKeys(sessionStorage)).toEqual([])
+    expect(localStorage.getItem('other.app')).toBe('keep')
+    expect(sessionStorage.getItem('other.session')).toBe('keep')
+    expect(useGameStore.getState().roomCode).toBeNull()
+    expect(useGameStore.getState().alerts).toEqual([])
+    expect(getGuestMode()).toBe(false)
+    localStorage.removeItem('other.app')
+    sessionStorage.removeItem('other.session')
+  })
+
+  it('a guest sign-out (no Firebase event follows) reconnects the socket as a new guest', async () => {
+    const { result } = await mountAwake()
+    act(() => h.state.authCb?.(null))
+    act(() => result.current.continueAsGuest())
+    h.lifecycle.length = 0
+    await act(async () => {
+      await result.current.signOut()
+    })
+    expect(result.current.mode).toBeNull()
+    expect(h.lifecycle).toEqual(['disconnect', 'connect'])
+  })
 })
