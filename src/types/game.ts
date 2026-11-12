@@ -831,6 +831,7 @@ export type ErrorCode =
   | 'GAME_NOT_RUNNING'
   | 'GAME_FINISHED'
   | 'SERVER_ERROR'
+  | 'RATE_LIMITED'
 
 export interface ServerError {
   code: ErrorCode | string
@@ -869,8 +870,11 @@ export interface DecisionPreview {
   errors: FieldIssue[]
 }
 
-/** The acknowledgement of `preview_decision`: the preview, or why there is none. */
-export type DecisionPreviewAnswer = { preview: DecisionPreview } | { code: string; message: string }
+/**
+ * The acknowledgement of `preview_decision`: the preview, or why there is none; null when
+ * the event failed or was over an abuse limit (`@guarded`, spec §0.6).
+ */
+export type DecisionPreviewAnswer = { preview: DecisionPreview } | { code: string; message: string } | null
 
 export type RatioBadge = 'worth_it' | 'break_even' | 'not_worth_it' | 'no_risk'
 

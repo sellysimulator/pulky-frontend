@@ -2,6 +2,7 @@ import { UserCog, UsersRound } from 'lucide-react'
 import { useState, type FormEvent, type ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLimits } from '../api/config'
+import { serverMessageText } from '../api/friendlyErrors'
 import { errorMessage } from '../api/http'
 import { createRoom, getRoomStatus } from '../api/rooms'
 import { ManualLinks } from '../components/manual/ManualLink'
@@ -36,7 +37,7 @@ function JoinCard(): ReactElement {
     try {
       const status = await getRoomStatus(code)
       if (status.ok || getSessionToken(code) !== null) navigate(`/game/${code}`)
-      else setReason(status.reason ?? 'Could not reach the game server.')
+      else setReason(status.reason ? serverMessageText(status.reason) : 'Could not reach the game server.')
     } catch (err) {
       setReason(errorMessage(err, 'Could not reach the game server.'))
     } finally {

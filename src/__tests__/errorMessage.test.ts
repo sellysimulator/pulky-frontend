@@ -45,6 +45,10 @@ describe('errorMessage (spec 13.6)', () => {
     }
   })
 
+  it('says a room gone (expired or never there) in the player\'s words', () => {
+    expect(errorMessage(wire('No room with that code.'), 'x')).toBe('This room has expired or does not exist.')
+  })
+
   it('always returns a string, never the 422 array or an object (React child crash)', () => {
     const inputs: unknown[] = [
       wire([{ msg: 'a' }, { msg: 'b' }]),
@@ -60,5 +64,51 @@ describe('errorMessage (spec 13.6)', () => {
       expect(typeof out).toBe('string')
       expect(out.length).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('errorMessage: the abuse limits (spec 0.6, 13.4)', () => {
+  const refused = (status: number, detail: unknown, headers: unknown = {}) => ({
+    response: { status, headers, data: { detail } },
+  })
+  const SERVER_429 = 'Too many requests. Wait a minute and try again.'
+
+  it('429 names the wait from Retry-After', () => {
+    expect(errorMessage(refused(429, SERVER_429, { 'retry-after': '60' }), 'x')).toBe(
+      'Too many requests from your network. Please wait about 60 seconds and try again.',
+    )
+  })
+
+  it('429 reads Retry-After through AxiosHeaders.get too', () => {
+    const headers = { get: (name: string) => (name === 'retry-after' ? '30' : undefined) }
+    expect(errorMessage(refused(429, SERVER_429, headers), 'x')).toBe(
+      'Too many requests from your network. Please wait about 30 seconds and try again.',
+    )
+  })
+
+  it('429 without a usable Retry-After (hidden by CORS, missing or a date) says a minute', () => {
+    const minute = 'Too many requests from your network. Please wait a minute and try again.'
+    expect(errorMessage(refused(429, SERVER_429), 'x')).toBe(minute)
+    expect(errorMessage(refused(429, SERVER_429, undefined), 'x')).toBe(minute)
+    expect(errorMessage(refused(429, SERVER_429, { 'retry-after': 'Wed, 21 Oct 2026 07:28:00 GMT' }), 'x')).toBe(minute)
+  })
+
+  it('413 says the request was too large', () => {
+    expect(errorMessage(refused(413, 'That request is too large.'), 'x')).toBe('That request was too large.')
+  })
+
+  it('503 at the live-room cap (TOO_MANY_ROOMS) says too many games are running', () => {
+    expect(
+      errorMessage(refused(503, 'Too many games are open right now. Try again in a few minutes.'), 'x'),
+    ).toBe('Too many games are running right now — please try again in a few minutes.')
+  })
+
+  it('503 without a detail (a proxy page) says the server is busy; one with its own detail keeps it', () => {
+    expect(errorMessage(refused(503, undefined), 'x')).toBe(
+      'The server is busy right now — please try again in a minute.',
+    )
+    expect(errorMessage(refused(503, 'Sign-in is not available right now.'), 'x')).toBe(
+      'Sign-in is not available right now.',
+    )
   })
 })

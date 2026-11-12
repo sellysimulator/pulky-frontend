@@ -180,7 +180,7 @@ describe('Join a room (criterion 8)', () => {
     handler = () => ({ status: 200, data: status({ ok: false, reason: 'No room with that code.', state: null }) })
     const router = renderHome()
     await join('abc234')
-    expect(await screen.findByText('No room with that code.')).toBeInTheDocument()
+    expect(await screen.findByText('This room has expired or does not exist.')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/home')
     expect(screen.queryByText('game page')).not.toBeInTheDocument()
   })
@@ -204,7 +204,7 @@ describe('Join a room (criterion 8)', () => {
   })
 
   it('a request error shows the fallback message and does not navigate', async () => {
-    handler = () => ({ status: 503, data: 'down' })
+    handler = () => ({ status: 500, data: 'down' })
     const router = renderHome()
     await join('abc234')
     expect(await screen.findByText('Could not reach the game server.')).toBeInTheDocument()
@@ -212,10 +212,19 @@ describe('Join a room (criterion 8)', () => {
   })
 
   it('a request error with a string detail shows the detail', async () => {
-    handler = () => ({ status: 429, data: { detail: 'Slow down.' } })
+    handler = () => ({ status: 409, data: { detail: 'Slow down.' } })
     renderHome()
     await join('abc234')
     expect(await screen.findByText('Slow down.')).toBeInTheDocument()
+  })
+
+  it('a 429 over the room-lookup limit (spec 0.6) says so in the player\'s words', async () => {
+    handler = () => ({ status: 429, data: { detail: 'Too many requests. Wait a minute and try again.' } })
+    renderHome()
+    await join('abc234')
+    expect(
+      await screen.findByText('Too many requests from your network. Please wait a minute and try again.'),
+    ).toBeInTheDocument()
   })
 
   it('a 422 array detail renders as a string, not an object', async () => {
@@ -291,10 +300,19 @@ describe('Create a room (criterion 9)', () => {
   })
 
   it('a failure with a string detail shows the detail', async () => {
-    handler = () => ({ status: 429, data: { detail: 'Too many rooms.' } })
+    handler = () => ({ status: 400, data: { detail: 'Too many rooms.' } })
     renderHome()
     await userEvent.click(screen.getByRole('button', { name: 'Create room' }))
     expect(await screen.findByText('Too many rooms.')).toBeInTheDocument()
+  })
+
+  it('a 503 at the live-room cap (spec 0.6) says too many games are running', async () => {
+    handler = () => ({ status: 503, data: { detail: 'Too many games are open right now. Try again in a few minutes.' } })
+    renderHome()
+    await userEvent.click(screen.getByRole('button', { name: 'Create room' }))
+    expect(
+      await screen.findByText('Too many games are running right now — please try again in a few minutes.'),
+    ).toBeInTheDocument()
   })
 
   it('does not call the join status endpoint', async () => {

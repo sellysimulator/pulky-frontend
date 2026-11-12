@@ -376,12 +376,25 @@ describe('what each applier writes (spec 3.2)', () => {
   })
 
   it('join_error sets joinError and raises one error alert with the same message; clearJoinError clears it', () => {
-    call('applyJoinError', { message: 'No room with that code.' })
-    expect(S().joinError).toBe('No room with that code.')
+    call('applyJoinError', { message: 'This room is full.' })
+    expect(S().joinError).toBe('This room is full.')
     expect(S().alerts).toHaveLength(1)
-    expect(S().alerts[0]).toMatchObject({ kind: 'error', message: 'No room with that code.' })
+    expect(S().alerts[0]).toMatchObject({ kind: 'error', message: 'This room is full.' })
     S().clearJoinError()
     expect(S().joinError).toBeNull()
+  })
+
+  it('join_error for a room gone (expired after 2 h unstarted, spec 0.6) says so', () => {
+    call('applyJoinError', { message: 'No room with that code.' })
+    expect(S().joinError).toBe('This room has expired or does not exist.')
+    expect(S().alerts[0]).toMatchObject({ kind: 'error', message: 'This room has expired or does not exist.' })
+  })
+
+  it('join_error over the abuse limits (no code, the server message) reads as rate limited, once', () => {
+    call('applyJoinError', { message: 'Too many requests. Wait a minute and try again.' })
+    call('applyJoinError', { message: 'Too many requests. Wait a minute and try again.' })
+    expect(S().joinError).toBe('Too many requests from your network. Please wait a minute and try again.')
+    expect(S().alerts).toHaveLength(1)
   })
 
   it('lobby_update writes the lobby fields', () => {
@@ -475,6 +488,20 @@ describe('what each applier writes (spec 3.2)', () => {
         expect(S().alerts.map((a) => a.message)).toEqual([`message for ${code}`])
       },
     )
+
+    it('RATE_LIMITED reads in the player\'s words and raises one alert however many events it refuses', () => {
+      const err = { code: 'RATE_LIMITED', message: 'Too many requests. Wait a minute and try again.' }
+      for (let i = 0; i < 5; i += 1) call('applyError', err)
+      expect(S().lastError).toMatchObject(err)
+      expect(S().alerts).toHaveLength(1)
+      expect(S().alerts[0]).toMatchObject({
+        kind: 'error',
+        message: 'Too many requests from your network. Please wait a minute and try again.',
+      })
+      S().dismissAlert(S().alerts[0].id)
+      call('applyError', err)
+      expect(S().alerts).toHaveLength(1)
+    })
 
     it('GAME_FINISHED raises no alert but is still recorded', () => {
       call('applyError', { code: 'GAME_FINISHED', message: 'The game is over.' })

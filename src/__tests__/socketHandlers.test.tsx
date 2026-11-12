@@ -13,6 +13,8 @@ const h = vi.hoisted(() => {
   const state: { currentUser: unknown } = { currentUser: null }
   const fake = {
     connected: false,
+    // socket.io-client: true while it retries by itself, false once the server refused the handshake
+    active: true,
     on(event: string, fn: Listener) {
       listeners.set(event, [...(listeners.get(event) ?? []), fn])
       return fake
@@ -111,6 +113,7 @@ async function load() {
   h.lifecycle.length = 0
   h.ioCalls.length = 0
   h.state.currentUser = null
+  h.fake.active = true
   await import('../api/socketHandlers')
   const { useGameStore } = await import('../store/gameStore')
   const storage = await import('../utils/storage')
@@ -298,6 +301,90 @@ describe('connect_error (criterion 7)', () => {
     fire('connect_error', new Error('x'))
     expect(useGameStore.getState().connectionError).toBe(COPY)
     expect(useGameStore.getState().alerts).toHaveLength(2)
+  })
+})
+
+describe('a refused handshake (spec 0.6 socket cap)', () => {
+  const CAP = 'Too many connections from your network. Retrying…'
+  // The server's own refusal messages: the cap's (app/sockets/handlers/connection.py), and Socket.IO's generic one
+  const CAP_REFUSAL = 'Too many connections from your network. Try again in a minute.'
+  const AUTH_REFUSAL = 'Connection rejected by server'
+
+  /** The server's refusal: socket.io-client destroys the socket and does not retry by itself. */
+  function refuse(message = CAP_REFUSAL): void {
+    h.fake.active = false
+    fire('connect_error', new Error(message))
+  }
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('a refusal at the cap says so once and retries with a doubling backoff capped at 30 s', async () => {
+    const { useGameStore } = await load()
+    vi.useFakeTimers()
+    const connects = () => h.lifecycle.filter((e) => e === 'connect').length
+    const expected = [2000, 4000, 8000, 16_000, 30_000, 30_000]
+    for (const [i, delay] of expected.entries()) {
+      refuse()
+      vi.advanceTimersByTime(delay - 1)
+      expect(connects(), `attempt ${i + 1} waits ${delay} ms`).toBe(i)
+      vi.advanceTimersByTime(1)
+      expect(connects()).toBe(i + 1)
+    }
+    const s = useGameStore.getState()
+    expect(s.connectionError).toBe(CAP)
+    expect(s.alerts).toHaveLength(1)
+    expect(s.alerts[0]).toMatchObject({ kind: 'error', message: CAP })
+  })
+
+  it('a connect ends the retries, dismisses the alert and resets the backoff', async () => {
+    const { useGameStore } = await load()
+    vi.useFakeTimers()
+    refuse()
+    vi.advanceTimersByTime(2000)
+    refuse()
+    h.fake.active = true
+    fire('connect')
+    expect(useGameStore.getState().alerts).toEqual([])
+    expect(useGameStore.getState().connectionError).toBeNull()
+    const before = h.lifecycle.length
+    vi.advanceTimersByTime(60_000)
+    expect(h.lifecycle).toHaveLength(before)
+    refuse()
+    vi.advanceTimersByTime(2000)
+    expect(h.lifecycle).toHaveLength(before + 1)
+  })
+
+  it('an auth refusal (a token that fails verification) is not retried and keeps the usual copy', async () => {
+    const { useGameStore } = await load()
+    vi.useFakeTimers()
+    refuse(AUTH_REFUSAL)
+    vi.advanceTimersByTime(120_000)
+    expect(h.lifecycle).not.toContain('connect')
+    expect(useGameStore.getState().connectionError).toBe('Could not reach the game server.')
+    expect(useGameStore.getState().alerts).toHaveLength(1)
+  })
+
+  it('a transport failure is left to socket.io-client: no retry of its own', async () => {
+    const { useGameStore } = await load()
+    vi.useFakeTimers()
+    fire('connect_error', new Error('websocket error'))
+    vi.advanceTimersByTime(120_000)
+    expect(h.lifecycle).not.toContain('connect')
+    expect(useGameStore.getState().connectionError).toBe('Could not reach the game server.')
+  })
+})
+
+describe('error RATE_LIMITED (spec 0.6, 12.2)', () => {
+  it('reads in the player\'s words and alerts once while it lasts', async () => {
+    const { useGameStore } = await load()
+    for (let i = 0; i < 3; i += 1) {
+      fire('error', { code: 'RATE_LIMITED', message: 'Too many requests. Wait a minute and try again.' })
+    }
+    const alerts = useGameStore.getState().alerts
+    expect(alerts).toHaveLength(1)
+    expect(alerts[0].message).toBe('Too many requests from your network. Please wait a minute and try again.')
   })
 })
 

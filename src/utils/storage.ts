@@ -76,9 +76,41 @@ function playedGameKey(gameId: string): string {
   return `pulky.played_game.${gameId}`
 }
 
+function removePulkyKeys(store: Storage): void {
+  try {
+    const keys: string[] = []
+    for (let i = 0; i < store.length; i += 1) {
+      const key = store.key(i)
+      if (key !== null && key.startsWith('pulky.')) keys.push(key)
+    }
+    for (const key of keys) store.removeItem(key)
+  } catch {
+    // storage unavailable: nothing to remove
+  }
+}
+
 // ---------------------------------------------------------------- guest id
 
 let unsavedGuestId: string | null = null
+
+/**
+ * Sign-out on a shared machine: forget every `pulky.*` key in both storages (guest id,
+ * guest mode, room credentials, finished games, name, UI choices), so the next person
+ * starts as a stranger.
+ */
+export function clearPulkyStorage(): void {
+  unsavedGuestId = null
+  try {
+    removePulkyKeys(localStorage)
+  } catch {
+    // storage unavailable
+  }
+  try {
+    removePulkyKeys(sessionStorage)
+  } catch {
+    // storage unavailable
+  }
+}
 
 export function getGuestId(): string | null {
   return readLocal(GUEST_ID_KEY)
