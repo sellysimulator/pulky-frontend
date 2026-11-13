@@ -9,6 +9,7 @@ export const GUEST_ID_KEY = 'pulky.guest_id'
 
 const GUEST_MODE_KEY = 'pulky.guest_mode'
 const DISPLAY_NAME_KEY = 'pulky.display_name'
+const HOST_BATCH_KEY = 'pulky.host_batch'
 const GUEST_ID_RE = /^guest_[0-9a-f-]{36}$/
 
 function readLocal(key: string): string | null {
@@ -161,6 +162,33 @@ export function setHostSecret(roomCode: string, secret: string): void {
 
 export function clearHostSecret(roomCode: string): void {
   removeSession(hostSecretKey(roomCode))
+}
+
+// ---------------------------------------------------------------- multi-game batch
+// The room codes of the batch this tab made on /multihost/new, which the dashboard
+// (/multihost) lists. Only the codes: each room's secret is under its own host-secret
+// key, the one the host screen reads. sessionStorage, like the secrets, so the
+// dashboard survives a reload but not closing the tab.
+
+export function setHostBatch(roomCodes: string[]): void {
+  writeSession(HOST_BATCH_KEY, JSON.stringify(roomCodes.map((c) => c.toUpperCase())))
+}
+
+/** The batch's room codes, or null when this tab has none (or it is unreadable). */
+export function getHostBatch(): string[] | null {
+  const raw = readSession(HOST_BATCH_KEY)
+  if (raw === null) return null
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed) || !parsed.every((c) => typeof c === 'string')) return null
+    return parsed.length > 0 ? (parsed as string[]) : null
+  } catch {
+    return null
+  }
+}
+
+export function clearHostBatch(): void {
+  removeSession(HOST_BATCH_KEY)
 }
 
 // ---------------------------------------------------------------- finished games

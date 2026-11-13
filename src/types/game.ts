@@ -709,6 +709,38 @@ export interface CreateRoomResponse {
   config: GameConfig
 }
 
+/** `POST /rooms/batch-create` (spec §13.4): every room carries its own `host_secret`. */
+export interface BatchCreateResponse {
+  rooms: CreateRoomResponse[]
+}
+
+/** One room the caller hosts, named with the secret that proves it. */
+export interface HostedRoom {
+  room_code: string
+  host_secret: string
+}
+
+/**
+ * One entry of `POST /rooms/summary` (spec §13.4). `exists` is false, and every
+ * other field null, both for a room that is gone and for a wrong secret.
+ */
+export interface RoomSummary {
+  room_code: string
+  exists: boolean
+  state: RoomState | null
+  seats_taken: number | null
+  seats_total: number | null
+  day: number | null
+  duration_days: number | null
+  finished: boolean | null
+  can_start: boolean | null
+  start_blocked_reason: string | null
+}
+
+export interface RoomsSummaryResponse {
+  rooms: RoomSummary[]
+}
+
 // ---------------------------------------------------------------- server events (spec §12.2)
 
 export interface JoinedPayload {

@@ -44,7 +44,7 @@ vi.mock('../../firebase', () => ({
 }))
 
 import http from '../api/http'
-import { createRoom, getRoomConfig, getRoomStatus, putRoomConfig } from '../api/rooms'
+import { createRoom, createRoomBatch, getRoomConfig, getRoomStatus, getRoomsSummary, putRoomConfig } from '../api/rooms'
 import { getConfigDefaults, validateConfig } from '../api/config'
 import { claimGames, exportGame, getResultsById } from '../api/results'
 import { getMe, getMyGame, getMyGames, getMyStats, isMyHostedGame, upsertUser } from '../api/users'
@@ -179,6 +179,28 @@ describe('rooms.ts (spec 13.4)', () => {
     expect(header(seen[0], 'X-Host-Secret')).toBe('sekrit')
     expect(body(seen[0])).toEqual({ config: { max_players: 6 } })
     expect(out).toEqual(full)
+  })
+
+  it('createRoomBatch POSTs /rooms/batch-create with the count, the config patch and the name', async () => {
+    reply.data = { rooms: [{ room_code: 'ABC234', host_secret: 's', state: 'lobby', config: {} }] }
+    const out = await createRoomBatch(3, { duration_days: 9 }, 'Doña Pulque')
+    expect(method(seen[0])).toBe('POST')
+    expect(path(seen[0])).toBe('rooms/batch-create')
+    expect(body(seen[0])).toEqual({ count: 3, config: { duration_days: 9 }, host_display_name: 'Doña Pulque' })
+    expect(out).toEqual(reply.data)
+    await createRoomBatch(2, {})
+    expect(body(seen[1])).toEqual({ count: 2, config: {} })
+  })
+
+  it('getRoomsSummary POSTs the hosted rooms, so no secret reaches a URL', async () => {
+    const rooms = [{ room_code: 'ABC234', host_secret: 'sekrit' }]
+    reply.data = { rooms: [{ room_code: 'ABC234', exists: false }] }
+    const out = await getRoomsSummary(rooms)
+    expect(method(seen[0])).toBe('POST')
+    expect(path(seen[0])).toBe('rooms/summary')
+    expect(seen[0].url).not.toContain('sekrit')
+    expect(body(seen[0])).toEqual({ rooms })
+    expect(out).toEqual([{ room_code: 'ABC234', exists: false }])
   })
 })
 

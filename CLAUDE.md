@@ -39,6 +39,13 @@ npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build
   the host's config (spec §9.3), and the store is written only by socket handlers and the
   REST loaders (`../docs/plan/00-conventions.md` §4).
 - No raw hex outside the canvas modules, no gradient, lucide icons only, no emoji.
+- **Several games at once** (spec §11.3): `/multihost/new` (`pages/MultiHostSetup.tsx`, the config
+  form is `components/config/ConfigSections.tsx` over a local draft) and `/multihost`
+  (`pages/MultiHostDashboard.tsx`). The dashboard joins no room: it polls `POST /rooms/summary`
+  (`useRoomsSummary`), and on mount resets the store and reconnects the socket if this tab was in a
+  room. **Open host screen** is a button calling `window.open(url, '_blank')` WITHOUT `noopener`, so
+  the new tab inherits the host secrets in session storage; never turn it into a link. The join QR
+  (`components/shared/JoinQrOverlay.tsx`, qrcode.react, drawn locally) encodes the invite link only.
 
 ## Tests
 

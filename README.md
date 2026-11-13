@@ -19,6 +19,11 @@ npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build   # the
   never requests anything; they set the inputs' bounds, while the field messages come from the server's preview. Config controls take their bounds from the same
   response's `fields`. Tests seed them from `src/__tests__/fixtures/config_defaults.json`, which is that response, regenerated from
   the backend's `config_schema()` whenever it changes.
+- **Several games at once** (spec §11.3, §13.4): `createRoomBatch` (`POST /rooms/batch-create`) and `getRoomsSummary`
+  (`POST /rooms/summary`, a POST so the secrets stay out of URLs) in `src/api/rooms.ts`. The batch's room codes live in
+  session storage as `pulky.host_batch`, each secret under its usual host-secret key; the batch bounds are the served
+  `MIN_BATCH_ROOMS` / `MAX_BATCH_ROOMS`. "Start all ready games" sends the ordinary `start_game` for each room the server
+  says `can_start`.
 - **Hidden defaults** (spec §9.3): a host config holds null for each risk whose field has `hidden_default`; the form shows
   **Default (hidden)**, and the calculator and help examples say **Hidden until the game ends** where they would need it. The
   results' `config` reveals the values; **Play again** copies the host's config from the store, never that one.

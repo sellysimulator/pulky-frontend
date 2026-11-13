@@ -475,3 +475,30 @@ describe('HostRoom histories and submissions across daily host_state (acceptance
     expect(text).not.toMatch(/\d/)
   })
 })
+
+describe('the join QR code on the host screen', () => {
+  it('toggles a full-screen QR of the player invite link, never the host secret', () => {
+    setHostSecret(CODE, 's3cret-host')
+    mount()
+    act(() => {
+      useGameStore.getState().applyHostClaimed({ room_id: CODE, host_secret: 's3cret-host' })
+      useGameStore.getState().applyLobbyUpdate(lobbyUpdate())
+    })
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Show QR' }))
+
+    const dialog = screen.getByRole('dialog', { name: `QR code to join room ${CODE}` })
+    expect(dialog.querySelector('svg')).not.toBeNull()
+    expect(dialog).toHaveTextContent(`${window.location.origin}/join/${CODE}`)
+    // The QR code itself never carries the host secret: only the player link.
+    expect(dialog.innerHTML).not.toContain('s3cret-host')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide QR' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show QR' }))
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})

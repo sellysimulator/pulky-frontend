@@ -1,5 +1,5 @@
 /** Section 23 — InvitePanel (spec 23 §3.1). Acceptance criteria 1, 8. */
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -72,5 +72,30 @@ describe('InvitePanel', () => {
         ['error', 'Copy failed. Select the text and copy it.'],
       ]),
     )
+  })
+})
+
+describe('InvitePanel join QR code', () => {
+  it('Show QR opens the invite link as a QR code; Close, Escape and the backdrop dismiss it', () => {
+    render(<InvitePanel roomCode="K7M2QX" />)
+    const toggle = screen.getByRole('button', { name: 'Show QR' })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(toggle)
+
+    const dialog = screen.getByRole('dialog', { name: 'QR code to join room K7M2QX' })
+    expect(within(dialog).getByTitle('Join link for room K7M2QX')).toBeInTheDocument()
+    expect(dialog).toHaveTextContent(`${window.location.origin}/join/K7M2QX`)
+    expect(screen.getByRole('button', { name: 'Hide QR' })).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show QR' }))
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show QR' }))
+    fireEvent.click(screen.getByRole('dialog'))
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
