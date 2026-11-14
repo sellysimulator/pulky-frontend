@@ -77,6 +77,10 @@ function playedGameKey(gameId: string): string {
   return `pulky.played_game.${gameId}`
 }
 
+function exportedKey(gameId: string, format: ExportFormat): string {
+  return `pulky.exported.${gameId}.${format}`
+}
+
 function removePulkyKeys(store: Storage): void {
   try {
     const keys: string[] = []
@@ -96,7 +100,7 @@ let unsavedGuestId: string | null = null
 
 /**
  * Sign-out on a shared machine: forget every `pulky.*` key in both storages (guest id,
- * guest mode, room credentials, finished games, name, UI choices), so the next person
+ * guest mode, room credentials, finished games, export flags, name, UI choices), so the next person
  * starts as a stranger.
  */
 export function clearPulkyStorage(): void {
@@ -211,6 +215,22 @@ export function hasPlayedGame(gameId: string): boolean {
 
 export function markGamePlayed(gameId: string): void {
   writeLocal(playedGameKey(gameId), '1')
+}
+
+export type ExportFormat = 'csv' | 'json'
+
+/**
+ * Whether this tab already downloaded that game's export in that format
+ * (`pulky.exported.<id>.<format>`, sessionStorage, so it lasts until the tab closes
+ * and sign-out's sweep clears it). UX only: the server's per-IP export limit is the
+ * real guard (spec §0.6); a blocked storage simply never remembers.
+ */
+export function hasExported(gameId: string, format: ExportFormat): boolean {
+  return readSession(exportedKey(gameId, format)) === '1'
+}
+
+export function markExported(gameId: string, format: ExportFormat): void {
+  writeSession(exportedKey(gameId, format), '1')
 }
 
 // ---------------------------------------------------------------- display name

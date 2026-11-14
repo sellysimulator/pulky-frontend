@@ -6,15 +6,11 @@ export async function getResultsById(gameId: string): Promise<ResultsResponse> {
   return res.data
 }
 
-export async function exportGame(
-  gameId: string,
-  format: 'csv' | 'json',
-  hostSecret: string | null,
-): Promise<Blob> {
+/** Open by game id, like the results (spec §13.4): no host secret; a 429 past the server's per-IP limit. */
+export async function exportGame(gameId: string, format: 'csv' | 'json'): Promise<Blob> {
   const res = await http.get<Blob>(`/games/id/${gameId}/export`, {
     params: { format },
     responseType: 'blob',
-    headers: hostSecret !== null ? { 'X-Host-Secret': hostSecret } : {},
   })
   return res.data
 }

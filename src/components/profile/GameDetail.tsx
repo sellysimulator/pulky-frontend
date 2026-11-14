@@ -48,9 +48,8 @@ export default function GameDetail({ gameId }: { gameId: string }): ReactElement
     body = (
       <ResultsSummary
         view={view}
-        viewer={{ isHost: false, canExport: false, myAlias: response.my_alias }}
+        viewer={{ isHost: false, myAlias: response.my_alias }}
         showActions={false}
-        hostSecret={null}
       />
     )
   } else if (current?.kind === 'missing') {

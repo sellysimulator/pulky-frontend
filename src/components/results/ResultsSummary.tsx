@@ -15,15 +15,14 @@ interface ResultsSummaryProps {
   view: ResultsView
   /**
    * `isHost`: this browser holds the game's host secret (hides the leaderboard, offers Play again and
-   * the debrief notes). `canExport`: offer the export, with the secret or to the signed-in host.
+   * the debrief notes). The export is offered to every viewer, host or not (spec §13.8 block 6).
    */
-  viewer: { isHost: boolean; canExport: boolean; myAlias: string | null }
+  viewer: { isHost: boolean; myAlias: string | null }
   showActions: boolean
-  hostSecret: string | null
 }
 
 /** The six blocks of spec §13.8, in order, built from one `ResultsView`. */
-export default function ResultsSummary({ view, viewer, showActions, hostSecret }: ResultsSummaryProps): ReactElement {
+export default function ResultsSummary({ view, viewer, showActions }: ResultsSummaryProps): ReactElement {
   return (
     <div className="flex flex-col gap-6">
       <div className="print:break-inside-avoid">
@@ -45,7 +44,7 @@ export default function ResultsSummary({ view, viewer, showActions, hostSecret }
         <div className="print:hidden">
           <SectionCard title="6. Actions">
             <div className="flex flex-col gap-4">
-              {viewer.canExport ? <ExportControls gameId={view.game_id} roomCode={view.room_code} hostSecret={hostSecret} /> : null}
+              <ExportControls gameId={view.game_id} roomCode={view.room_code} />
               <GuestClaimPrompt gameId={view.game_id} />
               {viewer.isHost ? <PlayAgainButton gameId={view.game_id} /> : null}
               {viewer.isHost ? <DebriefNotes leadTimeDays={view.config?.supplier.lead_time_days ?? null} /> : null}

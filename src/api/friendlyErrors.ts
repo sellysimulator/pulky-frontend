@@ -25,11 +25,17 @@ export const TOO_MANY_CONNECTIONS_MESSAGE = 'Too many connections from your netw
  */
 export const SOCKET_CAP_REFUSAL = 'Too many connections from your network. Try again in a minute.'
 
-/** A 429's text; `retryAfter` is its `Retry-After` header, in seconds (an HTTP date is ignored). */
+/**
+ * A 429's text; `retryAfter` is its `Retry-After` header, in seconds (an HTTP date is ignored).
+ * Two minutes or more read in minutes (the export's hourly limit answers 3600).
+ */
 export function tooManyRequestsMessage(retryAfter: unknown): string {
   const raw = typeof retryAfter === 'number' ? String(retryAfter) : retryAfter
   const seconds = typeof raw === 'string' && /^\d+$/.test(raw.trim()) ? Number(raw.trim()) : 0
   if (seconds <= 0) return RATE_LIMITED_MESSAGE
+  if (seconds >= 120) {
+    return `Too many requests from your network. Please wait about ${Math.ceil(seconds / 60)} minutes and try again.`
+  }
   return `Too many requests from your network. Please wait about ${seconds} seconds and try again.`
 }
 

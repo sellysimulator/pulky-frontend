@@ -87,20 +87,19 @@ const FULL_CONFIG = {
   transport: { unit_cost: 1 },
 }
 
-const HOST = { isHost: true, canExport: true, myAlias: null }
-const PLAYER = { isHost: false, canExport: false, myAlias: 'P1' }
+const HOST = { isHost: true, myAlias: null }
+const PLAYER = { isHost: false, myAlias: 'P1' }
 
 interface Opts {
   view?: ResultsView
-  viewer?: { isHost: boolean; canExport: boolean; myAlias: string | null }
+  viewer?: { isHost: boolean; myAlias: string | null }
   showActions?: boolean
-  hostSecret?: string | null
 }
 
-function renderSummary({ view = makeView(), viewer = HOST, showActions = true, hostSecret = 'sec-1' }: Opts = {}) {
+function renderSummary({ view = makeView(), viewer = HOST, showActions = true }: Opts = {}) {
   const router = createMemoryRouter(
     [
-      { path: '/', element: <ResultsSummary view={view} viewer={viewer} showActions={showActions} hostSecret={hostSecret} /> },
+      { path: '/', element: <ResultsSummary view={view} viewer={viewer} showActions={showActions} /> },
       { path: '/host/:code', element: <p>host page</p> },
     ],
     { initialEntries: ['/'] },
@@ -167,7 +166,7 @@ describe('the six blocks (criterion 1)', () => {
     auth.mode = 'guest'
     markGamePlayed(GAME_ID)
     getOrCreateGuestId()
-    renderSummary({ viewer: PLAYER, showActions: false, hostSecret: null })
+    renderSummary({ viewer: PLAYER, showActions: false })
     expect(screen.queryByText('Sign in to keep these results in your profile.')).not.toBeInTheDocument()
   })
 })
@@ -181,13 +180,13 @@ describe('block 1 inside the summary (criterion 4, failure modes 3 and 4)', () =
   })
 
   it('shows every profit to a player on the first render', () => {
-    renderSummary({ viewer: PLAYER, hostSecret: null })
+    renderSummary({ viewer: PLAYER })
     for (const text of PROFITS) expect(onScreen(text).length, text).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Reveal' })).not.toBeInTheDocument()
   })
 
   it('marks the viewer\'s own pulquería with You', () => {
-    renderSummary({ viewer: PLAYER, hostSecret: null })
+    renderSummary({ viewer: PLAYER })
     const chips = onScreen('You')
     expect(chips.length).toBeGreaterThan(0)
     for (const chip of chips) expect(ownersOf(chip, Object.values(NAMES))).toEqual([NAMES.P1])
@@ -421,43 +420,41 @@ describe('print markup (criterion 10, design.md 8.8)', () => {
   })
 })
 
-describe('block 6: host actions', () => {
-  it('offers the host Export CSV, Export JSON and the 24-hour note', () => {
+describe('block 6: actions', () => {
+  const NOTE = "Anyone who can see these results can download the game's data, each format once per browser session."
+
+  it('offers the host Export CSV, Export JSON and the note', () => {
     renderSummary({ viewer: HOST })
     expect(screen.getByRole('button', { name: 'Export CSV' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Export JSON' })).toBeInTheDocument()
-    expect(
-      screen.getByText('Download the data during the debrief: the room expires 24 hours after its last activity.'),
-    ).toBeInTheDocument()
+    expect(screen.getByText(NOTE)).toBeInTheDocument()
   })
 
-  it('offers a signed-in host without the secret the export only, with the leaderboard shown', () => {
-    useGameStore.setState({ roomCode: ROOM, gamePublicId: GAME_ID, isHost: true, config: FULL_CONFIG as never })
-    renderSummary({ viewer: { isHost: false, canExport: true, myAlias: null }, hostSecret: null })
+  it('offers every viewer the export, and a player none of the host actions', () => {
+    renderSummary({ viewer: PLAYER })
     expect(screen.getByRole('button', { name: 'Export CSV' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Export JSON' })).toBeInTheDocument()
+    expect(screen.getByText(NOTE)).toBeInTheDocument()
     expect(screen.queryByText('Debrief notes')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Play again' })).not.toBeInTheDocument()
+  })
+
+  it('offers a viewer who is neither host nor player the export too, with the leaderboard shown', () => {
+    renderSummary({ viewer: { isHost: false, myAlias: null } })
+    expect(screen.getByRole('button', { name: 'Export CSV' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Reveal' })).not.toBeInTheDocument()
   })
 
-  it('offers a player none of the host actions', () => {
-    renderSummary({ viewer: PLAYER, hostSecret: null })
-    expect(screen.queryByRole('button', { name: 'Export CSV' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Export JSON' })).not.toBeInTheDocument()
-    expect(screen.queryByText('Debrief notes')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Play again' })).not.toBeInTheDocument()
-  })
-
-  it('passes the host secret to the export request', async () => {
+  it('the export request carries no host secret, even for the host', async () => {
+    window.sessionStorage.setItem(`pulky.game_host_secret.${GAME_ID}`, 'sec-77')
     spy = mockHttp(() => ({ status: 200, data: new Blob(['x']) }))
     URL.createObjectURL = vi.fn(() => 'blob:x')
     URL.revokeObjectURL = vi.fn()
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
-    renderSummary({ viewer: HOST, hostSecret: 'sec-77' })
+    renderSummary({ viewer: HOST })
     await userEvent.click(screen.getByRole('button', { name: 'Export JSON' }))
     await waitFor(() => expect(spy!.seen).toHaveLength(1))
-    expect(header(spy!.seen[0], 'X-Host-Secret')).toBe('sec-77')
+    expect(header(spy!.seen[0], 'X-Host-Secret')).toBeUndefined()
   })
 })
 
@@ -556,7 +553,7 @@ describe('the claim prompt appears only under all three conditions (criterion 8,
     getOrCreateGuestId()
     markGamePlayed(gameId)
   }
-  const player = () => renderSummary({ viewer: PLAYER, hostSecret: null })
+  const player = () => renderSummary({ viewer: PLAYER })
 
   it('shows it for a guest with a guest id who played this game', () => {
     guestWhoPlayed()
@@ -647,7 +644,7 @@ describe('Play again', () => {
 
   it('is not offered to a player', () => {
     asHostOfThisGame()
-    renderSummary({ viewer: PLAYER, hostSecret: null })
+    renderSummary({ viewer: PLAYER })
     expect(screen.queryByRole('button', { name: 'Play again' })).not.toBeInTheDocument()
   })
 
@@ -689,7 +686,7 @@ describe('nothing is computed in the client (criterion 3)', () => {
     const view = makeView((s) => {
       s.players.P2.total_profit = 99999.99
     })
-    renderSummary({ view, viewer: PLAYER, hostSecret: null })
+    renderSummary({ view, viewer: PLAYER })
     expect(onScreen(formatMoney(99999.99)).length).toBeGreaterThan(0)
     expect(onScreen(formatMoney(5123.45))).toHaveLength(0)
   })
@@ -722,14 +719,14 @@ describe('section 35: the profit race inside block 1 (criterion 2, failure mode 
   })
 
   it('shows the race at once to a viewer whose leaderboard is revealed by default, and hides it in print', () => {
-    renderSummary({ viewer: PLAYER, hostSecret: null })
+    renderSummary({ viewer: PLAYER })
     const chart = raceChart()!
     expect(chart).toBeDefined()
     expect(hasClassAncestor(chart.element, 'print:hidden')).toBe(true)
   })
 
   it('emphasises the viewer\'s own line and no other when a player looks (criterion 3)', () => {
-    renderSummary({ viewer: PLAYER, hostSecret: null })
+    renderSummary({ viewer: PLAYER })
     const byLabel = Object.fromEntries(raceChart()!.data.datasets.map((d) => [d.label, d]))
     expect(byLabel[NAMES.P1].borderWidth).toBe(3)
     expect(byLabel[NAMES.P2].borderColor).toBe('#C9BEA6')
@@ -751,7 +748,7 @@ describe('section 35: the profit race inside block 1 (criterion 2, failure mode 
   })
 
   it('sits in block 1, before the demand chart', () => {
-    renderSummary({ viewer: PLAYER, hostSecret: null })
+    renderSummary({ viewer: PLAYER })
     expect(before(raceChart()!.element, screen.getByText(CHART_TITLE))).toBe(true)
   })
 })
@@ -806,7 +803,7 @@ describe('section 35: block 3 View control (criterion 6, failure mode 6)', () =>
   })
 
   it('passes the viewer\'s alias on: their chip comes first', () => {
-    renderSummary({ view: makeFlowView(), viewer: { isHost: false, canExport: false, myAlias: 'P3' }, hostSecret: null })
+    renderSummary({ view: makeFlowView(), viewer: { isHost: false, myAlias: 'P3' } })
     expect(screen.getByText(`${NAMES.P3}: from shipments to sold, spoiled and left at the end`)).toBeInTheDocument()
   })
 

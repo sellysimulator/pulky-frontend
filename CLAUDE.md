@@ -46,6 +46,10 @@ npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build
   room. **Open host screen** is a button calling `window.open(url, '_blank')` WITHOUT `noopener`, so
   the new tab inherits the host secrets in session storage; never turn it into a link. The join QR
   (`components/shared/JoinQrOverlay.tsx`, qrcode.react, drawn locally) encodes the invite link only.
+- **Export is open to every results viewer** (spec §13.8 block 6): `ExportControls` shows for host,
+  player and stranger alike and sends no host secret. Its once-per-session lock
+  (`pulky.exported.<id>.<format>`, sessionStorage) is UX only; the server's per-IP export limit is
+  the real guard. Never gate the export on the host again.
 
 ## Tests
 

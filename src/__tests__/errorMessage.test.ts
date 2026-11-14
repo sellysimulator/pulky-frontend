@@ -79,6 +79,15 @@ describe('errorMessage: the abuse limits (spec 0.6, 13.4)', () => {
     )
   })
 
+  it('429 names a wait of two minutes or more in minutes (the export limit is hourly)', () => {
+    expect(errorMessage(refused(429, SERVER_429, { 'retry-after': '3600' }), 'x')).toBe(
+      'Too many requests from your network. Please wait about 60 minutes and try again.',
+    )
+    expect(errorMessage(refused(429, SERVER_429, { 'retry-after': '119' }), 'x')).toBe(
+      'Too many requests from your network. Please wait about 119 seconds and try again.',
+    )
+  })
+
   it('429 reads Retry-After through AxiosHeaders.get too', () => {
     const headers = { get: (name: string) => (name === 'retry-after' ? '30' : undefined) }
     expect(errorMessage(refused(429, SERVER_429, headers), 'x')).toBe(

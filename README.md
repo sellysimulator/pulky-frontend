@@ -27,10 +27,12 @@ npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build   # the
 - **Hidden defaults** (spec §9.3): a host config holds null for each risk whose field has `hidden_default`; the form shows
   **Default (hidden)**, and the calculator and help examples say **Hidden until the game ends** where they would need it. The
   results' `config` reveals the values; **Play again** copies the host's config from the store, never that one.
-- **Who may export** (spec §13.8 block 6): the results page offers **Export** with this game's host secret, or to a signed-in viewer
-  for whom `GET /users/me/hosted-games/{id}` answers 204 (`useHostedGame`, `isMyHostedGame` in `src/api/users.ts`), the server's own
-  host rule. Only the export follows that answer (`viewer.canExport`); Reveal, **Play again** and **Debrief notes** stay keyed to the
-  secret (`viewer.isHost`).
+- **Export is open** (spec §13.8 block 6, §13.4): every viewer of the results page gets **Export CSV** / **Export JSON**
+  (`ExportControls`); `exportGame` sends no host secret, since the server serves the export by game id like the results. Each
+  game and format downloads once per browser session (`hasExported` / `markExported`, `pulky.exported.<id>.<format>` in session
+  storage, cleared by sign-out's `pulky.*` sweep); after a download the button is disabled and says so. That is UX only: the
+  server's per-IP limit (100 an hour, spec §0.6) is the real guard, and its 429 reads in minutes. Reveal, **Play again** and
+  **Debrief notes** stay keyed to this game's host secret (`viewer.isHost`).
 - **Server figures only** (spec §0.5 invariant 7, D54): the client holds no copy of any game formula. Every figure comes from a
   payload, or from a preview request that runs the engine's own functions for what the user is typing:
   - the decision form asks `preview_decision` (a socket acknowledgement, `src/api/games.ts`, hook `src/game/useDecisionPreview.ts`)
