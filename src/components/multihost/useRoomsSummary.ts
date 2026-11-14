@@ -8,20 +8,39 @@ export const SUMMARY_POLL_MS = 5000
 
 export const SUMMARY_FAILED = 'Could not refresh the games.'
 
+function byCode(answer: RoomSummary[]): Record<string, RoomSummary> {
+  return Object.fromEntries(answer.map((s) => [s.room_code, s]))
+}
+
 /**
  * Poll `POST /rooms/summary` for the batch's rooms. Skips a tick while the tab is
- * hidden and asks again as soon as it is shown; `refresh()` asks now. `rooms` must be a
- * stable reference (the dashboard keeps it in state).
+ * hidden and asks again as soon as it is shown. `refresh()` asks now and resolves with
+ * that answer (null when it failed), so "Start all" can count from it. `rooms` must be
+ * a stable reference (the dashboard keeps it in state).
  */
 export function useRoomsSummary(rooms: HostedRoom[]): {
   summaries: Record<string, RoomSummary>
   error: string | null
-  refresh(): void
+  refresh(): Promise<Record<string, RoomSummary> | null>
 } {
   const [summaries, setSummaries] = useState<Record<string, RoomSummary>>({})
   const [error, setError] = useState<string | null>(null)
-  const [tick, setTick] = useState(0)
-  const refresh = useCallback(() => setTick((t) => t + 1), [])
+  const refresh = useCallback(
+    () =>
+      getRoomsSummary(rooms).then(
+        (answer) => {
+          const next = byCode(answer)
+          setSummaries(next)
+          setError(null)
+          return next
+        },
+        (err: unknown) => {
+          setError(errorMessage(err, SUMMARY_FAILED))
+          return null
+        },
+      ),
+    [rooms],
+  )
 
   useEffect(() => {
     if (rooms.length === 0) return
@@ -31,7 +50,7 @@ export function useRoomsSummary(rooms: HostedRoom[]): {
       getRoomsSummary(rooms)
         .then((answer) => {
           if (cancelled) return
-          setSummaries(Object.fromEntries(answer.map((s) => [s.room_code, s])))
+          setSummaries(byCode(answer))
           setError(null)
         })
         .catch((err: unknown) => {
@@ -46,7 +65,7 @@ export function useRoomsSummary(rooms: HostedRoom[]): {
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', poll)
     }
-  }, [rooms, tick])
+  }, [rooms])
 
   return { summaries, error, refresh }
 }

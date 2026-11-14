@@ -46,6 +46,11 @@ npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build
   room. **Open host screen** is a button calling `window.open(url, '_blank')` WITHOUT `noopener`, so
   the new tab inherits the host secrets in session storage; never turn it into a link. The join QR
   (`components/shared/JoinQrOverlay.tsx`, qrcode.react, drawn locally) encodes the invite link only.
+  A refused `start_game` carries `room_code` (spec §12.2): the dashboard claims those of its batch
+  (`api/joinErrorRouting.ts` `claimJoinErrors`, called by the one `join_error` listener in
+  `socketHandlers.ts`) and shows "Game N (CODE): <message>" on that card until a summary shows it
+  started; anything else stays a global alert. After **Start all**, "Started X of Y games." (plus
+  "Z couldn't start, see their cards.") is counted from `refresh()`'s answer.
 - **Export is open to every results viewer** (spec §13.8 block 6): `ExportControls` shows for host,
   player and stranger alike and sends no host secret. Its once-per-session lock
   (`pulky.exported.<id>.<format>`, sessionStorage) is UX only; the server's per-IP export limit is

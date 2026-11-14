@@ -4,6 +4,7 @@ import { useState, type ReactElement } from 'react'
 import type { RoomSummary } from '../../types/game'
 import { copyText } from '../../utils/clipboard'
 import { inviteLink } from '../../utils/invite'
+import { InlineAlert } from '../shared/AlertContainer'
 import Badge from '../shared/Badge'
 import Button from '../shared/Button'
 import JoinQrOverlay from '../shared/JoinQrOverlay'
@@ -13,6 +14,8 @@ interface GameCardProps {
   index: number
   roomCode: string
   summary: RoomSummary | undefined
+  /** This game's refused start, "Game N (CODE): <message>", until it shows started. */
+  startError?: string | null
 }
 
 function tone(summary: RoomSummary | undefined): 'neutral' | 'success' | 'info' | 'danger' {
@@ -25,7 +28,7 @@ function tone(summary: RoomSummary | undefined): 'neutral' | 'success' | 'info' 
 
 /** One game of the batch: its code, invite link and QR code, seats, status and a way
  * into its host screen. */
-export default function GameCard({ index, roomCode, summary }: GameCardProps): ReactElement {
+export default function GameCard({ index, roomCode, summary, startError = null }: GameCardProps): ReactElement {
   const [showQr, setShowQr] = useState(false)
   const link = inviteLink(roomCode)
   const gone = summary !== undefined && !summary.exists
@@ -44,6 +47,8 @@ export default function GameCard({ index, roomCode, summary }: GameCardProps): R
         </div>
         <Badge tone={tone(summary)}>{statusLabel(summary)}</Badge>
       </header>
+
+      {startError !== null ? <InlineAlert tone="danger">{startError}</InlineAlert> : null}
 
       <div className="flex items-center justify-between gap-4">
         <div>

@@ -41,8 +41,9 @@ vi.mock('../api/rooms', async (importOriginal) => ({
 import { getConfigDefaults, previewConfig, validateConfig } from '../api/config'
 import { createRoomBatch, getRoomsSummary } from '../api/rooms'
 import { socket } from '../api/socket'
+import '../api/socketHandlers'
 import { DOCS } from '../components/config/docs/entries'
-import { openHostScreen, statusLabel } from '../components/multihost/multihost'
+import { openHostScreen, startAllStatus, statusLabel } from '../components/multihost/multihost'
 import HomePage from '../pages/HomePage'
 import MultiHostDashboard, { route as dashboardRoute } from '../pages/MultiHostDashboard'
 import MultiHostSetup, { route as setupRoute } from '../pages/MultiHostSetup'
@@ -445,6 +446,101 @@ describe('MultiHostDashboard', () => {
     })
     await waitFor(() => expect(screen.queryByText('Could not refresh the games.')).not.toBeInTheDocument())
     expect(getRoomsSummary).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('Start all: refusals on their cards (spec §11.3)', () => {
+  const NEED_TWO = 'Waiting for at least 2 players.'
+
+  function seedBatch() {
+    setHostBatch([A, B, C])
+    setHostSecret(A, 'secret-a')
+    setHostSecret(B, 'secret-b')
+    setHostSecret(C, 'secret-c')
+  }
+
+  /** The server's `join_error`, through the app's one listener (socketHandlers). */
+  function refuse(payload: { message: string; room_code?: string }) {
+    const listeners = socket.listeners('join_error')
+    expect(listeners).toHaveLength(1)
+    act(() => {
+      for (const fn of listeners) fn(payload)
+    })
+  }
+
+  const card = (n: number) => within(screen.getByRole('article', { name: `Game ${n}` }))
+  const allReady = () => [A, B, C].map((code) => summary(code, { seats_taken: 2, can_start: true, start_blocked_reason: null }))
+
+  it('shows a start refused mid-batch on that card only, then the status line', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    seedBatch()
+    vi.mocked(getRoomsSummary)
+      .mockResolvedValueOnce(allReady())
+      .mockResolvedValue([
+        summary(A, { state: 'running', day: 1 }),
+        summary(B, { seats_taken: 1 }),
+        summary(C, { state: 'running', day: 1 }),
+      ])
+    renderAt('/multihost')
+    fireEvent.click(await screen.findByRole('button', { name: 'Start all ready games (3)' }))
+    expect(emit.mock.calls.map((c: unknown[]) => c[1])).toEqual([
+      { room_id: A, host_secret: 'secret-a' },
+      { room_id: B, host_secret: 'secret-b' },
+      { room_id: C, host_secret: 'secret-c' },
+    ])
+
+    // A player left B meanwhile: its start is refused.
+    refuse({ message: NEED_TWO, room_code: B })
+    expect(card(2).getByRole('alert')).toHaveTextContent(`Game 2 (${B}): ${NEED_TWO}`)
+    expect(card(1).queryByRole('alert')).toBeNull()
+    expect(card(3).queryByRole('alert')).toBeNull()
+    expect(useGameStore.getState().alerts).toHaveLength(0)
+    expect(useGameStore.getState().joinError).toBeNull()
+
+    // Counted from the summary after the starts.
+    expect(screen.queryByRole('status')).toBeNull()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+    expect(await screen.findByText("Started 2 of 3 games. 1 couldn't start, see their cards.")).toBeInTheDocument()
+    expect(card(2).getByRole('alert')).toHaveTextContent(NEED_TWO)
+  })
+
+  it("clears a card's refusal once a later summary shows the game started", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    seedBatch()
+    vi.mocked(getRoomsSummary)
+      .mockResolvedValueOnce(allReady())
+      .mockResolvedValue([summary(A), summary(B, { state: 'running', day: 1 }), summary(C)])
+    renderAt('/multihost')
+    await screen.findByRole('button', { name: 'Start all ready games (3)' })
+    refuse({ message: NEED_TWO, room_code: B })
+    expect(card(2).getByRole('alert')).toBeInTheDocument()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    await waitFor(() => expect(card(2).queryByRole('alert')).toBeNull())
+  })
+
+  it('keeps the global alert for a refusal without a room_code or for a room outside the batch', async () => {
+    seedBatch()
+    vi.mocked(getRoomsSummary).mockResolvedValue(allReady())
+    renderAt('/multihost')
+    await screen.findByRole('button', { name: 'Start all ready games (3)' })
+    refuse({ message: 'Only the host can do that.' })
+    refuse({ message: NEED_TWO, room_code: 'ZZZZZ9' })
+    expect(useGameStore.getState().alerts.map((a) => a.message)).toEqual(['Only the host can do that.', NEED_TWO])
+    for (const n of [1, 2, 3]) expect(card(n).queryByRole('alert')).toBeNull()
+  })
+
+  it('outside the dashboard every refusal goes to the store as before', () => {
+    refuse({ message: NEED_TWO, room_code: A })
+    expect(useGameStore.getState().joinError).toBe(NEED_TWO)
+  })
+
+  it('words the status line', () => {
+    expect(startAllStatus(3, 3)).toBe('Started 3 of 3 games.')
+    expect(startAllStatus(1, 3)).toBe("Started 1 of 3 games. 2 couldn't start, see their cards.")
   })
 })
 

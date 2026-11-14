@@ -756,6 +756,8 @@ export interface HostClaimedPayload {
 
 export interface JoinErrorPayload {
   message: string
+  /** Set on every refusal of `start_game`: the room it named (spec §11.3, §12.2). */
+  room_code?: string
 }
 
 export interface LeaveAckPayload {

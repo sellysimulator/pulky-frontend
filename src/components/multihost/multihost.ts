@@ -46,3 +46,20 @@ export function statusLabel(summary: RoomSummary | undefined): string {
 export function readyRooms(rooms: HostedRoom[], summaries: Record<string, RoomSummary>): HostedRoom[] {
   return rooms.filter(({ room_code }) => summaries[room_code]?.can_start === true)
 }
+
+/** Whether the server's summary shows the game started (running or finished). */
+export function hasStarted(summary: RoomSummary | undefined): boolean {
+  return summary?.exists === true && (summary.state === 'running' || summary.finished === true)
+}
+
+/** The "Start all" status line (spec §11.3), counted from the summary after the starts. */
+export function startAllStatus(started: number, total: number): string {
+  const line = `Started ${started} of ${total} games.`
+  const failed = total - started
+  return failed > 0 ? `${line} ${failed} couldn't start, see their cards.` : line
+}
+
+/** A refused start as its card shows it: "Game N (CODE): <server message>". */
+export function startRefusalText(index: number, roomCode: string, message: string): string {
+  return `Game ${index + 1} (${roomCode}): ${message}`
+}

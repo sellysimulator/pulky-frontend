@@ -1,10 +1,18 @@
 import { ArrowLeft, Play, Plus } from 'lucide-react'
 import { useEffect, useState, type ReactElement } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { socketErrorText } from '../api/friendlyErrors'
 import { startGame } from '../api/games'
+import { claimJoinErrors } from '../api/joinErrorRouting'
 import { socket } from '../api/socket'
 import GameCard from '../components/multihost/GameCard'
-import { hostedRooms, readyRooms } from '../components/multihost/multihost'
+import {
+  hasStarted,
+  hostedRooms,
+  readyRooms,
+  startAllStatus,
+  startRefusalText,
+} from '../components/multihost/multihost'
 import { useRoomsSummary } from '../components/multihost/useRoomsSummary'
 import AppHeader from '../components/shared/AppHeader'
 import { InlineAlert } from '../components/shared/AlertContainer'
@@ -27,12 +35,32 @@ const REFRESH_AFTER_START_MS = 1000
  * from `POST /rooms/summary`, and each game's host screen opens in its own tab
  * (`openHostScreen`). "Start all ready games" sends the ordinary `start_game` with each
  * room's secret, which is all the server checks (spec §11.3).
+ *
+ * A refused start names its room (`join_error.room_code`): one of this batch's goes on
+ * that game's card as "Game N (CODE): <message>" instead of a global alert, until a
+ * summary shows the game started. Any other refusal keeps the store's alert. After
+ * "Start all", one status line counts the started games from the next summary.
  */
 export default function MultiHostDashboard(): ReactElement {
   const navigate = useNavigate()
   // Read once: the batch changes only on /multihost/new, which remounts this page.
   const [rooms] = useState(() => hostedRooms(getHostBatch() ?? []))
   const { summaries, error, refresh } = useRoomsSummary(rooms)
+  const [refusals, setRefusals] = useState<Record<string, string>>({})
+  const [startStatus, setStartStatus] = useState<string | null>(null)
+
+  // This batch's start refusals go to their cards; the rest to the store, as before.
+  useEffect(
+    () =>
+      claimJoinErrors((p) => {
+        const code = p.room_code
+        const index = code === undefined ? -1 : rooms.findIndex((r) => r.room_code === code)
+        if (code === undefined || index < 0) return false
+        setRefusals((prev) => ({ ...prev, [code]: startRefusalText(index, code, socketErrorText(p)) }))
+        return true
+      }),
+    [rooms],
+  )
 
   // This tab may have hosted or joined a room before. Forget it, so the socket's
   // `connect` handler does not re-join it, and reconnect, so the server drops this
@@ -48,8 +76,16 @@ export default function MultiHostDashboard(): ReactElement {
   const ready = readyRooms(rooms, summaries)
 
   const startAll = (): void => {
+    const codes = ready.map((r) => r.room_code)
+    setStartStatus(null)
     for (const { room_code, host_secret } of ready) startGame(room_code, host_secret)
-    window.setTimeout(refresh, REFRESH_AFTER_START_MS)
+    window.setTimeout(() => {
+      void refresh().then((next) => {
+        if (next === null) return
+        const started = codes.filter((code) => hasStarted(next[code])).length
+        setStartStatus(startAllStatus(started, codes.length))
+      })
+    }, REFRESH_AFTER_START_MS)
   }
 
   const newBatch = (): void => {
@@ -81,10 +117,21 @@ export default function MultiHostDashboard(): ReactElement {
             </Button>
           </div>
         </div>
+        {startStatus !== null ? (
+          <p role="status" className="text-base text-ink">
+            {startStatus}
+          </p>
+        ) : null}
         {error !== null ? <InlineAlert tone="danger">{error}</InlineAlert> : null}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {rooms.map(({ room_code }, index) => (
-            <GameCard key={room_code} index={index} roomCode={room_code} summary={summaries[room_code]} />
+            <GameCard
+              key={room_code}
+              index={index}
+              roomCode={room_code}
+              summary={summaries[room_code]}
+              startError={hasStarted(summaries[room_code]) ? null : (refusals[room_code] ?? null)}
+            />
           ))}
         </div>
       </main>
