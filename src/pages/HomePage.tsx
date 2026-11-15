@@ -1,4 +1,4 @@
-import { UserCog, UsersRound } from 'lucide-react'
+import { Layers, UserCog, UsersRound } from 'lucide-react'
 import { useState, type FormEvent, type ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLimits } from '../api/config'
@@ -132,6 +132,22 @@ function CreateCard(): ReactElement {
   )
 }
 
+function MultiHostCard(): ReactElement {
+  const navigate = useNavigate()
+  return (
+    <SectionCard title="Host several games" icon={Layers}>
+      <div className="flex flex-col gap-4">
+        <p className="text-base text-ink-muted">
+          One configuration, several games at once: each with its own code, invite link and host screen.
+        </p>
+        <Button variant="secondary" onClick={() => navigate('/multihost/new')}>
+          Set up several games
+        </Button>
+      </div>
+    </SectionCard>
+  )
+}
+
 export default function HomePage(): ReactElement {
   return (
     <>
@@ -139,6 +155,7 @@ export default function HomePage(): ReactElement {
       <main id="main" className="mx-auto flex w-full max-w-form flex-col gap-4 px-4 py-8 md:px-6">
         <JoinCard />
         <CreateCard />
+        <MultiHostCard />
         <ManualLinks />
       </main>
     </>

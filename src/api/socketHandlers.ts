@@ -6,6 +6,7 @@
 import { socket } from './socket'
 import { SOCKET_CAP_REFUSAL, TOO_MANY_CONNECTIONS_MESSAGE } from './friendlyErrors'
 import { join, joinWaiting } from './games'
+import { routeJoinError } from './joinErrorRouting'
 import { useGameStore } from '../store/gameStore'
 import {
   clearSessionToken,
@@ -121,7 +122,11 @@ socket.on('host_claimed', (p: HostClaimedPayload) => {
   store().applyHostClaimed(p)
 })
 
-socket.on('join_error', (p: JoinErrorPayload) => store().applyJoinError(p))
+socket.on('join_error', (p: JoinErrorPayload) => {
+  // The multi-game dashboard takes the start refusals of its own games (spec §11.3).
+  if (routeJoinError(p)) return
+  store().applyJoinError(p)
+})
 
 socket.on('leave_ack', (p: LeaveAckPayload) => {
   const code = p.room_id || store().roomCode

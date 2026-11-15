@@ -1,26 +1,15 @@
-import { ArrowLeftRight, Factory, RotateCcw, Settings2, Star, Truck, Users, Warehouse, type LucideIcon } from 'lucide-react'
-import { useEffect, useRef, useState, type ComponentType, type ReactElement } from 'react'
+import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { getConfigDefaults, validateConfig } from '../../api/config'
 import { updateConfig } from '../../api/games'
 import { errorMessage } from '../../api/http'
 import { getRoomConfig } from '../../api/rooms'
 import { useGameStore } from '../../store/gameStore'
-import { INSURED_TIERS, type ConfigDefaultsResponse, type FieldIssue, type GameConfig, type ServerError } from '../../types/game'
+import type { ConfigDefaultsResponse, FieldIssue, GameConfig, ServerError } from '../../types/game'
 import { InlineAlert } from '../shared/AlertContainer'
-import Button from '../shared/Button'
 import LoadingSpinner from '../shared/LoadingSpinner'
-import SectionCard from '../shared/SectionCard'
-import type { SectionProps } from './ConfigField'
-import { SECTION_PATHS, diffPatch, getAt, leafPaths, sectionOf, setAt, type SectionId } from './configDraft'
-import { ConfigPreviewContext, useConfigPreviewRequest } from './configPreview'
-import { DOCS } from './docs/entries'
-import DemandSection from './sections/DemandSection'
-import GameSection from './sections/GameSection'
-import PeerMarketSection from './sections/PeerMarketSection'
-import ReputationSection from './sections/ReputationSection'
-import StockSection from './sections/StockSection'
-import SupplierFuturesSection from './sections/SupplierFuturesSection'
-import TransportInsuranceSection from './sections/TransportInsuranceSection'
+import ConfigSections from './ConfigSections'
+import { diffPatch, getAt, leafPaths, setAt } from './configDraft'
+import { useConfigPreviewRequest } from './configPreview'
 
 interface ConfigPanelProps {
   roomCode: string
@@ -28,90 +17,9 @@ interface ConfigPanelProps {
   locked: boolean
 }
 
-interface SectionDef {
-  id: SectionId
-  title: string
-  icon: LucideIcon
-  Body: ComponentType<SectionProps>
-}
-
-/** Spec §13.9 order, with the design.md §6 icons. */
-const SECTIONS: SectionDef[] = [
-  { id: 'game', title: 'Game', icon: Settings2, Body: GameSection },
-  { id: 'demand', title: 'Demand', icon: Users, Body: DemandSection },
-  { id: 'reputation', title: 'Reputation', icon: Star, Body: ReputationSection },
-  { id: 'supplier', title: 'Supplier & futures', icon: Factory, Body: SupplierFuturesSection },
-  { id: 'stock', title: 'Stock', icon: Warehouse, Body: StockSection },
-  { id: 'peer', title: 'Peer market', icon: ArrowLeftRight, Body: PeerMarketSection },
-  { id: 'transport', title: 'Transport & insurance', icon: Truck, Body: TransportInsuranceSection },
-]
-
 const DEBOUNCE_MS = 400
 const LOAD_FALLBACK_MS = 1000
 const LOAD_FAILED = 'Could not load the settings.'
-
-const INSURANCE_PATHS = [
-  'insurance.reference_shipment',
-  'insurance.target_margin',
-  ...INSURED_TIERS.flatMap((t) => [`insurance.tiers.${t}.enabled`, `insurance.tiers.${t}.fee`]),
-]
-const CONTROL_PATHS = new Set([...Object.values(SECTION_PATHS).flat(), ...INSURANCE_PATHS])
-
-function insuranceIssues(errors: FieldIssue[], warnings: FieldIssue[]): Record<string, { kind: 'error' | 'warning'; message: string }> {
-  const out: Record<string, { kind: 'error' | 'warning'; message: string }> = {}
-  for (const [kind, list] of [['warning', warnings], ['error', errors]] as const) {
-    for (const issue of list) {
-      if (issue.field !== null && INSURANCE_PATHS.includes(issue.field)) out[issue.field] = { kind, message: issue.message }
-    }
-  }
-  return out
-}
-
-function sectionElementId(id: SectionId): string {
-  return `config-section-${id}`
-}
-
-function titleOf(path: string | null): string | undefined {
-  if (path === null) return undefined
-  return (DOCS[path] as (typeof DOCS)[string] | undefined)?.label
-}
-
-function byPath(issues: FieldIssue[]): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const issue of issues) {
-    if (issue.field !== null && CONTROL_PATHS.has(issue.field) && !(issue.field in out)) out[issue.field] = issue.message
-  }
-  return out
-}
-
-/** Issues whose field has no control: grouped by section, with null for the panel itself. */
-function orphans(issues: FieldIssue[]): Map<SectionId | null, FieldIssue[]> {
-  const out = new Map<SectionId | null, FieldIssue[]>()
-  for (const issue of issues) {
-    if (issue.field !== null && CONTROL_PATHS.has(issue.field)) continue
-    const key = issue.field === null ? null : sectionOf(issue.field)
-    out.set(key, [...(out.get(key) ?? []), issue])
-  }
-  return out
-}
-
-function IssueAlerts({ errors, warnings }: { errors: FieldIssue[]; warnings: FieldIssue[] }): ReactElement | null {
-  if (errors.length === 0 && warnings.length === 0) return null
-  return (
-    <div className="flex flex-col gap-3 pb-3">
-      {errors.map((issue, i) => (
-        <InlineAlert key={`e${i}`} tone="danger" title={titleOf(issue.field)}>
-          {issue.message}
-        </InlineAlert>
-      ))}
-      {warnings.map((issue, i) => (
-        <InlineAlert key={`w${i}`} tone="warning" title={titleOf(issue.field)}>
-          {issue.message}
-        </InlineAlert>
-      ))}
-    </div>
-  )
-}
 
 export default function ConfigPanel({ roomCode, hostSecret, locked }: ConfigPanelProps): ReactElement {
   const storeConfig = useGameStore((s) => s.config) as GameConfig | null
@@ -256,58 +164,29 @@ export default function ConfigPanel({ roomCode, hostSecret, locked }: ConfigPane
     commit(defaults.config, leafPaths(defaults.config), true)
   }
 
-  const jumpTo = (id: SectionId): void => {
-    document.getElementById(sectionElementId(id))?.scrollIntoView?.({ block: 'start' })
-  }
-
   const failure = loadError
   if (defaults === null || draft === null) {
     if (failure !== null) return <InlineAlert tone="danger">{failure}</InlineAlert>
     return <LoadingSpinner label="Loading the settings" />
   }
 
-  const errorsByPath = byPath(errors)
-  const warningsByPath = byPath(warnings)
-  const insurance = insuranceIssues(errors, warnings)
-  const errorOrphans = orphans(errors)
-  const warningOrphans = orphans(warnings)
-
   return (
-    <ConfigPreviewContext.Provider value={previewState}>
-      <div className="flex flex-col gap-6">
-        {failure !== null ? <InlineAlert tone="danger">{failure}</InlineAlert> : null}
-        {checkError !== null ? <InlineAlert tone="danger">{checkError}</InlineAlert> : null}
-        <IssueAlerts errors={errorOrphans.get(null) ?? []} warnings={warningOrphans.get(null) ?? []} />
-        {readOnly ? null : (
-          <div>
-            <Button variant="secondary" icon={RotateCcw} onClick={reset}>
-              Reset to defaults
-            </Button>
-          </div>
-        )}
-        <nav aria-label="Settings sections" className="flex flex-wrap gap-2">
-          {SECTIONS.map((s) => (
-            <Button key={s.id} variant="ghost" size="sm" onClick={() => jumpTo(s.id)}>
-              {s.title}
-            </Button>
-          ))}
-        </nav>
-        {SECTIONS.map(({ id, title, icon, Body }) => (
-          <SectionCard key={id} id={sectionElementId(id)} title={title} icon={icon}>
-            <IssueAlerts errors={errorOrphans.get(id) ?? []} warnings={warningOrphans.get(id) ?? []} />
-            <Body
-              config={draft}
-              fields={defaults.fields}
-              readOnly={readOnly}
-              errors={errorsByPath}
-              warnings={warningsByPath}
-              onEdit={onEdit}
-              onPatch={onPatch}
-              insuranceIssues={insurance}
-            />
-          </SectionCard>
-        ))}
-      </div>
-    </ConfigPreviewContext.Provider>
+    <ConfigSections
+      draft={draft}
+      fields={defaults.fields}
+      errors={errors}
+      warnings={warnings}
+      readOnly={readOnly}
+      previewState={previewState}
+      onEdit={onEdit}
+      onPatch={onPatch}
+      onReset={reset}
+      notices={
+        <>
+          {failure !== null ? <InlineAlert tone="danger">{failure}</InlineAlert> : null}
+          {checkError !== null ? <InlineAlert tone="danger">{checkError}</InlineAlert> : null}
+        </>
+      }
+    />
   )
 }

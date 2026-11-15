@@ -1,4 +1,4 @@
-import { AxiosError, AxiosHeaders, type AxiosAdapter, type InternalAxiosRequestConfig } from 'axios'
+import { AxiosHeaders, type AxiosAdapter, type InternalAxiosRequestConfig } from 'axios'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type Listener = (...args: unknown[]) => void
@@ -44,10 +44,10 @@ vi.mock('../../firebase', () => ({
 }))
 
 import http from '../api/http'
-import { createRoom, getRoomConfig, getRoomStatus, putRoomConfig } from '../api/rooms'
+import { createRoom, createRoomBatch, getRoomConfig, getRoomStatus, getRoomsSummary, putRoomConfig } from '../api/rooms'
 import { getConfigDefaults, validateConfig } from '../api/config'
 import { claimGames, exportGame, getResultsById } from '../api/results'
-import { getMe, getMyGame, getMyGames, getMyStats, isMyHostedGame, upsertUser } from '../api/users'
+import { getMe, getMyGame, getMyGames, getMyStats, upsertUser } from '../api/users'
 import {
   endGameEarly,
   join,
@@ -180,6 +180,28 @@ describe('rooms.ts (spec 13.4)', () => {
     expect(body(seen[0])).toEqual({ config: { max_players: 6 } })
     expect(out).toEqual(full)
   })
+
+  it('createRoomBatch POSTs /rooms/batch-create with the count, the config patch and the name', async () => {
+    reply.data = { rooms: [{ room_code: 'ABC234', host_secret: 's', state: 'lobby', config: {} }] }
+    const out = await createRoomBatch(3, { duration_days: 9 }, 'Doña Pulque')
+    expect(method(seen[0])).toBe('POST')
+    expect(path(seen[0])).toBe('rooms/batch-create')
+    expect(body(seen[0])).toEqual({ count: 3, config: { duration_days: 9 }, host_display_name: 'Doña Pulque' })
+    expect(out).toEqual(reply.data)
+    await createRoomBatch(2, {})
+    expect(body(seen[1])).toEqual({ count: 2, config: {} })
+  })
+
+  it('getRoomsSummary POSTs the hosted rooms, so no secret reaches a URL', async () => {
+    const rooms = [{ room_code: 'ABC234', host_secret: 'sekrit' }]
+    reply.data = { rooms: [{ room_code: 'ABC234', exists: false }] }
+    const out = await getRoomsSummary(rooms)
+    expect(method(seen[0])).toBe('POST')
+    expect(path(seen[0])).toBe('rooms/summary')
+    expect(seen[0].url).not.toContain('sekrit')
+    expect(body(seen[0])).toEqual({ rooms })
+    expect(out).toEqual([{ room_code: 'ABC234', exists: false }])
+  })
 })
 
 describe('config.ts', () => {
@@ -211,23 +233,21 @@ describe('results.ts', () => {
     expect(out).toEqual(reply.data)
   })
 
-  it('exportGame GETs /games/id/{public_id}/export?format=csv with X-Host-Secret when given one', async () => {
+  it('exportGame GETs /games/id/{public_id}/export?format=csv with no X-Host-Secret: the export is open by id', async () => {
     reply.data = new Blob(['a,b\n1,2\n'], { type: 'text/csv' })
-    const out = await exportGame('f00d', 'csv', 'sekrit')
+    const out = await exportGame('f00d', 'csv')
     expect(method(seen[0])).toBe('GET')
     expect(path(seen[0])).toBe('games/id/f00d/export')
     expect(query(seen[0]).get('format')).toBe('csv')
-    expect(header(seen[0], 'X-Host-Secret')).toBe('sekrit')
+    expect(header(seen[0], 'X-Host-Secret')).toBeUndefined()
     expect(out).toBeInstanceOf(Blob)
   })
 
-  it('exportGame with a null secret sends no X-Host-Secret and relies on the bearer', async () => {
-    h.state.currentUser = { getIdToken: async () => 'id-token-xyz' }
+  it('exportGame asks format=json', async () => {
     reply.data = new Blob(['{}'], { type: 'application/json' })
-    await exportGame('f00d', 'json', null)
+    await exportGame('f00d', 'json')
     expect(query(seen[0]).get('format')).toBe('json')
     expect(header(seen[0], 'X-Host-Secret')).toBeUndefined()
-    expect(header(seen[0], 'Authorization')).toBe('Bearer id-token-xyz')
   })
 
   it('claimGames POSTs /games/claim with {guest_identity}', async () => {
@@ -281,26 +301,6 @@ describe('users.ts', () => {
     expect(method(seen[0])).toBe('GET')
     expect(path(seen[0])).toBe('users/me/games/g1')
     expect(out).toEqual(reply.data)
-  })
-
-  it('isMyHostedGame GETs /users/me/hosted-games/{id} with the bearer: true on 204, false on 404, throws otherwise', async () => {
-    h.state.currentUser = { getIdToken: async () => 'id-token-xyz' }
-    reply = { status: 204, data: '' }
-    expect(await isMyHostedGame('g1')).toBe(true)
-    expect(method(seen[0])).toBe('GET')
-    expect(path(seen[0])).toBe('users/me/hosted-games/g1')
-    expect(header(seen[0], 'Authorization')).toBe('Bearer id-token-xyz')
-
-    const failWith =
-      (status: number): AxiosAdapter =>
-      async (config) => {
-        const response = { data: {}, status, statusText: String(status), headers: {}, config }
-        throw new AxiosError(`HTTP ${status}`, String(status), config, null, response)
-      }
-    http.defaults.adapter = failWith(404)
-    expect(await isMyHostedGame('g1')).toBe(false)
-    http.defaults.adapter = failWith(500)
-    await expect(isMyHostedGame('g1')).rejects.toMatchObject({ response: { status: 500 } })
   })
 })
 

@@ -12,8 +12,11 @@ import {
   getHostSecret,
   getOrCreateGuestId,
   getSessionToken,
+  clearPulkyStorage,
   getUiFlag,
+  hasExported,
   hasPlayedGame,
+  markExported,
   markGamePlayed,
   setDisplayName,
   setGameHostSecret,
@@ -145,6 +148,18 @@ describe('a finished game (per game id: the room code is reissued)', () => {
     expect(hasPlayedGame('9f2c1a')).toBe(true)
     expect(window.localStorage.getItem('pulky.played_game.9f2c1a')).toBe('1')
     expect(hasPlayedGame('ffff00')).toBe(false)
+  })
+
+  it('remembers an export per game and format under pulky.exported.<id>.<format>, in sessionStorage only, until sign-out', () => {
+    expect(hasExported('9f2c1a', 'csv')).toBe(false)
+    markExported('9f2c1a', 'csv')
+    expect(hasExported('9f2c1a', 'csv')).toBe(true)
+    expect(hasExported('9f2c1a', 'json')).toBe(false)
+    expect(hasExported('ffff00', 'csv')).toBe(false)
+    expect(window.sessionStorage.getItem('pulky.exported.9f2c1a.csv')).toBe('1')
+    expect(keysOf(window.localStorage).some((k) => k.startsWith('pulky.exported.'))).toBe(false)
+    clearPulkyStorage()
+    expect(hasExported('9f2c1a', 'csv')).toBe(false)
   })
 
   it('never reads the room-code credentials for a game', () => {
@@ -281,6 +296,8 @@ describe('a throwing storage (private mode)', () => {
     expect(getHostSecret('ABC234')).toBeNull()
     expect(getDisplayName()).toBeNull()
     expect(getUiFlag('details_open')).toBe(false)
+    expect(hasExported('9f2c1a', 'csv')).toBe(false)
+    expect(() => markExported('9f2c1a', 'csv')).not.toThrow()
     expect(() => setGuestMode(true)).not.toThrow()
     expect(() => setSessionToken('ABC234', 't')).not.toThrow()
     expect(() => clearSessionToken('ABC234')).not.toThrow()

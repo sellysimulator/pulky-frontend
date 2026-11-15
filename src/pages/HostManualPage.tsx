@@ -456,8 +456,9 @@ const BODY: ManualPageSpec[] = [
         <Bullets
           items={[
             <>
-              <strong>Export CSV</strong> or <strong>Export JSON</strong> during the debrief: the room expires 24 hours after
-              its last activity.
+              <strong>Export CSV</strong> or <strong>Export JSON</strong> saves the game&apos;s data. Anyone who can open the
+              results can download it, so share the results link with whoever needs the data; each format downloads once per
+              browser session.
             </>,
             <>
               <strong>Play again</strong>, in the tab that ran the game, opens a new room with the same settings and a new random seed.

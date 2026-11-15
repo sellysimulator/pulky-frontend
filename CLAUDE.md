@@ -39,6 +39,22 @@ npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build
   the host's config (spec §9.3), and the store is written only by socket handlers and the
   REST loaders (`../docs/plan/00-conventions.md` §4).
 - No raw hex outside the canvas modules, no gradient, lucide icons only, no emoji.
+- **Several games at once** (spec §11.3): `/multihost/new` (`pages/MultiHostSetup.tsx`, the config
+  form is `components/config/ConfigSections.tsx` over a local draft) and `/multihost`
+  (`pages/MultiHostDashboard.tsx`). The dashboard joins no room: it polls `POST /rooms/summary`
+  (`useRoomsSummary`), and on mount resets the store and reconnects the socket if this tab was in a
+  room. **Open host screen** is a button calling `window.open(url, '_blank')` WITHOUT `noopener`, so
+  the new tab inherits the host secrets in session storage; never turn it into a link. The join QR
+  (`components/shared/JoinQrOverlay.tsx`, qrcode.react, drawn locally) encodes the invite link only.
+  A refused `start_game` carries `room_code` (spec §12.2): the dashboard claims those of its batch
+  (`api/joinErrorRouting.ts` `claimJoinErrors`, called by the one `join_error` listener in
+  `socketHandlers.ts`) and shows "Game N (CODE): <message>" on that card until a summary shows it
+  started; anything else stays a global alert. After **Start all**, "Started X of Y games." (plus
+  "Z couldn't start, see their cards.") is counted from `refresh()`'s answer.
+- **Export is open to every results viewer** (spec §13.8 block 6): `ExportControls` shows for host,
+  player and stranger alike and sends no host secret. Its once-per-session lock
+  (`pulky.exported.<id>.<format>`, sessionStorage) is UX only; the server's per-IP export limit is
+  the real guard. Never gate the export on the host again.
 
 ## Tests
 
