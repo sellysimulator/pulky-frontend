@@ -1,24 +1,20 @@
-import { useSyncExternalStore } from 'react'
 import type { BoardView } from '../../../utils/storage'
 
 export type { BoardView } from '../../../utils/storage'
 
 export type BoardViewSupport = { ok: true } | { ok: false; reason: string }
 
+/**
+ * WebGL is the one requirement. The pointer and the window width are not checked: a touch screen walks with the
+ * on-screen movement pad, and the HUD stacks into one column below 64rem (plan 32 §3.6).
+ */
 export interface BoardViewEnvironment {
   webgl: boolean
-  finePointer: boolean
-  wide: boolean
 }
 
 export const UNSUPPORTED_REASONS = {
   webgl: 'Your browser cannot draw 3D graphics.',
-  pointer: 'The 3D pulquería needs a keyboard and a mouse.',
-  width: 'The 3D pulquería needs a window at least 1,024 pixels wide.',
 } as const
-
-const FINE_POINTER = '(pointer: fine)'
-const WIDE = '(min-width: 64rem)'
 
 /** '3D' only for exactly '3D'; anything else, including a missing value, is the default board. */
 export function resolveBoardView(stored: string | null): BoardView {
@@ -27,8 +23,6 @@ export function resolveBoardView(stored: string | null): BoardView {
 
 export function boardViewSupport(env: BoardViewEnvironment): BoardViewSupport {
   if (!env.webgl) return { ok: false, reason: UNSUPPORTED_REASONS.webgl }
-  if (!env.finePointer) return { ok: false, reason: UNSUPPORTED_REASONS.pointer }
-  if (!env.wide) return { ok: false, reason: UNSUPPORTED_REASONS.width }
   return { ok: true }
 }
 
@@ -50,20 +44,7 @@ export function hasWebGL(): boolean {
   return webglAnswer
 }
 
-function subscribe(onChange: () => void): () => void {
-  const lists = [window.matchMedia(FINE_POINTER), window.matchMedia(WIDE)]
-  for (const list of lists) list.addEventListener('change', onChange)
-  return () => {
-    for (const list of lists) list.removeEventListener('change', onChange)
-  }
-}
-
-// One number carries both queries, so the store snapshot is a primitive and never re-renders by identity.
-function snapshot(): number {
-  return (window.matchMedia(FINE_POINTER).matches ? 1 : 0) + (window.matchMedia(WIDE).matches ? 2 : 0)
-}
-
+/** Whether this page can show the 3D board. `hasWebGL` is computed once, so this never changes for the page's life. */
 export function useBoardViewSupport(): BoardViewSupport {
-  const bits = useSyncExternalStore(subscribe, snapshot, () => 0)
-  return boardViewSupport({ webgl: hasWebGL(), finePointer: (bits & 1) !== 0, wide: (bits & 2) !== 0 })
+  return boardViewSupport({ webgl: hasWebGL() })
 }

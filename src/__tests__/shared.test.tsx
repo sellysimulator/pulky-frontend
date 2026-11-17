@@ -927,6 +927,14 @@ describe('AlertContainer and InlineAlert', () => {
     expect(screen.queryByRole('button', { name: 'Dismiss' })).not.toBeInTheDocument()
   })
 
+  it('keeps the toasts inside the safe area (design.md §5)', () => {
+    render(<AlertContainer />)
+    expect(screen.getByRole('status')).toHaveClass(
+      'top-[max(1rem,env(safe-area-inset-top))]',
+      'right-[max(1rem,env(safe-area-inset-right))]',
+    )
+  })
+
   it('renders every alert of the store, each with a Dismiss button', () => {
     render(<AlertContainer />)
     add('error', 'Could not reach the game server.')

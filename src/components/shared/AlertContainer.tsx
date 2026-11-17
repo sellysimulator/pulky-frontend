@@ -69,7 +69,7 @@ export default function AlertContainer(): ReactElement {
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none fixed top-4 right-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2"
+      className="pointer-events-none fixed top-[max(1rem,env(safe-area-inset-top))] right-[max(1rem,env(safe-area-inset-right))] z-50 flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2"
     >
       {alerts.map((a) => (
         <Toast key={a.id} id={a.id} kind={a.kind} message={a.message} />

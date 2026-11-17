@@ -60,7 +60,7 @@ export default function AppHeader({ context }: { context?: ReactNode }): ReactEl
     <header className="h-14 border-b border-border bg-card">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-card focus:px-4 focus:py-2"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-[max(0.5rem,env(safe-area-inset-top))] focus:left-[max(0.5rem,env(safe-area-inset-left))] focus:z-50 focus:rounded-md focus:bg-card focus:px-4 focus:py-2"
       >
         Skip to main content
       </a>

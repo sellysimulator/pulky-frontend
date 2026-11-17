@@ -9,13 +9,16 @@ import {
   isTypingTarget,
   keyAction,
   moveKeyFor,
+  releaseAll,
+  stationPanel,
   type MotionState,
+  type MoveKey,
 } from './board3d/playerMotion'
 import PlayerController from './board3d/render/PlayerController'
 import PulqueriaScene from './board3d/render/PulqueriaScene'
 import SceneHud from './board3d/SceneHud'
 import ScenePanels from './board3d/ScenePanels'
-import { PANEL_TITLES, SPAWN, STATION_PANEL, type PanelId, type StationId } from './board3d/sceneLayout'
+import { PANEL_TITLES, SPAWN, type PanelId, type StationId } from './board3d/sceneLayout'
 import { buildSceneModel } from './board3d/sceneModel'
 
 /**
@@ -34,10 +37,16 @@ export default function Board3D(props: BoardViewProps): ReactElement {
   const drag = useRef<{ id: number; x: number; y: number } | null>(null)
 
   const markReady = useCallback(() => setReady(true), [])
+  const nearPanel = stationPanel(near)
+
+  const onMove = useCallback((key: MoveKey, pressed: boolean): void => {
+    if (pressed) motion.current.pad.add(key)
+    else motion.current.pad.delete(key)
+  }, [])
 
   const open = (next: PanelId, button: HTMLElement | null): void => {
     opener.current = button
-    motion.current.keys.clear()
+    releaseAll(motion.current)
     setPanel(next)
   }
 
@@ -81,14 +90,19 @@ export default function Board3D(props: BoardViewProps): ReactElement {
       const key = moveKeyFor(event.code)
       if (key !== null) held.delete(key)
     }
-    const onBlur = (): void => held.clear()
+    const onBlur = (): void => releaseAll(motion.current)
+    const onVisibility = (): void => {
+      if (document.visibilityState === 'hidden') releaseAll(motion.current)
+    }
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup', onKeyUp)
     window.addEventListener('blur', onBlur)
+    document.addEventListener('visibilitychange', onVisibility)
     return () => {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)
       window.removeEventListener('blur', onBlur)
+      document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [panel, near])
 
@@ -149,7 +163,12 @@ export default function Board3D(props: BoardViewProps): ReactElement {
         awaiting={props.awaiting}
         openPanel={panel}
         onPanelButton={(id, button) => (panel === id ? close() : open(id, button))}
-        prompt={panel === null && near !== null ? PANEL_TITLES[STATION_PANEL[near]] : null}
+        prompt={panel === null && nearPanel !== null ? PANEL_TITLES[nearPanel] : null}
+        onInteract={() => {
+          // The button leaves with the prompt while the panel is open, so closing returns focus to the scene, as E does.
+          if (nearPanel !== null) open(nearPanel, null)
+        }}
+        onMove={onMove}
         drawer={<ScenePanels {...props} openPanel={panel} onClose={close} />}
       />
       {ready ? null : <SceneLoading />}

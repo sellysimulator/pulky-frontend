@@ -5,14 +5,21 @@ import {
   MAX_STEP_SECONDS,
   MOVE_SPEED,
   PITCH_LIMITS,
+  TURN_SPEED,
   applyLook,
   createChangeReporter,
   createMotionState,
+  heldMoves,
+  isHeld,
   isTypingTarget,
   keyAction,
   moveKeyFor,
   nearestStation,
+  releaseAll,
+  stationPanel,
+  stepMotion,
   stepPosition,
+  stepYaw,
   type KeyInput,
   type MoveKey,
 } from '../components/game/views/board3d/playerMotion'
@@ -34,6 +41,7 @@ describe('constants', () => {
     expect(MAX_STEP_SECONDS).toBe(0.1)
     expect(LOOK_SENSITIVITY).toBe(0.0026)
     expect(PITCH_LIMITS).toEqual({ min: -Math.PI / 3, max: Math.PI / 3.2 })
+    expect(TURN_SPEED).toBe(1.7)
   })
 })
 
@@ -50,6 +58,14 @@ describe('createMotionState', () => {
     a.keys.add('forward')
     expect(createMotionState().keys.size).toBe(0)
   })
+
+  it('starts with an empty pad set of its own, apart from the keyboard set', () => {
+    const a = createMotionState()
+    expect(a.pad.size).toBe(0)
+    expect(a.pad).not.toBe(a.keys)
+    a.pad.add('turnLeft')
+    expect(createMotionState().pad.size).toBe(0)
+  })
 })
 
 describe('moveKeyFor', () => {
@@ -63,6 +79,7 @@ describe('moveKeyFor', () => {
     ['KeyD', 'right'],
     ['ArrowRight', 'right'],
     ['KeyQ', null],
+    ['KeyZ', null],
     ['KeyE', null],
     ['Space', null],
   ])('%s -> %s', (code, expected) => {
@@ -104,6 +121,95 @@ describe('stepPosition (failure mode 7)', () => {
   })
   it('takes bounds as an argument', () => {
     close(stepPosition(START, keys('forward'), 0, 0.1, { minX: -1, maxX: 1, minZ: 13.9, maxZ: 20 } as never), 0, 13.9)
+  })
+})
+
+describe('turning (the on-screen pad)', () => {
+  it('turnLeft raises the yaw at TURN_SPEED, turnRight lowers it', () => {
+    expect(stepYaw(0, keys('turnLeft'), 0.1)).toBeCloseTo(0.17, 9)
+    expect(stepYaw(1, keys('turnRight'), 0.05)).toBeCloseTo(1 - 0.085, 9)
+  })
+  it('turns left the same way a leftward drag does', () => {
+    expect(Math.sign(stepYaw(0, keys('turnLeft'), 0.1))).toBe(Math.sign(applyLook({ yaw: 0, pitch: 0 }, -10, 0).yaw))
+  })
+  it('cancels opposite turns, ignores walking keys and caps a long frame at 0.1 s', () => {
+    expect(stepYaw(0.3, keys('turnLeft', 'turnRight'), 0.1)).toBe(0.3)
+    expect(stepYaw(0.3, keys('forward', 'left', 'right', 'back'), 0.1)).toBe(0.3)
+    expect(stepYaw(0, keys('turnLeft'), 3)).toBeCloseTo(TURN_SPEED * MAX_STEP_SECONDS, 9)
+  })
+  it('turning alone does not move the player', () => {
+    const got = stepPosition(START, keys('turnLeft'), 0, 0.1)
+    expect(got).toEqual(START)
+  })
+})
+
+describe('stepMotion (keyboard and pad merged)', () => {
+  const at = (over: Partial<{ keys: Set<MoveKey>; pad: Set<MoveKey>; yaw: number }>) => ({
+    keys: keys(),
+    pad: keys(),
+    x: START.x,
+    z: START.z,
+    yaw: 0,
+    ...over,
+  })
+
+  it('walks from the pad as from the keyboard', () => {
+    expect(stepMotion(at({ pad: keys('forward') }), 0.1)).toEqual(stepMotion(at({ keys: keys('forward') }), 0.1))
+    const got = stepMotion(at({ pad: keys('forward') }), 0.1)
+    expect(got.x).toBeCloseTo(0, 6)
+    expect(got.z).toBeCloseTo(13.5, 6)
+    expect(got.yaw).toBe(0)
+  })
+  it('merges the two sets: a key on one and a strafe on the other walk a capped diagonal', () => {
+    const got = stepMotion(at({ keys: keys('forward'), pad: keys('right') }), 0.1)
+    expect(got.x).toBeCloseTo(0.353553, 6)
+    expect(got.z).toBeCloseTo(13.646447, 6)
+  })
+  it('the same move held on both counts once', () => {
+    const got = stepMotion(at({ keys: keys('forward'), pad: keys('forward') }), 0.1)
+    expect(got.z).toBeCloseTo(13.5, 6)
+  })
+  it('turns first, then walks along the new yaw', () => {
+    const got = stepMotion(at({ pad: keys('turnLeft', 'forward') }), 0.1)
+    expect(got.yaw).toBeCloseTo(0.17, 9)
+    expect(got.x).toBeCloseTo(-0.5 * Math.sin(0.17), 6)
+    expect(got.z).toBeCloseTo(14 - 0.5 * Math.cos(0.17), 6)
+  })
+  it('keeps the bounds', () => {
+    expect(stepMotion({ ...at({ pad: keys('right') }), x: 9.4, z: 0 }, 0.1).x).toBe(MOVEMENT_BOUNDS.maxX)
+  })
+  it('heldMoves is the union and leaves both sets alone', () => {
+    const state = at({ keys: keys('forward'), pad: keys('turnRight') })
+    expect([...heldMoves(state)].sort()).toEqual(['forward', 'turnRight'])
+    expect([...state.keys]).toEqual(['forward'])
+    expect([...state.pad]).toEqual(['turnRight'])
+  })
+  it('isHeld is true while either set holds a move', () => {
+    expect(isHeld(at({}))).toBe(false)
+    expect(isHeld(at({ keys: keys('back') }))).toBe(true)
+    expect(isHeld(at({ pad: keys('turnLeft') }))).toBe(true)
+  })
+  it('releaseAll clears both sets', () => {
+    const state = at({ keys: keys('forward', 'left'), pad: keys('turnLeft', 'back') })
+    releaseAll(state)
+    expect(state.keys.size).toBe(0)
+    expect(state.pad.size).toBe(0)
+    expect(isHeld(state)).toBe(false)
+  })
+})
+
+describe('stationPanel (E and the interact button)', () => {
+  it('maps each station to its panel, and no station to null', () => {
+    expect(stationPanel('decision')).toBe('decision')
+    expect(stationPanel('day-stats')).toBe('day-stats')
+    expect(stationPanel('market')).toBe('market')
+    expect(stationPanel('cellar')).toBe('cellar')
+    expect(stationPanel(null)).toBeNull()
+  })
+  it('is the panel E opens', () => {
+    for (const near of ['decision', 'day-stats', 'market', 'cellar'] as const) {
+      expect(keyAction(input({ code: 'KeyE', key: 'e' }), { panel: null, near })).toEqual({ type: 'open', panel: stationPanel(near) })
+    }
   })
 })
 

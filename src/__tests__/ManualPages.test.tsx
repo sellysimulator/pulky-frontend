@@ -252,9 +252,11 @@ describe('the player manual', () => {
   it('explains how to change the board view and what 3D needs', () => {
     const body = text()
     expect(body).toMatch(/Board view switch \( ?2D \| 3D ?\)/)
-    expect(body).toContain('1,024 pixels')
+    expect(body).not.toContain('1,024 pixels')
+    expect(body).toMatch(/on phones and tablets with on-screen buttons/)
     expect(body).toMatch(/goes back to its starting values/)
     expect(screen.getByRole('table', { name: 'Controls' })).toHaveTextContent('W A S D')
+    expect(screen.getByRole('table', { name: 'Controls' })).toHaveTextContent('Hold the arrow buttons to walk and turn')
     expect(screen.getByRole('table', { name: 'Stations' })).toHaveTextContent('The counter')
   })
 
