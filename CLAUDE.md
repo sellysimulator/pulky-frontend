@@ -39,6 +39,10 @@ npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build
   the host's config (spec §9.3), and the store is written only by socket handlers and the
   REST loaders (`../docs/plan/00-conventions.md` §4).
 - No raw hex outside the canvas modules, no gradient, lucide icons only, no emoji.
+- **Safe area**: `viewport-fit=cover` is on, so a `fixed` element on a viewport edge (or an
+  `absolute` one on an edge of a full-viewport overlay) offsets by
+  `max(<gutter>, env(safe-area-inset-<edge>))`, and flow content never uses `100vw` / `w-screen`.
+  The rule is `../../game_stack.md` ("Every frontend draws edge to edge…"); classes in `../docs/design.md` §5.
 - **Several games at once** (spec §11.3): `/multihost/new` (`pages/MultiHostSetup.tsx`, the config
   form is `components/config/ConfigSections.tsx` over a local draft) and `/multihost`
   (`pages/MultiHostDashboard.tsx`). The dashboard joins no room: it polls `POST /rooms/summary`

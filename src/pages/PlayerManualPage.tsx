@@ -668,9 +668,8 @@ const BODY: ManualPageSpec[] = [
               <strong>Your choice stays with this browser</strong>, for every game, and changes nothing for anyone else.
             </>,
             <>
-              <strong>3D needs</strong> a browser that draws 3D graphics, a keyboard with a mouse or trackpad, and a window at
-              least 1,024 pixels wide. Otherwise 3D is greyed out with the reason beside it, and a window that gets too narrow
-              shows the 2D board until it is wide again.
+              <strong>3D needs</strong> a browser that draws 3D graphics, and nothing else: it works with a keyboard and mouse,
+              and on phones and tablets with on-screen buttons. Otherwise 3D is greyed out with the reason beside it.
             </>,
             <>
               <strong>Switch before you decide.</strong> Switching redraws the board, so anything typed in Today's decision and
@@ -699,6 +698,7 @@ const BODY: ManualPageSpec[] = [
             ['Drag', 'Look around'],
             ['E', 'Open the station you stand at'],
             ['Esc', 'Close the panel'],
+            ['Touch screen', 'Hold the arrow buttons to walk and turn; tap Open at a station'],
           ]}
         />
         <Table

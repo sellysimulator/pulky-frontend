@@ -83,7 +83,7 @@ export default function PresentationMode({ data, onExit }: PresentationModeProps
   ]
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col gap-8 overflow-auto bg-card px-10 py-8 text-ink">
+    <div className="fixed inset-0 z-40 flex flex-col gap-8 overflow-auto bg-card pt-[max(2rem,env(safe-area-inset-top))] pr-[max(2.5rem,env(safe-area-inset-right))] pb-[max(2rem,env(safe-area-inset-bottom))] pl-[max(2.5rem,env(safe-area-inset-left))] text-ink">
       <header className="flex flex-wrap items-center gap-4">
         <h1 className="text-figure">{`Day ${data.day} · ${weekdayLong(data.weekday)}`}</h1>
         {data.isPeak ? (

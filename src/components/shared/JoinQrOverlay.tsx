@@ -53,7 +53,7 @@ export default function JoinQrOverlay({ roomCode, link, onClose }: JoinQrOverlay
         e.preventDefault()
         onClose()
       }}
-      className="m-0 h-dvh max-h-none w-screen max-w-none items-center justify-center bg-transparent p-4 text-ink open:flex backdrop:bg-overlay"
+      className="m-0 h-dvh max-h-none w-screen max-w-none items-center justify-center bg-transparent pt-[max(1rem,env(safe-area-inset-top))] pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))] text-ink open:flex backdrop:bg-overlay"
     >
       <div className="flex w-full max-w-2xl flex-col items-center gap-4 rounded-lg bg-card p-6 shadow-raised">
         <div className="flex w-full items-start justify-between gap-3">

@@ -3,7 +3,7 @@ import type { Camera } from 'three'
 import { useEffect, useRef, type MutableRefObject } from 'react'
 import { HALL, type StationId } from '../sceneLayout'
 import type { SceneStation } from '../sceneModel'
-import { createChangeReporter, nearestStation, stepPosition, type MotionState } from '../playerMotion'
+import { createChangeReporter, isHeld, nearestStation, stepMotion, type MotionState } from '../playerMotion'
 
 interface PlayerControllerProps {
   motion: MutableRefObject<MotionState>
@@ -12,12 +12,13 @@ interface PlayerControllerProps {
   onNearChange(near: StationId | null): void
 }
 
-/** One frame of walking: the held keys move the player, and the camera follows the motion state. */
+/** One frame of walking: the keys and the pad held turn and move the player, and the camera follows the motion state. */
 function walk(state: MotionState, camera: Camera, delta: number): void {
-  if (state.keys.size > 0) {
-    const next = stepPosition(state, state.keys, state.yaw, delta)
+  if (isHeld(state)) {
+    const next = stepMotion(state, delta)
     state.x = next.x
     state.z = next.z
+    state.yaw = next.yaw
   }
   camera.position.set(state.x, HALL.eyeHeight, state.z)
   camera.rotation.set(state.pitch, state.yaw, 0, 'YXZ')

@@ -1,6 +1,7 @@
 /** Section 32 - SceneHud (plan 32 section 3.6; acceptance 7). */
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { act } from 'react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import SceneHud from '../components/game/views/board3d/SceneHud'
 import { PANEL_ORDER, PANEL_TITLES, type PanelId } from '../components/game/views/board3d/sceneLayout'
 import { formatMoney, weekdayLong } from '../utils/format'
@@ -13,6 +14,8 @@ function setup(over: Partial<Parameters<typeof SceneHud>[0]> = {}, mutate?: (vie
   const p = baseProps()
   mutate?.(p.view)
   const onPanelButton = vi.fn()
+  const onInteract = vi.fn()
+  const onMove = vi.fn()
   const utils = render(
     <SceneHud
       view={p.view}
@@ -21,11 +24,13 @@ function setup(over: Partial<Parameters<typeof SceneHud>[0]> = {}, mutate?: (vie
       openPanel={null}
       onPanelButton={onPanelButton}
       prompt={null}
+      onInteract={onInteract}
+      onMove={onMove}
       drawer={<p>drawer content</p>}
       {...over}
     />,
   )
-  return { p, onPanelButton, ...utils }
+  return { p, onPanelButton, onInteract, onMove, ...utils }
 }
 
 const text = () => (document.body.textContent ?? '').replace(/\s+/g, ' ')
@@ -169,7 +174,7 @@ describe('crosshair', () => {
 
   it('sits in a layer spanning the whole grid so it is centred on the board area', () => {
     setup()
-    for (const c of ['col-span-3', 'col-start-1', 'row-span-3', 'row-start-1', 'place-items-center']) {
+    for (const c of ['col-span-full', 'row-span-full', 'place-items-center']) {
       expect(layer().classList.contains(c)).toBe(true)
     }
     expect(layer().classList.contains('col-start-2')).toBe(false)
@@ -183,5 +188,164 @@ describe('crosshair', () => {
   it('is absent while a panel is open', () => {
     setup({ openPanel: 'cellar' })
     expect(dot()).toBeNull()
+  })
+})
+
+/** A matchMedia whose `(any-pointer: coarse)` answer the test sets and can change. */
+function coarse(initial: boolean) {
+  const original = window.matchMedia
+  const listeners = new Set<() => void>()
+  const state = { matches: initial }
+  window.matchMedia = ((query: string) => ({
+    get matches() {
+      return query === '(any-pointer: coarse)' ? state.matches : false
+    },
+    media: query,
+    addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+    removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+  })) as unknown as typeof window.matchMedia
+  return {
+    set(next: boolean) {
+      state.matches = next
+      act(() => listeners.forEach((fn) => fn()))
+    },
+    listeners,
+    restore: () => {
+      window.matchMedia = original
+    },
+  }
+}
+
+describe('touch screens (any-pointer: coarse)', () => {
+  let media: ReturnType<typeof coarse> | null = null
+  afterEach(() => {
+    media?.restore()
+    media = null
+  })
+
+  it('without a coarse pointer: no movement pad, the Press E prompt and the keyboard legend', () => {
+    media = coarse(false)
+    setup({ prompt: 'Your cellar' })
+    expect(screen.queryByRole('group', { name: 'Movement controls' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Open Your cellar' })).toBeNull()
+    expect(text()).toContain('Press E · Your cellar')
+    expect(text()).toContain('W A S D or arrow keys: walk')
+  })
+
+  it('shows the six-button movement pad, in pad order', () => {
+    media = coarse(true)
+    setup()
+    const pad = screen.getByRole('group', { name: 'Movement controls' })
+    expect(within(pad).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Turn left',
+      'Move forward',
+      'Turn right',
+      'Move left',
+      'Move backward',
+      'Move right',
+    ])
+  })
+
+  it('reports pad presses and releases through onMove', () => {
+    media = coarse(true)
+    const { onMove } = setup()
+    const forward = screen.getByRole('button', { name: 'Move forward' })
+    forward.setPointerCapture = vi.fn()
+    fireEvent.pointerDown(forward, { pointerId: 1 })
+    expect(onMove).toHaveBeenLastCalledWith('forward', true)
+    fireEvent.pointerUp(forward, { pointerId: 1 })
+    expect(onMove).toHaveBeenLastCalledWith('forward', false)
+  })
+
+  it('replaces Press E with a button that opens the station in reach', () => {
+    media = coarse(true)
+    const { onInteract } = setup({ prompt: 'Your cellar' })
+    expect(text()).not.toContain('Press E')
+    const button = screen.getByRole('button', { name: 'Open Your cellar' })
+    expect(document.querySelector('[role="status"][aria-live="polite"]')?.contains(button)).toBe(true)
+    fireEvent.click(button)
+    expect(onInteract).toHaveBeenCalledOnce()
+  })
+
+  it('has no interact button while nothing is in reach or a panel is open', () => {
+    media = coarse(true)
+    const { rerender, p } = setup()
+    expect(screen.queryByRole('button', { name: /^Open / })).toBeNull()
+    rerender(
+      <SceneHud
+        view={p.view}
+        participants={p.participants}
+        awaiting={[]}
+        openPanel="cellar"
+        onPanelButton={vi.fn()}
+        prompt="Your cellar"
+        onInteract={vi.fn()}
+        onMove={vi.fn()}
+        drawer={null}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: /^Open / })).toBeNull()
+  })
+
+  it('hides the pad while a panel is open', () => {
+    media = coarse(true)
+    const { onMove } = setup({ openPanel: 'market' })
+    expect(screen.queryByRole('group', { name: 'Movement controls' })).toBeNull()
+    expect(onMove).not.toHaveBeenCalledWith(expect.anything(), true)
+  })
+
+  it('speaks of taps in the legend instead of keys', () => {
+    media = coarse(true)
+    setup()
+    expect(text()).toContain('Arrow buttons: walk and turn')
+    expect(text()).toContain('Drag: look around')
+    expect(text()).toContain('Open: the station you stand at')
+    expect(text()).not.toContain('W A S D')
+    expect(document.querySelectorAll('kbd')).toHaveLength(0)
+  })
+
+  it('follows a change of the media query, and releases the pad when it goes', () => {
+    media = coarse(false)
+    const { onMove } = setup()
+    expect(screen.queryByRole('group', { name: 'Movement controls' })).toBeNull()
+    media.set(true)
+    expect(screen.getByRole('group', { name: 'Movement controls' })).toBeInTheDocument()
+    media.set(false)
+    expect(screen.queryByRole('group', { name: 'Movement controls' })).toBeNull()
+    expect(onMove).toHaveBeenCalledWith('forward', false)
+    expect(onMove).toHaveBeenCalledWith('turnLeft', false)
+  })
+
+  it('keeps 44-pixel panel buttons on touch and icon-only labels below sm', () => {
+    media = coarse(true)
+    setup()
+    for (const b of within(screen.getByRole('group', { name: 'Panels' })).getAllByRole('button')) {
+      expect(b.className).toContain('any-pointer-coarse:h-11')
+      expect(b.querySelector('span')?.className).toContain('max-sm:sr-only')
+    }
+  })
+})
+
+describe('small screens', () => {
+  it('stacks into one column below lg and keeps three columns from lg', () => {
+    setup()
+    const root = screen.getByRole('group', { name: 'Panels' }).parentElement as HTMLElement
+    expect(root.classList.contains('grid-cols-1')).toBe(true)
+    expect(root.className).toContain('lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)_minmax(0,40rem)]')
+    for (const edge of ['top', 'right', 'bottom', 'left']) {
+      expect(root.className).toContain(`max(0.75rem,env(safe-area-inset-${edge}))`)
+    }
+  })
+
+  it('gives the drawer the bottom row below lg while a panel is open', () => {
+    setup({ openPanel: 'market' })
+    const legend = screen.getByText('Drag: look around').closest('.row-start-4') as HTMLElement
+    expect(legend.classList.contains('max-lg:hidden')).toBe(true)
+  })
+
+  it('keeps the bottom row while no panel is open', () => {
+    setup()
+    const legend = screen.getByText('Drag: look around').closest('.row-start-4') as HTMLElement
+    expect(legend.classList.contains('max-lg:hidden')).toBe(false)
   })
 })

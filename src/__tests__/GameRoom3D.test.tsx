@@ -319,7 +319,7 @@ export function makeProps(over: Partial<BoardViewProps> = {}): BoardViewProps {
 }
 
 const ALERT = 'The 3D view stopped working, so the board switched to 2D.'
-const REASON = 'The 3D pulquería needs a window at least 1,024 pixels wide.'
+const REASON = 'Your browser cannot draw 3D graphics.'
 let emit: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {

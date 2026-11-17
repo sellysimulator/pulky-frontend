@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import BoardViewToggle from '../components/game/views/BoardViewToggle'
 
-const REASON = 'The 3D pulquería needs a window at least 1,024 pixels wide.'
+const REASON = 'Your browser cannot draw 3D graphics.'
 
 describe('BoardViewToggle', () => {
   it('is a Board view group with two buttons, pressed by value', () => {

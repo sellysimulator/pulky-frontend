@@ -151,6 +151,12 @@ describe('src/index.css (design.md §12.1)', () => {
     expect(body).toMatch(/@media print/)
     expect(body).toMatch(/@page\s*\{\s*margin:\s*12mm/)
   })
+
+  it('pads the body by the side safe-area insets (design.md §5 safe area)', () => {
+    const body = stripComments(css)
+    expect(body).toMatch(/padding-left:\s*env\(safe-area-inset-left\)/)
+    expect(body).toMatch(/padding-right:\s*env\(safe-area-inset-right\)/)
+  })
 })
 
 describe('index.html (design.md §12.2)', () => {
@@ -174,6 +180,11 @@ describe('index.html (design.md §12.2)', () => {
     expect(api).toBeTruthy()
     expect(stat).toBeTruthy()
     expect(stat!.hasAttribute('crossorigin')).toBe(true)
+  })
+
+  it('draws edge to edge: the viewport meta has viewport-fit=cover (game_stack.md safe area)', () => {
+    const viewport = doc.head.querySelector('meta[name="viewport"]')!
+    expect(viewport.getAttribute('content')).toBe('width=device-width, initial-scale=1.0, viewport-fit=cover')
   })
 
   it('sets the theme colour after the viewport meta', () => {

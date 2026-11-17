@@ -82,7 +82,7 @@ export default function ScenePanels({
           Close
         </Button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-lg">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-lg">
         {PANEL_ORDER.map((id) => (
           <div key={id} id={`scene-panel-${id}`} hidden={openPanel !== id}>
             {bodies[id]}
