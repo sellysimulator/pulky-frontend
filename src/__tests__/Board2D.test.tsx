@@ -357,8 +357,7 @@ export function before(a: HTMLElement, b: HTMLElement): boolean {
 }
 
 /**
- * Section 27 - Board2D: section order, the seam (props only), locked and game-over states.
- * Acceptance criteria 1, 8; failure mode 1.
+ * Board2D: section order, the seam (props only), locked and game-over states.
  */
 
 import { describe, expect, it } from 'vitest'
@@ -389,7 +388,7 @@ describe('Board2D order (spec 13.7, D38)', () => {
   })
 })
 
-describe('Board2D consumes only its props (failure mode 1: seam bypassed)', () => {
+describe('Board2D consumes only its props (seam bypassed)', () => {
   it('renders from props with an empty store, and ignores conflicting store data', () => {
     useGameStore.setState({
       ...INITIAL_STATE,
@@ -415,7 +414,7 @@ describe('Board2D consumes only its props (failure mode 1: seam bypassed)', () =
   })
 })
 
-describe('Board2D locked and game over (acceptance 8)', () => {
+describe('Board2D locked and game over', () => {
   it('locked: WaitingPanel replaces the outlay row and Submit day is gone', () => {
     renderBoard({ locked: true, awaiting: ['P2', 'P3'] })
     expect(screen.getAllByRole('status').length).toBeGreaterThan(0)

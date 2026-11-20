@@ -1,6 +1,5 @@
 /**
- * Section 26 - the tier choice (ShipSection) and each tier's details tooltip (spec 6.3).
- * Acceptance criteria 7 and 8; failure modes 6 and 7.
+ * The tier choice (ShipSection) and each tier's details tooltip (spec 6.3).
  */
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -195,7 +194,7 @@ function tipText(name: string): string {
   return squash(screen.getByRole('tooltip').textContent)
 }
 
-describe('tier options (acceptance criterion 7)', () => {
+describe('tier options', () => {
   it('offers one radio per enabled plan, labelled with the plan label', () => {
     renderForm()
     expect(screen.getAllByRole('radio')).toHaveLength(4)
@@ -204,7 +203,7 @@ describe('tier options (acceptance criterion 7)', () => {
     }
   })
 
-  it('failure mode 7: a plan with enabled false is not offered as a radio', () => {
+  it('a plan with enabled false is not offered as a radio', () => {
     renderForm({ view: makeView({ plans: makePlans(['ddp']) }) })
     expect(screen.getAllByRole('radio')).toHaveLength(3)
     expect(screen.queryByRole('radio', { name: /^Retail-price insurance/ })).toBeNull()
@@ -214,7 +213,7 @@ describe('tier options (acceptance criterion 7)', () => {
     expect(radio('Market-price insurance')).toBeInTheDocument()
   })
 
-  it('failure mode 7: several disabled plans are all left out, and No insurance alone is offered when only it is enabled', () => {
+  it('several disabled plans are all left out, and No insurance alone is offered when only it is enabled', () => {
     renderForm({ view: makeView({ plans: makePlans(['cip', 'dap', 'ddp']) }) })
     expect(screen.getAllByRole('radio')).toHaveLength(1)
     expect(radio('No insurance')).toBeChecked()
@@ -262,7 +261,7 @@ describe('tier options (acceptance criterion 7)', () => {
   })
 })
 
-describe('tier details tooltip (acceptance criterion 8)', () => {
+describe('tier details tooltip', () => {
   it('is closed at rest', () => {
     renderForm()
     expect(screen.queryByRole('tooltip')).toBeNull()
@@ -368,7 +367,7 @@ describe('tier details tooltip (acceptance criterion 8)', () => {
     )
   })
 
-  it('failure mode 6: shows no failure chance and no expected loss (no "%", "chance" or "probability")', () => {
+  it('shows no failure chance and no expected loss (no "%", "chance" or "probability")', () => {
     renderForm()
     for (const name of ['Shipping insurance', ...Object.values(LABEL).map((label) => `${label} details`)]) {
       const text = tipText(name)

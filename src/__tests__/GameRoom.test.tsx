@@ -357,8 +357,7 @@ export function before(a: HTMLElement, b: HTMLElement): boolean {
 }
 
 /**
- * Section 27 - GameRoom page (spec 13.7, 13.8, 11.3). Acceptance criteria 1, 8, 9, 10;
- * failure modes 2, 7, 8.
+ * GameRoom page (spec 13.7, 13.8, 11.3).
  */
 import { act } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -438,7 +437,7 @@ describe('GameRoom module', () => {
   })
 })
 
-describe('GameRoom mount (acceptance 10, failure mode 7)', () => {
+describe('GameRoom mount', () => {
   it('upper-cases the room code and sets the room as a player room', () => {
     mount('k7m2qx')
     const s = useGameStore.getState()
@@ -446,7 +445,7 @@ describe('GameRoom mount (acceptance 10, failure mode 7)', () => {
     expect(s.isHost).toBe(false)
   })
 
-  it('failure mode 7: a returning player with a stored token emits join with that token', () => {
+  it('a returning player with a stored token emits join with that token', () => {
     setSessionToken('K7M2QX', 'tok-123')
     setDisplayName('Don Agave')
     mount()
@@ -454,7 +453,7 @@ describe('GameRoom mount (acceptance 10, failure mode 7)', () => {
     expect(joins()[0][1]).toEqual({ room_id: 'K7M2QX', display_name: 'Don Agave', session_token: 'tok-123' })
   })
 
-  it('failure mode 7: with no stored token nothing is emitted on mount', () => {
+  it('with no stored token nothing is emitted on mount', () => {
     setDisplayName('Don Agave')
     mount()
     expect(joins()).toHaveLength(0)
@@ -571,7 +570,7 @@ describe('GameRoom builds the board props from the store (spec 12.6)', () => {
   })
 })
 
-describe('GameRoom at the end of the game (acceptance 1, 8, 9)', () => {
+describe('GameRoom at the end of the game', () => {
   it('finished: GameOverPanel above the board, the form gone, the board read-only', () => {
     seedRunning()
     useGameStore.setState({ roomState: 'finished' })
@@ -606,7 +605,7 @@ describe('GameRoom at the end of the game (acceptance 1, 8, 9)', () => {
     expect(screen.getByRole('link', { name: 'See the results' })).toHaveAttribute('href', '/results/g-77')
   })
 
-  it('failure mode 2: game_finished and game_persisted do not navigate', () => {
+  it('game_finished and game_persisted do not navigate', () => {
     seedRunning()
     const { router } = mount()
     expect(router.state.location.pathname).toBe('/game/K7M2QX')
@@ -616,7 +615,7 @@ describe('GameRoom at the end of the game (acceptance 1, 8, 9)', () => {
     expect(screen.getByText('The game is over')).toBeInTheDocument()
   })
 
-  it('failure mode 8: unmounting after game_finished leaves the finished state in the store', () => {
+  it('unmounting after game_finished leaves the finished state in the store', () => {
     seedRunning()
     const { unmount } = mount()
     finish()
@@ -628,7 +627,7 @@ describe('GameRoom at the end of the game (acceptance 1, 8, 9)', () => {
     expect(s.playerView).not.toBeNull()
   })
 
-  it('failure mode 8: unmounting mid-game does not reset the store either', () => {
+  it('unmounting mid-game does not reset the store either', () => {
     seedRunning()
     const { unmount } = mount()
     unmount()

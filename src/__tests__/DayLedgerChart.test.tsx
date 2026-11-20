@@ -1,5 +1,5 @@
 /**
- * Section 36 - the day ledger (spec 8.1, 13.7). Acceptance criteria 1, 5 (ledger first); failure mode 1.
+ * The day ledger (spec 8.1, 13.7).
  * Charts are mocked (no canvas in jsdom); assertions are on the configuration and on the table view.
  */
 import { createElement } from 'react'
@@ -109,14 +109,14 @@ describe('dayLedgerSteps', () => {
     expect(steps[2].to).toBe(0.6)
   })
 
-  it('draws the profit bar from zero to the record profit even when the lines are a cent off (failure mode 1)', () => {
+  it('draws the profit bar from zero to the record profit even when the lines are a cent off', () => {
     const steps = dayLedgerSteps({ ...DAY3, profit: 353.01 })
     const profit = steps[13]
     expect([profit.from, profit.to]).toEqual([0, 353.01])
     expect(steps[12].to).toBe(353)
   })
 
-  it('includes salvage and the refunds in the running total (failure mode 1)', () => {
+  it('includes salvage and the refunds in the running total', () => {
     const steps = dayLedgerSteps(rec({ revenue_salvage: 5, refund_insurance: 12, refund_futures: 8, profit: 25 }))
     expect(steps[4].to).toBe(25)
   })

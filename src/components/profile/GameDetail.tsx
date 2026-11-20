@@ -14,7 +14,7 @@ type Outcome =
   | { gameId: string; kind: 'missing' }
   | { gameId: string; kind: 'error'; message: string }
 
-/** Plan 3.3: one played game, rendered by section 29's summary from the same response. */
+/** One played game, rendered by the game summary (ResultsView, spec §13.8) from the same response. */
 export default function GameDetail({ gameId }: { gameId: string }): ReactElement {
   const [outcome, setOutcome] = useState<Outcome | null>(null)
 

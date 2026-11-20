@@ -19,7 +19,7 @@ const config = (
   ) as ConfigDefaultsResponse
 ).config
 
-describe('InfoButton (AC 6)', () => {
+describe('InfoButton', () => {
   it('is a button named About {label} that announces a dialog', () => {
     render(<InfoButton entryKey="max_players" config={config} />)
     const button = screen.getByRole('button', { name: 'About Seats' })

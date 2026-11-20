@@ -1,6 +1,5 @@
 /**
- * Section 26 - the peer rows (If short / Sell), the quality guide and the offer estimate.
- * Acceptance criteria 11, 12, 13, 15; failure modes 10, 11, 12, 14, 15.
+ * The peer rows (If short / Sell), the quality guide and the offer estimate.
  */
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -229,7 +228,7 @@ async function tickSell(user: ReturnType<typeof userEvent.setup>, price = 15, qu
   setField(sellUnits(), units)
 }
 
-describe('ticking and unticking (failure mode 10)', () => {
+describe('ticking and unticking', () => {
   it('a freshly ticked row starts with empty fields, which are invalid until filled and show nothing meanwhile', async () => {
     const user = userEvent.setup()
     const { onSubmit } = renderForm()
@@ -254,7 +253,7 @@ describe('ticking and unticking (failure mode 10)', () => {
     expect(submitBtn()).toBeEnabled()
   })
 
-  it('failure mode 16: ticking Sell to Players on an empty prefill shows no message until the field is left', async () => {
+  it('ticking Sell to Players on an empty prefill shows no message until the field is left', async () => {
     const user = userEvent.setup()
     renderForm()
     await user.click(sellBox())
@@ -270,7 +269,7 @@ describe('ticking and unticking (failure mode 10)', () => {
     expect(screen.queryByText(MSG_UNITS)).toBeNull()
   })
 
-  it('failure mode 16: ticking Buy from Players on an empty prefill shows no message either', async () => {
+  it('ticking Buy from Players on an empty prefill shows no message either', async () => {
     const user = userEvent.setup()
     renderForm()
     await user.click(buyBox())
@@ -282,7 +281,7 @@ describe('ticking and unticking (failure mode 10)', () => {
     expect(screen.queryByText(MSG_PRICE)).toBeNull()
   })
 
-  it('acceptance criterion 16: Submit day with Sell to Players ticked and empty sends nothing, shows all three messages and focuses the at field', async () => {
+  it('Submit day with Sell to Players ticked and empty sends nothing, shows all three messages and focuses the at field', async () => {
     const user = userEvent.setup()
     const { onSubmit } = renderForm()
     await user.click(sellBox())
@@ -306,7 +305,7 @@ describe('ticking and unticking (failure mode 10)', () => {
     expect(buyQuality()).toHaveFocus()
   })
 
-  it('failure mode 10: after unticking Sell the submitted decision has peer_sell null, not the greyed values', async () => {
+  it('after unticking Sell the submitted decision has peer_sell null, not the greyed values', async () => {
     const user = userEvent.setup()
     const { onSubmit } = renderForm()
     await tickSell(user)
@@ -322,7 +321,7 @@ describe('ticking and unticking (failure mode 10)', () => {
     expect(onSubmit.mock.calls[0][0]).toHaveProperty('peer_sell', null)
   })
 
-  it('failure mode 10: the same for If short', async () => {
+  it('the same for If short', async () => {
     const user = userEvent.setup()
     const { onSubmit } = renderForm()
     await tickBuy(user)
@@ -334,7 +333,7 @@ describe('ticking and unticking (failure mode 10)', () => {
     expect(onSubmit.mock.calls[0][0]).toHaveProperty('peer_buy', null)
   })
 
-  it('failure mode 10: a prefilled row, once unticked, submits null; ticked again it sends the prefilled values', async () => {
+  it('a prefilled row, once unticked, submits null; ticked again it sends the prefilled values', async () => {
     const user = userEvent.setup()
     const { onSubmit } = renderForm({
       initialDecision: makePrefill({
@@ -395,8 +394,8 @@ describe('ticking and unticking (failure mode 10)', () => {
   })
 })
 
-describe('peer market off (acceptance criterion 12, failure mode 11)', () => {
-  it('failure mode 11: renders neither row, and a stale prefill submits both keys as null', async () => {
+describe('peer market off', () => {
+  it('renders neither row, and a stale prefill submits both keys as null', async () => {
     const user = userEvent.setup()
     const { onSubmit } = renderForm({
       config: makeConfig(false),
@@ -423,7 +422,7 @@ describe('peer market off (acceptance criterion 12, failure mode 11)', () => {
   })
 })
 
-describe('If short with spot closed (acceptance criterion 12)', () => {
+describe('If short with spot closed', () => {
   const closed = { spot_open: false, spot_message: 'Spot closed (test copy)' }
 
   it('disables the whole row and explains why', () => {
@@ -467,7 +466,7 @@ describe('If short with spot closed (acceptance criterion 12)', () => {
   })
 })
 
-describe('the quality guide (acceptance criterion 11, failure mode 14)', () => {
+describe('the quality guide', () => {
   it("shows the guide line for the minimum quality in the spec copy; the note is in the row's tooltip", async () => {
     const user = userEvent.setup()
     renderForm()
@@ -490,7 +489,7 @@ describe('the quality guide (acceptance criterion 11, failure mode 14)', () => {
     expect(cardHas('0%: spoils tonight · sell it today')).toBe(true)
   })
 
-  it('failure mode 14: min_quality 85 reads the row whose quality is 85 (not guide[85 / 5], row 0 being 100%)', async () => {
+  it('min_quality 85 reads the row whose quality is 85 (not guide[85 / 5], row 0 being 100%)', async () => {
     const user = userEvent.setup()
     const view = makeView()
     renderForm({ view })
@@ -515,7 +514,7 @@ describe('the quality guide (acceptance criterion 11, failure mode 14)', () => {
   })
 })
 
-describe('the "now in your cellar" estimate (acceptance criterion 13, failure mode 12)', () => {
+describe('the "now in your cellar" estimate', () => {
   it('counts the lots at or below the maximum quality, capped at max_units', async () => {
     const user = userEvent.setup()
     renderForm()
@@ -543,7 +542,7 @@ describe('the "now in your cellar" estimate (acceptance criterion 13, failure mo
     expect(cardHas('now in your cellar: no lots at 30% or less')).toBe(true)
   })
 
-  it('failure mode 12: ticking L4 to conserve drops it from the line, ticking L3 too leaves no lots', async () => {
+  it('ticking L4 to conserve drops it from the line, ticking L3 too leaves no lots', async () => {
     const user = userEvent.setup()
     renderForm()
     await tickSell(user, 15, 60, 99)
@@ -581,7 +580,7 @@ describe('the "now in your cellar" estimate (acceptance criterion 13, failure mo
   })
 })
 
-describe('peer-field validation (acceptance criterion 15)', () => {
+describe('peer-field validation', () => {
   async function ticked() {
     const user = userEvent.setup()
     const utils = renderForm()
@@ -632,7 +631,7 @@ describe('peer-field validation (acceptance criterion 15)', () => {
     expect(submitBtn()).toBeEnabled()
   })
 
-  it('failure mode 15: a peer price of 15.005 is refused with the message, never rounded to 15.01 and sent', async () => {
+  it('a peer price of 15.005 is refused with the message, never rounded to 15.01 and sent', async () => {
     const { user, onSubmit } = await ticked()
     setField(buyPrice(), '15.005')
     blur(buyPrice())

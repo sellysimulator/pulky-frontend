@@ -1,8 +1,7 @@
 /**
- * Section 29 - GuestClaimPrompt (spec 13.8 block 6 "Claim your results").
+ * GuestClaimPrompt (spec 13.8 block 6 "Claim your results").
  * The three-condition gate is exercised through ResultsSummary (ResultsSummary.test.tsx); here the
  * prompt is shown with every condition met and its sign-in then claim flow is followed.
- * Acceptance criterion 8.
  */
 import type { ReactNode } from 'react'
 import { render, screen, waitFor } from '@testing-library/react'

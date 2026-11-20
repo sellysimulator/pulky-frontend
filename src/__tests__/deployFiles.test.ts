@@ -1,8 +1,8 @@
 /**
- * Section 20: deployment files and the build guard.
+ * Deployment files and the build guard (spec §13.13).
  *
  * Every rule is a checker over text or a directory; the real files must pass
- * it, and a copy broken the way a failure mode describes must fail it.
+ * it, and a copy broken in a known way must fail it.
  */
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -76,7 +76,7 @@ describe('hosting workflows', () => {
   it.each([
     ['merge', MERGE],
     ['pull_request', PULL_REQUEST],
-  ] as const)('%s workflow meets the section 20 shape', (kind, path) => {
+  ] as const)('%s workflow has the required shape', (kind, path) => {
     expect(existsSync(path)).toBe(true)
     expect(checkWorkflow(read(path), kind)).toEqual([])
   })
@@ -196,7 +196,7 @@ describe('CI workflow', () => {
   })
 })
 
-// ------------------------------------------------------- build-guard (AC 4)
+// ------------------------------------------------------- build-guard
 
 const VITE_BIN = join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js')
 
@@ -270,7 +270,7 @@ describe('backend-URL build guard', () => {
   }, 300_000)
 })
 
-// ------------------------------------------- imports versus .gitignore (AC 5)
+// ------------------------------------------- imports versus .gitignore
 
 const EXTENSIONS = ['', '.ts', '.tsx', '.js', '.jsx', '.json', '.css', '.svg']
 

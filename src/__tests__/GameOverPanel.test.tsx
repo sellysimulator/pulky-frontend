@@ -1,4 +1,4 @@
-/** Section 27 - GameOverPanel (spec 13.8 first paragraph). Acceptance criterion 9; failure mode 2 (panel side). */
+/** GameOverPanel (spec 13.8 first paragraph). */
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'

@@ -1,6 +1,5 @@
 /**
- * Section 28 — HostRoom page (plan 28 §3.1).
- * Acceptance 1, 2, 5 (daily host_state), 7 (page state); failure modes 3, 6, 7.
+ * HostRoom page (spec §11.4; design.md §8.3, §8.6).
  */
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -228,7 +227,7 @@ describe('HostRoom module', () => {
   })
 })
 
-describe('HostRoom mount (acceptance 1, failure mode 7)', () => {
+describe('HostRoom mount', () => {
   it('upper-cases the code and sets the room as a host room', () => {
     mount('abc234')
     expect(useGameStore.getState().roomCode).toBe(CODE)
@@ -242,7 +241,7 @@ describe('HostRoom mount (acceptance 1, failure mode 7)', () => {
     expect(calls('join_waiting')[0][1]).toEqual({ room_id: CODE, host_secret: 's3cret' })
   })
 
-  it('failure mode 7: with no stored secret it still emits join_waiting, without a host_secret key', () => {
+  it('with no stored secret it still emits join_waiting, without a host_secret key', () => {
     mount()
     expect(calls('join_waiting')).toHaveLength(1)
     const payload = calls('join_waiting')[0][1] as Obj
@@ -263,7 +262,7 @@ describe('HostRoom mount (acceptance 1, failure mode 7)', () => {
   })
 })
 
-describe('HostRoom states (acceptance 1, 2)', () => {
+describe('HostRoom states', () => {
   it('before the claim and without an error: an Opening the room spinner', () => {
     mount()
     expect(screen.getByRole('status')).toHaveTextContent('Opening the room')
@@ -314,8 +313,8 @@ describe('HostRoom states (acceptance 1, 2)', () => {
   })
 })
 
-describe('HostRoom at the end of the game (failure mode 6)', () => {
-  it('failure mode 6: applying game_finished shows the link but does not change the URL', () => {
+describe('HostRoom at the end of the game', () => {
+  it('applying game_finished shows the link but does not change the URL', () => {
     seedRunning()
     const { router } = mount()
     const before = router.state.location.pathname
@@ -336,7 +335,7 @@ describe('HostRoom at the end of the game (failure mode 6)', () => {
   })
 })
 
-describe('HostRoom presentation mode (acceptance 7)', () => {
+describe('HostRoom presentation mode', () => {
   it('opens on the button, hides the room code chip, and closes on Exit', () => {
     seedRunning()
     mount()
@@ -369,7 +368,7 @@ describe('HostRoom presentation mode (acceptance 7)', () => {
     expect(document.body.textContent).toContain('Peer market: 16 units at $14.25 on average')
   })
 
-  it('failure modes 1, 2: the projected screen carries none of the private values of the host view', () => {
+  it('the projected screen carries none of the private values of the host view', () => {
     seedRunning()
     mount()
     fireEvent.click(screen.getByRole('button', { name: 'Presentation mode' }))
@@ -386,11 +385,11 @@ describe('HostRoom presentation mode (acceptance 7)', () => {
   })
 })
 
-describe('HostRoom host secret (failure mode 7)', () => {
+describe('HostRoom host secret', () => {
   it('uses the secret that host_claimed delivers for Start game, then for End game early', () => {
     mount()
     expect(getHostSecret(CODE)).toBeNull()
-    // the claim handler (section 21) stores the secret the server sends; the page must pick it up on its next render
+    // the claim handler stores the secret the server sends; the page must pick it up on its next render
     setHostSecret(CODE, 'srv-secret')
     act(() => {
       useGameStore.getState().applyHostClaimed({ room_id: CODE, host_secret: 'srv-secret' })
@@ -420,7 +419,7 @@ describe('HostRoom host secret (failure mode 7)', () => {
   })
 })
 
-describe('HostRoom histories and submissions across daily host_state (acceptance 5, failure mode 3)', () => {
+describe('HostRoom histories and submissions across daily host_state', () => {
   const fullState = () => ({
     seq: 10,
     ...(hostView() as unknown as Obj),
@@ -453,7 +452,7 @@ describe('HostRoom histories and submissions across daily host_state (acceptance
     expect(screen.getByRole('region', { name: 'Events' })).toHaveTextContent('Day 3 (Wed): supplier disrupted')
   })
 
-  it('failure mode 3: a decision_submitted ticks only the name; no decision content appears', () => {
+  it('a decision_submitted ticks only the name; no decision content appears', () => {
     useGameStore.getState().setRoom(CODE, true)
     act(() => {
       useGameStore.getState().applyHostClaimed({ room_id: CODE, host_secret: 's3cret' })

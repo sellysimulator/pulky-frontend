@@ -1,5 +1,5 @@
 /**
- * Section 36 - share bars (spec 7.7, 13.7). Acceptance criteria 3, 4, 9 (SharePie gone); failure modes 2, 3.
+ * Share bars (spec 7.7, 13.7); SharePie is gone.
  * Charts are mocked (no canvas in jsdom); assertions are on the configuration and on the table view.
  */
 import { createElement } from 'react'
@@ -68,7 +68,7 @@ describe('buildShareBarsConfig', () => {
     expect(c.data.labels).toEqual(['Name P1', 'Name P2', 'Name P10'])
   })
 
-  it('colours a bar by its alias, never by its rank (failure mode 2)', () => {
+  it('colours a bar by its alias, never by its rank', () => {
     const c = cfg(THREE)
     expect(typeof c.data.datasets[0].backgroundColor).toBe('function')
     expect(bg(c, 0)).toBe('#D9622B')
@@ -105,7 +105,7 @@ describe('buildShareBarsConfig', () => {
     expect(cfg(THREE, 'P2').data.datasets[0].borderWidth).toEqual([2, 0, 0])
   })
 
-  it('adds the fair-share rule at 1 / n on top of the bars (failure mode 3)', () => {
+  it('adds the fair-share rule at 1 / n on top of the bars', () => {
     const rule = cfg(THREE).data.datasets[1]
     expect(rule.type).toBe('line')
     expect(rule.label).toBe('Fair share (1 ÷ 3)')
@@ -119,7 +119,7 @@ describe('buildShareBarsConfig', () => {
     expect(rule.order).toBe(0)
   })
 
-  it('takes n from the day, not from the seats or a fixed four (failure mode 3)', () => {
+  it('takes n from the day, not from the seats or a fixed four', () => {
     const two = cfg(day(1, { P1: 0.5, P2: 0.5 })).data.datasets[1]
     expect(two.data).toEqual([0.5, 0.5])
     expect(two.label).toBe('Fair share (1 ÷ 2)')
@@ -239,7 +239,7 @@ describe('ShareBars component', () => {
   })
 })
 
-describe('SharePie is gone (acceptance 9)', () => {
+describe('SharePie is gone', () => {
   it('has no file', () => {
     expect(existsSync(resolve(process.cwd(), 'src/components/game/SharePie.tsx'))).toBe(false)
   })

@@ -1,5 +1,5 @@
 /**
- * Section 22 — JoinRedirect. Acceptance criterion 10.
+ * JoinRedirect (spec §13.6).
  */
 import { render, screen, waitFor } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'

@@ -1,6 +1,5 @@
 /**
- * Section 32 - choosing the view (plan 32 sections 2, 3.3, 4). Failure modes 4 and the support rows;
- * acceptance 3 and 4 at the unit level.
+ * Choosing the view (spec §13.11.2) and the support rows, at the unit level.
  */
 import { renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -13,7 +12,7 @@ import {
 } from '../components/game/views/boardView'
 import { getBoardView, setBoardView } from '../utils/storage'
 
-describe('resolveBoardView (failure mode 4)', () => {
+describe('resolveBoardView', () => {
   it.each([
     ['3D', '3D'],
     ['2D', '2D'],

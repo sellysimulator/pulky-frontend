@@ -1,5 +1,5 @@
 /**
- * Section 29 - ExportControls (spec 13.8 block 6 "Export", spec 13.4 export route).
+ * ExportControls (spec 13.8 block 6 "Export", spec 13.4 export route).
  * The export is open by game id: no host secret, every viewer; each format downloads once
  * per browser session (UX only, the server's per-IP limit is the real guard).
  */

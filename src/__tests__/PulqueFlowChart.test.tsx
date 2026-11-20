@@ -1,6 +1,6 @@
 /**
- * Section 35 - the flow: buildPulqueFlowConfig, FLOW_NODE_NAMES and PulqueFlowChart
- * (plan 35 section 3.3; acceptance criteria 5, 9; failure mode 2).
+ * The flow: buildPulqueFlowConfig, FLOW_NODE_NAMES and PulqueFlowChart
+ * (spec 13.8 block 3).
  * The View control, Compare all and percent are in ResultsSummary.test.tsx / demandSupplyConfig.test.ts.
  */
 import { createElement } from 'react'
@@ -48,14 +48,14 @@ describe('FLOW_NODE_NAMES', () => {
   })
 })
 
-describe('buildPulqueFlowConfig bands (criterion 5)', () => {
+describe('buildPulqueFlowConfig bands', () => {
   it('is a sankey chart with one dataset', () => {
     const { cfg } = build(FLOW_EXAMPLE)
     expect(cfg.type).toBe('sankey')
     expect(cfg.data.datasets).toHaveLength(1)
   })
 
-  it('section 4: the eleven bands of the example, no futures and no in-transit band', () => {
+  it('the eleven bands of the example, no futures and no in-transit band', () => {
     const { ds } = build(FLOW_EXAMPLE)
     expect(ds.data).toEqual([
       { from: 'spot', to: 'shipped', flow: 30 },
@@ -87,7 +87,7 @@ describe('buildPulqueFlowConfig bands (criterion 5)', () => {
     }
   })
 
-  it('failure mode 2: a flow that does not balance still gives every band its own field, never a remainder', () => {
+  it('a flow that does not balance still gives every band its own field, never a remainder', () => {
     const { ds } = build(FLOW_UNBALANCED)
     const band = (from: string, to: string) => ds.data.find((b: Dict) => b.from === from && b.to === to)
     expect(band('shipped', 'delivered').flow).toBe(35) // a remainder would be 30 - 5 = 25
@@ -124,7 +124,7 @@ describe('buildPulqueFlowConfig nodes and labels', () => {
     }
   })
 
-  it('section 4 labels: Shipped 40, Lost in transit 5 · 13%, Cellar 57, Sold to customers 50 · 88%', () => {
+  it('the example labels: Shipped 40, Lost in transit 5 · 13%, Cellar 57, Sold to customers 50 · 88%', () => {
     const { ds } = build(FLOW_EXAMPLE)
     expect(ds.labels.shipped).toBe('Shipped\n40')
     expect(ds.labels.lost).toBe('Lost in transit\n5 · 13%')
@@ -276,7 +276,7 @@ describe('PulqueFlowChart', () => {
     expect(sankey().data.datasets[0].data).toEqual(expectedBands(FLOW_UNBALANCED))
   })
 
-  it('criterion 9: the table lists From, To and Units for each band in the builder\'s order, with node names', async () => {
+  it('the table lists From, To and Units for each band in the builder\'s order, with node names', async () => {
     render(<PulqueFlowChart view={flowView} myAlias={null} />)
     await userEvent.click(screen.getByRole('button', { name: /Show table/ }))
     const table = screen.getByRole('table', { name: "Don Agave: from shipments to sold, spoiled and left at the end" })

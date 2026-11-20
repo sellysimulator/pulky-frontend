@@ -165,7 +165,7 @@ describe('AuthProvider state', () => {
     expect(result.current.user).toBeNull()
   })
 
-  it('does not connect the socket before auth resolves (failure mode 9)', () => {
+  it('does not connect the socket before auth resolves', () => {
     mount()
     expect(h.lifecycle).not.toContain('connect')
   })
@@ -228,7 +228,7 @@ describe('continueAsGuest', () => {
   })
 })
 
-describe('socket connect waits for the awake backend (failure mode 16)', () => {
+describe('socket connect waits for the awake backend', () => {
   const alerts = () => useGameStore.getState().alerts
 
   it('while the backend is waking, an auth resolution makes no connect and raises no alert; the first awake connects once', async () => {

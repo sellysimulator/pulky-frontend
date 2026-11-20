@@ -1,4 +1,4 @@
-/** Section 32 - ModelCredits (plan 32 section 3.10; acceptance 11). */
+/** ModelCredits (spec §13.11.9). */
 import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import ModelCredits from '../components/game/views/board3d/ModelCredits'

@@ -1,6 +1,6 @@
 /**
- * Section 30 - GamesTable (spec 13.8 reuse; plan 3.2).
- * Acceptance criteria 2 (games table columns and formats), 3 (newest first, Open links).
+ * GamesTable (spec 13.8 reuse; design.md 8.9).
+ * The games table's columns and formats, newest first, with Open links.
  */
 import { render, screen, within } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'

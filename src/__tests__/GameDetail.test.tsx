@@ -1,6 +1,6 @@
 /**
- * Section 30 - GameDetail (plan 3.3; spec 13.8: the profile renders the same components from the same response).
- * Acceptance criteria 4, 5; failure modes 2 (same summary), 3 (no actions).
+ * GameDetail (spec 13.8: the profile renders the same components from the same response; design.md 8.9).
+ * The same summary as the results page, with no actions.
  * Requests are observed through the axios adapter; the REST clients are not mocked.
  */
 import { createElement, type ReactNode } from 'react'
@@ -116,7 +116,7 @@ describe('GameDetail', () => {
   })
 })
 
-describe('failure mode 3: actions on a profile', () => {
+describe('actions on a profile', () => {
   it('renders no Export CSV, Play again or Debrief notes, nor the actions block', async () => {
     serve({ status: 200, data: myGame() })
     mount()
@@ -140,7 +140,7 @@ describe('failure mode 3: actions on a profile', () => {
   })
 })
 
-describe('failure mode 2: a different summary for the same game', () => {
+describe('a different summary for the same game', () => {
   it('renders the same leaderboard and charts as ResultsSummary does for the view of that response', async () => {
     serve({ status: 200, data: myGame('P1') })
     const detail = mount()

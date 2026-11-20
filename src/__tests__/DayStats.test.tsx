@@ -357,7 +357,7 @@ export function before(a: HTMLElement, b: HTMLElement): boolean {
 }
 
 /**
- * Section 27 - DayStats (spec 13.7, 4.2). Acceptance criteria 2, 3.
+ * DayStats (spec 13.7, 4.2).
  * Rendered through Board2D, which is the public surface.
  */
 

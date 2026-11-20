@@ -1,4 +1,4 @@
-/** Section 32 - BoardViewToggle (plan 32 section 3.3; acceptance 3; failure mode 3). */
+/** BoardViewToggle (spec §13.11.2; design.md §14.4). */
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import BoardViewToggle from '../components/game/views/BoardViewToggle'
@@ -40,7 +40,7 @@ describe('BoardViewToggle', () => {
     expect(screen.queryByRole('button', { name: 'About 3D view' })).toBeNull()
   })
 
-  it('failure mode 3: unsupported disables 3D and says why in an InfoTip, never hiding it', () => {
+  it('unsupported disables 3D and says why in an InfoTip, never hiding it', () => {
     const onChange = vi.fn()
     render(<BoardViewToggle value="2D" support={{ ok: false, reason: REASON }} onChange={onChange} />)
     const three = screen.getByRole('button', { name: '3D' })

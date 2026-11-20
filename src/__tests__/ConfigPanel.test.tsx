@@ -1,6 +1,5 @@
 /**
- * Section 25 — ConfigPanel and ShownToPlayersBadge (plan 25 §3.1–§3.4).
- * Acceptance 1–7, 9–12; failure modes 3, 4, 5, 7, 8, 10 (and 1, 2, 6 reach the panel through the calculator).
+ * ConfigPanel and ShownToPlayersBadge (spec §13.9; design.md §8.4).
  */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -235,7 +234,7 @@ describe('ShownToPlayersBadge', () => {
   })
 })
 
-describe('loading (plan 25 §3.1)', () => {
+describe('loading', () => {
   it('shows Loading the settings while the config has not arrived', async () => {
     await mount({ config: null })
     expect(screen.getByText('Loading the settings')).toBeInTheDocument()
@@ -287,7 +286,7 @@ describe('loading (plan 25 §3.1)', () => {
   })
 })
 
-describe('sections and fields (acceptance 1, failure mode 10)', () => {
+describe('sections and fields', () => {
   it('renders the seven sections in spec order', async () => {
     await mount()
     const titles = SECTIONS.map(titleEl)
@@ -333,7 +332,7 @@ describe('sections and fields (acceptance 1, failure mode 10)', () => {
     }
   })
 
-  it('puts the quality range in Supplier & futures, not Stock (failure mode 10)', async () => {
+  it('puts the quality range in Supplier & futures, not Stock', async () => {
     await mount()
     const supplier = sectionOf('Supplier & futures')
     const stock = sectionOf('Stock')
@@ -343,7 +342,7 @@ describe('sections and fields (acceptance 1, failure mode 10)', () => {
     }
   })
 
-  it('puts peer_market.enabled alone in Peer market (failure mode 10)', async () => {
+  it('puts peer_market.enabled alone in Peer market', async () => {
     await mount()
     const key = 'peer_market.enabled'
     expect(controlIn(sectionOf('Peer market'), key)).not.toBeNull()
@@ -404,7 +403,7 @@ describe('sections and fields (acceptance 1, failure mode 10)', () => {
   })
 })
 
-describe('Shown to players badges (acceptance 2, failure mode 3)', () => {
+describe('Shown to players badges', () => {
   it('appear on exactly the five spec §9.3 shown keys with the real fixture', async () => {
     await mount()
     expect(screen.getAllByText('Shown to players')).toHaveLength(5)
@@ -431,7 +430,7 @@ describe('Shown to players badges (acceptance 2, failure mode 3)', () => {
   })
 })
 
-describe('debounced validation (acceptance 3, failure mode 7)', () => {
+describe('debounced validation', () => {
   it('rapid edits within 400 ms produce one validateConfig call with the full draft', async () => {
     await mount()
     vi.mocked(validateConfig).mockClear()
@@ -464,7 +463,7 @@ describe('debounced validation (acceptance 3, failure mode 7)', () => {
   })
 })
 
-describe('sending (acceptance 5, failure modes 4 and 5)', () => {
+describe('sending', () => {
   it('a clean validate emits config_update with only the changed leaf', async () => {
     await mount()
     edit('stock.max_days', 5)
@@ -523,7 +522,7 @@ describe('sending (acceptance 5, failure modes 4 and 5)', () => {
   })
 })
 
-describe('errors and warnings at their field (acceptance 4)', () => {
+describe('errors and warnings at their field', () => {
   const QMAX = 'Must be at least the minimum quality (90%).'
 
   it('renders a validate error under the Highest initial quality control', async () => {
@@ -699,7 +698,7 @@ describe('insurance issues and validate-request failure', () => {
   })
 })
 
-describe('socket INVALID_CONFIG (acceptance 6)', () => {
+describe('socket INVALID_CONFIG', () => {
   it('renders at its field and is cleared from the store', async () => {
     await mount()
     const err = {
@@ -717,7 +716,7 @@ describe('socket INVALID_CONFIG (acceptance 6)', () => {
   })
 })
 
-describe('draft handling (failure mode 8)', () => {
+describe('draft handling', () => {
   it('a config_updated arriving during an unsent edit does not overwrite the edit', async () => {
     await mount()
     edit('stock.holding_cost', 0.35)
@@ -739,7 +738,7 @@ describe('draft handling (failure mode 8)', () => {
   })
 })
 
-describe('Reset to defaults (acceptance 7)', () => {
+describe('Reset to defaults', () => {
   it('runs the defaults through validate and sends the difference from the stored config', async () => {
     await mount({
       config: cfg((c) => {
@@ -775,7 +774,7 @@ describe('Reset to defaults (acceptance 7)', () => {
   })
 })
 
-describe('calculator inside the panel (acceptance 9)', () => {
+describe('calculator inside the panel', () => {
   it('Set fees from margin updates the draft and sends only the changed fee', async () => {
     // a host who typed the risks in: the calculator can then compute break-even
     const typed = withTypedRisks(cfg((c) => (c.insurance.tiers.cip.fee = 0.2)))
@@ -857,7 +856,7 @@ describe('hidden defaults (spec §9.3, §13.9)', () => {
   })
 })
 
-describe('locked (acceptance 10)', () => {
+describe('locked', () => {
   function expectAllLocked(container: HTMLElement): void {
     const controls = container.querySelectorAll<HTMLInputElement>('input,select,textarea,[role="switch"],[role="combobox"]')
     expect(controls.length).toBeGreaterThan(10)
@@ -895,7 +894,7 @@ describe('locked (acceptance 10)', () => {
   })
 })
 
-describe('previews follow the draft (acceptance 11)', () => {
+describe('previews follow the draft', () => {
   /** The spoil risk table's headers and rows. */
   function risk(): { headers: string[]; rows: string[][] } {
     const table = screen.getAllByRole('table').find((t) => within(t).queryByText('Night'))
@@ -975,7 +974,7 @@ describe('previews follow the draft (acceptance 11)', () => {
   })
 })
 
-describe('Preview collapsibles (acceptance 13, failure mode 11)', () => {
+describe('Preview collapsibles', () => {
   const WITH_PREVIEW: Section[] = ['Demand', 'Reputation', 'Supplier & futures', 'Stock']
   const WITHOUT_PREVIEW: Section[] = ['Game', 'Peer market', 'Transport & insurance']
   /** A text that only the section's preview shows. */

@@ -1,6 +1,5 @@
 /**
- * Section 22 — the shared primitives (`src/components/shared/*`).
- * Acceptance criteria 1 and 11; failure modes 1, 2 and 3.
+ * The shared primitives (`src/components/shared/*`, design.md §7).
  * Queries are by role, label or text; class names are asserted only where
  * design.md makes them the rule (a token utility is the visible contract).
  */
@@ -121,7 +120,7 @@ describe('Button', () => {
     expect(svg).toHaveAttribute('aria-hidden', 'true')
   })
 
-  it('failure mode 1: a disabled button carries the disabled attribute and does not fade with opacity', async () => {
+  it('a disabled button carries the disabled attribute and does not fade with opacity', async () => {
     const onClick = vi.fn()
     render(
       <Button disabled onClick={onClick}>
@@ -218,7 +217,7 @@ describe('Collapsible', () => {
     expect(container.querySelector('details')!.open).toBe(true)
   })
 
-  it('failure mode 2: clicking the summary of a closed one asks to open and stays closed until the prop changes', async () => {
+  it('clicking the summary of a closed one asks to open and stays closed until the prop changes', async () => {
     const onOpenChange = vi.fn()
     const { container, rerender } = render(
       <Collapsible variant="inline" summary="Plan details" open={false} onOpenChange={onOpenChange}>
@@ -444,7 +443,7 @@ describe('RiskIndicator', () => {
     expect(container.querySelector('svg.lucide-circle-check')).not.toBeNull()
   })
 
-  it('failure mode 3: 0.33 says "At risk" in words, with the triangle icon', () => {
+  it('0.33 says "At risk" in words, with the triangle icon', () => {
     const { container } = render(<RiskIndicator risk={0.33} />)
     expect(screen.getByText('33%')).toBeInTheDocument()
     expect(screen.getByText('At risk')).toBeInTheDocument()
@@ -1016,7 +1015,7 @@ describe('AlertContainer and InlineAlert', () => {
   })
 })
 
-describe('BackendWakeUp (criterion 11)', () => {
+describe('BackendWakeUp', () => {
   it('shows the title, the body and the elapsed seconds', () => {
     h.backend.elapsedSeconds = 42
     render(<BackendWakeUp />)

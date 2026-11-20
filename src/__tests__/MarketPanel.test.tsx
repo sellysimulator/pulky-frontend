@@ -364,7 +364,7 @@ export function before(a: HTMLElement, b: HTMLElement): boolean {
 }
 
 /**
- * Section 27 - MarketPanel (spec 13.7, 9.3). Acceptance criteria 6, 6b; failure modes 10, 11.
+ * MarketPanel (spec 13.7, 9.3).
  */
 
 import { act } from '@testing-library/react'
@@ -414,7 +414,7 @@ describe('ResultsTable', () => {
   })
 })
 
-describe('Peer market totals line (failure modes 10, 11)', () => {
+describe('Peer market totals line', () => {
   it('shows the totals variant with the average price as money', () => {
     market({ peer_units: 18, peer_avg_price: 14.11 })
     const line = screen.getByText('Peer market: 18 units at $14.11 on average')
@@ -497,7 +497,7 @@ describe('Before the first day closes', () => {
   })
 })
 
-// ── Section 36: choosing a day, the loss swatch, share bars in the market panel ──
+// ── Choosing a day, the loss swatch, share bars in the market panel ──
 
 beforeEach(() => {
   useGameStore.getState().reset()
@@ -510,7 +510,7 @@ const propsOf = (title: string) => {
 const slider = () => screen.getByLabelText('Day to break down') as HTMLInputElement
 const widths = () => propsOf('Your profit per day').data.datasets[0].borderWidth as number[]
 
-describe('Your profit per day: legend and the chosen day (acceptance 2, 8)', () => {
+describe('Your profit per day: legend and the chosen day', () => {
   it('has a Profit and a Loss legend item', () => {
     market()
     const box = figure('Your profit per day')
@@ -547,7 +547,7 @@ describe('Your profit per day: legend and the chosen day (acceptance 2, 8)', () 
     expect(widths()).toEqual([0, 0, 0, 2])
   })
 
-  it('moving the slider selects that day and the chart and slider agree (failure mode 4)', () => {
+  it('moving the slider selects that day and the chart and slider agree', () => {
     market()
     fireEvent.change(slider(), { target: { value: '2' } })
     expect(useGameStore.getState().selectedDay).toBe(2)
@@ -591,7 +591,7 @@ describe('Your profit per day: legend and the chosen day (acceptance 2, 8)', () 
   })
 })
 
-describe('Market panel layout and crosshair isolation (acceptance 3, 7)', () => {
+describe('Market panel layout and crosshair isolation', () => {
   it('puts the share tile and bars beside the spot price chart in one two-column grid', () => {
     market()
     expect(screen.getByText('Your market share')).toBeInTheDocument()

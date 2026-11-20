@@ -15,7 +15,7 @@ function formatDate(iso: string): string {
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`
 }
 
-/** Plan 3.2: the games the user played, newest first. */
+/** The games the user played, newest first (design.md §8.9). */
 export default function GamesTable({ games }: { games: MyGameRow[] }): ReactElement {
   if (games.length === 0) {
     return (

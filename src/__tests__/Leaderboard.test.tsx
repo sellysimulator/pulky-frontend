@@ -1,6 +1,5 @@
 /**
- * Section 29 - Leaderboard (block 1, spec 13.8 "Leaderboard and Reveal"; design.md 3.2, 8.8).
- * Acceptance criteria 3, 4; failure modes 3 and 4 (component side).
+ * Leaderboard (block 1, spec 13.8 "Leaderboard and Reveal"; design.md 3.2, 8.8).
  */
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
@@ -71,7 +70,7 @@ describe('cards', () => {
 })
 
 describe('revealed by default (a player)', () => {
-  it('shows every total profit at once, with no Reveal control (failure mode 3)', () => {
+  it('shows every total profit at once, with no Reveal control', () => {
     show(true)
     expect(shownProfits()).toHaveLength(3)
     expect(onScreen('hidden until revealed')).toHaveLength(0)
@@ -80,7 +79,7 @@ describe('revealed by default (a player)', () => {
 })
 
 describe('hidden by default (the host)', () => {
-  it('shows names and ranks but not one profit, and offers Reveal (failure mode 4)', () => {
+  it('shows names and ranks but not one profit, and offers Reveal', () => {
     show(false)
     expect(shownProfits()).toEqual([])
     for (const alias of RANK_ORDER) expect(screen.getAllByText(NAMES[alias]).length).toBeGreaterThan(0)

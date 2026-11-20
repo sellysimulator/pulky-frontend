@@ -1,6 +1,5 @@
 /**
- * Section 29 - resultsView.ts (spec 13.8 `ResultsView`, one view model, two sources).
- * Acceptance criteria 2, 3, 13; failure modes 1, 2, 9, 11 (normaliser side).
+ * resultsView.ts (spec 13.8 `ResultsView`, one view model, two sources).
  */
 import { describe, expect, it } from 'vitest'
 import { resultsViewFromLive, resultsViewFromResponse } from '../components/results/resultsView'
@@ -36,7 +35,7 @@ const withoutDates = (v: unknown): Dict => {
   return copy
 }
 
-describe('the same game from the two sources (criterion 2)', () => {
+describe('the same game from the two sources', () => {
   it('gives deep-equal views except started_at / finished_at', () => {
     expect(withoutDates(live())).toEqual(withoutDates(stored()))
   })
@@ -90,7 +89,7 @@ describe('the same game from the two sources (criterion 2)', () => {
   })
 })
 
-describe('field copying (failure mode 1: live/URL drift)', () => {
+describe('field copying (live/URL drift)', () => {
   const stats = makeStats()
 
   it.each([
@@ -131,7 +130,7 @@ describe('field copying (failure mode 1: live/URL drift)', () => {
   })
 })
 
-describe('copy, never compute (criterion 3, failure modes 2 and 9)', () => {
+describe('copy, never compute', () => {
   it.each([
     ['live', () => live()],
     ['stored', () => stored()],
@@ -177,7 +176,7 @@ describe('ordering', () => {
   })
 })
 
-describe('a payload without the peer fields (criterion 13, failure mode 11)', () => {
+describe('a payload without the peer fields', () => {
   it.each([
     ['live', () => live(makeFinished(withoutPeer))],
     ['stored', () => stored(makeResponse(withoutPeer))],
@@ -215,7 +214,7 @@ describe('inputs are left alone', () => {
   })
 })
 
-describe('section 35: flow (criteria 6 and 8, failure mode 6)', () => {
+describe('flow', () => {
   type Stats = ReturnType<typeof makeStats>
   const finishedWith = (mutate: (s: Stats) => void) => makeFinished(mutate)
   const responseWith = (mutate: (s: Stats) => void) => makeResponse(mutate)

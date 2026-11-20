@@ -1,6 +1,6 @@
 /**
- * Section 37 — the projector charts: buildShareByDayConfig, buildDemandSoldConfig, PresentationCharts
- * (plan 37 §2, §3.1, §3.2, §4). Acceptance 1, 4; failure mode 1.
+ * The projector charts: buildShareByDayConfig, buildDemandSoldConfig, PresentationCharts
+ * (design.md §8.7).
  */
 import { createElement } from 'react'
 import { readFileSync } from 'node:fs'
@@ -34,7 +34,7 @@ import { formatPercent } from '../utils/format'
 
 type Obj = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 
-/** plan 37 §4: P1 Don Agave, P2 La Chula, three closed days Mon-Wed. */
+/** The worked example: P1 Don Agave, P2 La Chula, three closed days Mon-Wed. */
 const DAYS: PresentationDay[] = [
   {
     day: 1,
@@ -98,7 +98,7 @@ function tableOf(title: string, caption: string): HTMLElement {
   return within(f).getByRole('table', { name: caption })
 }
 
-describe('buildShareByDayConfig (plan 37 §3.2, §4)', () => {
+describe('buildShareByDayConfig', () => {
   it('is a stacked bar chart with one dataset per pulquería in alias order and the share per day', () => {
     const cfg = buildShareByDayConfig(DAYS) as Obj
     expect(cfg.type).toBe('bar')
@@ -167,7 +167,7 @@ describe('buildShareByDayConfig (plan 37 §3.2, §4)', () => {
   })
 })
 
-describe('buildDemandSoldConfig (plan 37 §3.2, §4)', () => {
+describe('buildDemandSoldConfig', () => {
   it('is a line chart: Units sold first, Market demand last so it is drawn on top', () => {
     const cfg = buildDemandSoldConfig(DAYS) as Obj
     expect(cfg.type).toBe('line')
@@ -197,7 +197,7 @@ describe('buildDemandSoldConfig (plan 37 §3.2, §4)', () => {
   })
 })
 
-describe('PresentationCharts (plan 37 §3.2)', () => {
+describe('PresentationCharts', () => {
   it('with an empty history shows the empty state and no chart', () => {
     render(<PresentationCharts history={[]} />)
     expect(screen.getByText('No days closed yet')).toBeInTheDocument()
@@ -287,7 +287,7 @@ describe('PresentationCharts (plan 37 §3.2)', () => {
   })
 })
 
-describe('the projector charts take public data only (acceptance 1, failure mode 1)', () => {
+describe('the projector charts take public data only', () => {
   const read = (file: string): string => readFileSync(resolve(process.cwd(), 'src/components/host', file), 'utf8')
   const FORBIDDEN = ['DayRecord', 'MarketDay', 'HostView', 'HostHistories', 'hostHistories', 'marketHistory', 'useGameStore']
 
@@ -402,7 +402,7 @@ describe('the projector charts take public data only (acceptance 1, failure mode
     return out
   }
 
-  it('failure mode 1: no private key or value of a public entry or of the host data reaches the history', () => {
+  it('no private key or value of a public entry or of the host data reaches the history', () => {
     seedPoisoned()
     const data = selectPresentationData(useGameStore.getState())!
     const text = JSON.stringify(data.history)
@@ -413,7 +413,7 @@ describe('the projector charts take public data only (acceptance 1, failure mode
     }
   })
 
-  it('failure mode 1: no private key or value reaches the configurations of the two projector charts', () => {
+  it('no private key or value reaches the configurations of the two projector charts', () => {
     seedPoisoned()
     const { history } = selectPresentationData(useGameStore.getState())!
     for (const cfg of [buildShareByDayConfig(history), buildDemandSoldConfig(history)]) {
@@ -424,7 +424,7 @@ describe('the projector charts take public data only (acceptance 1, failure mode
     }
   })
 
-  it('failure mode 1: nothing private is rendered in the presentation charts or their tables', () => {
+  it('nothing private is rendered in the presentation charts or their tables', () => {
     seedPoisoned()
     const data = selectPresentationData(useGameStore.getState())!
     render(<PresentationMode data={data} onExit={() => {}} />)
@@ -442,7 +442,7 @@ describe('the projector charts take public data only (acceptance 1, failure mode
   })
 })
 
-describe('the live race matches the results race (acceptance 3, builders)', () => {
+describe('the live race matches the results race (builders)', () => {
   it('buildRaceConfig without totals has the day points of buildProfitRaceConfig and no End label', () => {
     // the server's profit so far after each day (spec 8.6 cumulative_profit, 12.5)
     const running: Record<string, number[]> = { P1: [100, 90, 130.25], P2: [80, 110, 130] }

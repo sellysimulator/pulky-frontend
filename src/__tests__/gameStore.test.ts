@@ -91,7 +91,7 @@ beforeEach(() => {
   useGameStore.setState(structuredClone(INITIAL_STATE))
 })
 
-describe('INITIAL_STATE and reset (criterion 1)', () => {
+describe('INITIAL_STATE and reset', () => {
   const EXPECTED = {
     roomCode: null,
     isHost: false,
@@ -195,7 +195,7 @@ describe('setRoom', () => {
   })
 })
 
-describe('the seq gate (criterion 2, failure modes 1 and 2)', () => {
+describe('the seq gate', () => {
   interface Case {
     action: keyof GameActions
     payload: (seq: number) => object
@@ -288,7 +288,7 @@ describe('the seq gate (criterion 2, failure modes 1 and 2)', () => {
     expect(S().myAlias).toBe('P2')
   })
 
-  it('failure mode 1: the same decision_submitted twice leaves one alias', () => {
+  it('the same decision_submitted twice leaves one alias', () => {
     call('applyDecisionSubmitted', { seq: 5, day: 2, alias: 'P1', awaiting: ['P2'] })
     call('applyDecisionSubmitted', { seq: 5, day: 2, alias: 'P1', awaiting: ['P2'] })
     expect(S().submittedAliases).toEqual(['P1'])
@@ -301,7 +301,7 @@ describe('the seq gate (criterion 2, failure modes 1 and 2)', () => {
     expect(S().submittedAliases).toEqual(['P1', 'P2'])
   })
 
-  it('failure mode 2: a your_state with seq 5 after seq 9 does not replace the newer view', () => {
+  it('a your_state with seq 5 after seq 9 does not replace the newer view', () => {
     call('applyYourState', yourState(9, 6, true, { own_history: recs(1, 2, 3, 4, 5), public_history: pubs(1, 2, 3, 4, 5) }))
     expect(S().playerView).toMatchObject({ day: 6 })
     call('applyYourState', yourState(5, 4, true, { own_history: recs(1, 2, 3), public_history: pubs(1, 2, 3) }))
@@ -311,7 +311,7 @@ describe('the seq gate (criterion 2, failure modes 1 and 2)', () => {
     expect(S().lastSeq).toBe(9)
   })
 
-  it('failure mode 2 for the host: a stale host_state does not replace the newer view', () => {
+  it('a stale host_state does not replace the newer host view', () => {
     S().setRoom('ABC234', true)
     call('applyHostState', hostState(9, 6, true, { public_history: pubs(1, 2), market_history: [mkt(1), mkt(2)] }))
     call('applyHostState', hostState(5, 4, true, { public_history: pubs(1), market_history: [mkt(1)] }))
@@ -563,7 +563,7 @@ describe('what each applier writes (spec 3.2)', () => {
   })
 })
 
-describe('config under the host rule (criterion 6, failure mode 3)', () => {
+describe('config under the host rule', () => {
   it.each([
     ['applyConfigUpdated', (seq: number, config: object) => ({ seq, config })],
     ['applyGameStarted', (seq: number, config: object) => ({ seq, duration_days: 14, participants: [], config })],
@@ -644,7 +644,7 @@ describe('your_state (spec 3.2, 12.6)', () => {
     expect(S().ownHistory).toEqual([])
   })
 
-  it('failure mode 12: a daily state (no history keys) after a full one leaves the history intact', () => {
+  it('a daily state (no history keys) after a full one leaves the history intact', () => {
     call('applyYourState', yourState(1, 4, true, { own_history: recs(1, 2, 3), public_history: pubs(1, 2, 3) }))
     const lastRecord = S().lastRecord
     call('applyYourState', yourState(2, 4, false))
@@ -654,7 +654,7 @@ describe('your_state (spec 3.2, 12.6)', () => {
   })
 })
 
-describe('the append rule (spec 12.6, failure mode 13)', () => {
+describe('the append rule (spec 12.6)', () => {
   beforeEach(() => {
     call('applyYourState', yourState(1, 4, true, { own_history: recs(1, 2, 3), public_history: pubs(1, 2, 3) }))
   })
@@ -680,7 +680,7 @@ describe('the append rule (spec 12.6, failure mode 13)', () => {
     expect(days(S().publicHistory)).toEqual([1, 2, 3])
   })
 
-  it('criterion 14: a full state for day 5 then the daily events of days 5 and 6 leave days 1-6 once each', () => {
+  it('a full state for day 5 then the daily events of days 5 and 6 leave days 1-6 once each', () => {
     useGameStore.setState(structuredClone(INITIAL_STATE))
     call('applyYourState', yourState(10, 5, true, { own_history: recs(1, 2, 3, 4, 5), public_history: pubs(1, 2, 3, 4, 5) }))
     call('applyYourDayClosed', { seq: 11, day: 5, record: rec(5) })
@@ -700,7 +700,7 @@ describe('host_state (spec 3.2, 12.5, 12.6)', () => {
     S().setRoom('ABC234', true)
   })
 
-  it('criterion 15: host_claimed, lobby_update and a running host_state end running with durationDays set', () => {
+  it('host_claimed, lobby_update and a running host_state end running with durationDays set', () => {
     call('applyHostClaimed', { room_id: 'ABC234', host_secret: 's' })
     call('applyLobbyUpdate', { seq: 1, state: 'configuring', participants: [player('P1'), player('P2')], seats_total: 4, config_locked: false, can_start: true, start_blocked_reason: null })
     expect(S().roomState).toBe('configuring')
@@ -710,7 +710,7 @@ describe('host_state (spec 3.2, 12.5, 12.6)', () => {
     expect(S().hostView).not.toBeNull()
   })
 
-  it('criterion 15: decision_submitted replaces awaiting with the payload list', () => {
+  it('decision_submitted replaces awaiting with the payload list', () => {
     call('applyHostState', hostState(1, 1, true, { awaiting: ['P1', 'P2', 'P3'] }))
     expect(S().awaiting).toEqual(['P1', 'P2', 'P3'])
     call('applyDecisionSubmitted', { seq: 2, day: 1, alias: 'P2', awaiting: ['P1', 'P3'] })
@@ -798,7 +798,7 @@ describe('host_state (spec 3.2, 12.5, 12.6)', () => {
   })
 })
 
-describe('selectedDay (section 36, acceptance 9)', () => {
+describe('selectedDay', () => {
   it('starts null', () => {
     expect(INITIAL_STATE.selectedDay).toBeNull()
     expect(S().selectedDay).toBeNull()

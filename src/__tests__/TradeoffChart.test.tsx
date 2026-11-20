@@ -1,6 +1,6 @@
 /**
- * Section 35 - fill vs waste: buildTradeoffConfig and TradeoffChart (plan 35 section 3.2;
- * acceptance criteria 4, 9; failure mode 4). The RatioTable placement is in ResultsSummary.test.tsx.
+ * Fill vs waste: buildTradeoffConfig and TradeoffChart (spec 13.8 block 4).
+ * The RatioTable placement is in ResultsSummary.test.tsx.
  */
 import { createElement } from 'react'
 import { render, screen, within } from '@testing-library/react'
@@ -37,7 +37,7 @@ const viewOf = (...p: ReturnType<typeof profile>[]) => makeSmallView(p)
 const ds = (cfg: Dict, label: string): Dict => cfg.data.datasets.find((d: Dict) => d.label === label)
 const points = (cfg: Dict): Dict[] => cfg.data.datasets.filter((d: Dict) => d.order === 1)
 
-describe('buildTradeoffConfig (section 4)', () => {
+describe('buildTradeoffConfig', () => {
   const cfg = buildTradeoffConfig(makeSmallView(), 'P1') as Dict
 
   it('is a line chart drawn as points: no bubble or scatter type', () => {
@@ -45,7 +45,7 @@ describe('buildTradeoffConfig (section 4)', () => {
     for (const d of points(cfg)) expect(d.showLine).toBe(false)
   })
 
-  it('plots exactly the pulquerías with both ratios, never a null as 0 (criterion 4, failure mode 4)', () => {
+  it('plots exactly the pulquerías with both ratios, never a null as 0', () => {
     expect(points(cfg).map((d) => d.label)).toEqual(['La Chula', 'Don Agave'])
     expect(JSON.stringify(cfg.data)).not.toContain('El Tinacal')
     // El Tinacal has waste_rate 0.2 and a null fill rate: its 0.2 must not show up as an x value at y 0 or null.
@@ -116,7 +116,7 @@ describe('buildTradeoffConfig (section 4)', () => {
     })
   })
 
-  it('failure mode 4: a null waste rate is left out as well, and with none plotted there are no datasets', () => {
+  it('a null waste rate is left out as well, and with none plotted there are no datasets', () => {
     const one = buildTradeoffConfig(viewOf(profile('P1', 'A', 5, 0.5, null), profile('P2', 'B', 6, 0.6, 0.1)), null) as Dict
     expect(points(one).map((d) => d.label)).toEqual(['B'])
     const none = buildTradeoffConfig(viewOf(profile('P1', 'A', 5, null, null), profile('P2', 'B', 6, 0.6, null)), null) as Dict
@@ -188,7 +188,7 @@ describe('TradeoffChart', () => {
     expect(ds(config(), 'Don Agave').pointBorderWidth).toBe(2)
   })
 
-  it('names the pulquería that is not plotted, with its reason, in the caption (criterion 4)', () => {
+  it('names the pulquería that is not plotted, with its reason, in the caption', () => {
     render(<TradeoffChart view={view} myAlias={null} />)
     expect(screen.getByText('Size is total profit. Not plotted: El Tinacal (no demand was owed).')).toBeInTheDocument()
   })
@@ -223,7 +223,7 @@ describe('TradeoffChart', () => {
     expect(screen.queryByText('El Tinacal')).not.toBeInTheDocument()
   })
 
-  it('criterion 9: the table view lists each plotted pulquería and the Average row', async () => {
+  it('the table view lists each plotted pulquería and the Average row', async () => {
     render(<TradeoffChart view={view} myAlias={null} />)
     await userEvent.click(screen.getByRole('button', { name: /Show table/ }))
     const table = screen.getByRole('table', { name: 'Fill rate vs waste rate' })

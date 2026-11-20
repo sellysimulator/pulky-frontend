@@ -1,4 +1,4 @@
-/** Section 23 — NameForm (spec 23 §3.3). Acceptance criterion 8. */
+/** NameForm (design.md §8.3). */
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

@@ -1,4 +1,4 @@
-/** Section 23 — StartControl (spec 23 §3.4). Acceptance criteria 3, 8; failure mode 1. */
+/** StartControl (design.md §8.3). */
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -49,7 +49,7 @@ describe('StartControl', () => {
     expect(screen.queryByText('Old reason')).toBeNull()
   })
 
-  it('does not decide eligibility itself: canStart false stays disabled whatever else holds (failure mode 1)', () => {
+  it('does not decide eligibility itself: canStart false stays disabled whatever else holds', () => {
     render(<StartControl canStart={false} startBlockedReason={null} onStart={vi.fn()} pending={false} />)
     expect(screen.getByRole('button', { name: 'Start game' })).toBeDisabled()
   })

@@ -51,7 +51,7 @@ export function withTypedRisks(config: GameConfig): GameConfig {
 /**
  * `config_preview.json` is `POST /config/preview` (backend `config_preview()`) for named host configs: `hidden`
  * (a new room, the risks blank), `typed` (the risks typed in with the backend's values) and variants of `typed`
- * (see the generator in the build log). Tests render what the server sent; they never compute a figure.
+ * (regenerated from the backend whenever a figure changes; see CLAUDE.md). Tests render what the server sent; they never compute a figure.
  */
 export const CONFIG_PREVIEWS = fixture<Record<string, { config: GameConfig; preview: ConfigPreview }>>('config_preview.json')
 

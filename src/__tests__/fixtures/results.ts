@@ -1,5 +1,5 @@
 /**
- * Section 29 shared test data: one finished 14-day game (spec 8.6 shapes), as the
+ * Shared test data for the summary: one finished 14-day game (spec 8.6 shapes), as the
  * `game_finished` payload, as a `ResultsResponse`, and as the `ResultsView` that
  * spec 13.8 describes. The view is built here by hand, field by field, so it is an
  * oracle that does not depend on the normalisers under test.

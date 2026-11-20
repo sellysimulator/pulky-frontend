@@ -6,7 +6,7 @@ export type BoardViewSupport = { ok: true } | { ok: false; reason: string }
 
 /**
  * WebGL is the one requirement. The pointer and the window width are not checked: a touch screen walks with the
- * on-screen movement pad, and the HUD stacks into one column below 64rem (plan 32 §3.6).
+ * on-screen movement pad, and the HUD stacks into one column below 64rem (spec §13.11.7; design.md §14.4).
  */
 export interface BoardViewEnvironment {
   webgl: boolean

@@ -357,8 +357,7 @@ export function before(a: HTMLElement, b: HTMLElement): boolean {
 }
 
 /**
- * Section 27 - CellarPanel: LotTable, CellarChart, InTransit, FuturesBook (spec 13.7, 3.5).
- * Acceptance criteria 6, 6a; failure modes 6, 13.
+ * CellarPanel: LotTable, CellarChart, InTransit, FuturesBook (spec 13.7, 3.5).
  */
 
 import { describe, expect, it } from 'vitest'
@@ -409,7 +408,7 @@ describe('CellarPanel header and LotTable', () => {
     expect(row![6]).toContain('13')
   })
 
-  it('failure mode 13: quality 57 shows risk 43%, never 44% or 0.43', () => {
+  it('quality 57 shows risk 43%, never 44% or 0.43', () => {
     renderBoard({
       view: makeView({ cellar: [makeLot('L4', 30, 57, { risk_tonight: 0.4366 })] }),
     })
@@ -420,7 +419,7 @@ describe('CellarPanel header and LotTable', () => {
     expect(Number.parseInt(row[3], 10) + Number.parseInt(row[4], 10)).toBe(100)
   })
 
-  it('failure mode 6: a lot at 67% risk says Likely to spoil in words', () => {
+  it('a lot at 67% risk says Likely to spoil in words', () => {
     renderBoard({ view: makeView({ cellar: [makeLot('L3', 12, 33)] }) })
     const row = cellarRows()[0]
     expect(row[3]).toContain('33%')

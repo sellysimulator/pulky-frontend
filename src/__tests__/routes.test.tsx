@@ -91,7 +91,7 @@ describe('the registry', () => {
   )
 })
 
-describe('RequireAuth (criterion 10)', () => {
+describe('RequireAuth', () => {
   function renderAt(url: string) {
     const router = createMemoryRouter(
       [
@@ -140,7 +140,7 @@ describe('RequireAuth (criterion 10)', () => {
   })
 })
 
-describe('RequireBackend (criterion 10)', () => {
+describe('RequireBackend', () => {
   const tree = (
     <MemoryRouter>
       <RequireBackend>
