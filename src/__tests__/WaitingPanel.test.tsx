@@ -1,4 +1,4 @@
-/** Section 27 - WaitingPanel (spec 13.7, design.md 11.6). Worked example of section 27 4. */
+/** WaitingPanel (spec 13.7, design.md 11.6), on a worked example. */
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import WaitingPanel from '../components/game/WaitingPanel'

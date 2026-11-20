@@ -1,6 +1,6 @@
 /**
- * Section 22 — WelcomeScreen (design.md §8.1, spec §13.6 "Skip the welcome
- * screen when identity is known"). Acceptance criterion 7; failure modes 5, 6.
+ * WelcomeScreen (design.md §8.1, spec §13.6 "Skip the welcome
+ * screen when identity is known").
  */
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -62,7 +62,7 @@ describe('the route descriptor', () => {
   })
 })
 
-describe('copy (section 3.4)', () => {
+describe('copy', () => {
   it('shows the wordmark, the tagline and both sign-in buttons', () => {
     renderAt()
     expect(screen.getByText('Pulky')).toBeInTheDocument()
@@ -85,7 +85,7 @@ describe('copy (section 3.4)', () => {
   })
 })
 
-describe('an authenticated visitor (criterion 7)', () => {
+describe('an authenticated visitor', () => {
   it('is sent to /home, replacing the history entry', async () => {
     h.auth.mode = 'authenticated'
     const router = renderAt()
@@ -94,7 +94,7 @@ describe('an authenticated visitor (criterion 7)', () => {
     expect(screen.getByText('home page')).toBeInTheDocument()
   })
 
-  it('failure mode 6: goes back to the invite link in state.from, not to /home', async () => {
+  it('goes back to the invite link in state.from, not to /home', async () => {
     h.auth.mode = 'authenticated'
     const router = renderAt({ pathname: '/', state: { from: '/game/ABC234' } })
     await waitFor(() => expect(router.state.location.pathname).toBe('/game/ABC234'))
@@ -109,7 +109,7 @@ describe('an authenticated visitor (criterion 7)', () => {
     expect(router.state.location.search).toBe('?x=1')
   })
 
-  it('failure mode 5: does not navigate while auth is still loading', async () => {
+  it('does not navigate while auth is still loading', async () => {
     h.auth.loading = true
     h.auth.mode = 'authenticated'
     const router = renderAt({ pathname: '/', state: { from: '/game/ABC234' } })
@@ -191,7 +191,7 @@ describe('the buttons', () => {
   })
 })
 
-describe('a failed Google sign-in (section 3.4)', () => {
+describe('a failed Google sign-in', () => {
   const press = () => userEvent.click(screen.getByRole('button', { name: 'Continue with Google' }))
 
   it('shows a danger alert under the buttons with the fallback copy', async () => {

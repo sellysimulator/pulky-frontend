@@ -1,4 +1,4 @@
-/** Section 25 — ConfigPreviews (plan 25 §3.4, §4). Acceptance 11, 12; failure mode 9. */
+/** ConfigPreviews (spec §13.9, Previews). */
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -61,8 +61,8 @@ function riskTable(): { headers: string[]; rows: string[][] } {
   return { headers, rows }
 }
 
-describe('SpoilRiskPreview (acceptance 11, 12; failure mode 9)', () => {
-  it('reproduces the plan 25 §4 table for the defaults (quality 80-100 %, F 0, M 3, X 2)', () => {
+describe('SpoilRiskPreview', () => {
+  it('reproduces the reference table for the defaults (quality 80-100 %, F 0, M 3, X 2)', () => {
     show(<SpoilRiskPreview />)
     const { headers, rows } = riskTable()
     expect(headers).toEqual([
@@ -81,7 +81,7 @@ describe('SpoilRiskPreview (acceptance 11, 12; failure mode 9)', () => {
     ])
   })
 
-  it('night 1 of the plain lot at the minimum quality is its base risk, not 0 (failure mode 9)', () => {
+  it('night 1 of the plain lot at the minimum quality is its base risk, not 0', () => {
     show(<SpoilRiskPreview />)
     expect(riskTable().rows[0][1]).toBe('53%')
   })
@@ -153,7 +153,7 @@ describe('WeekdayPreview', () => {
   })
 })
 
-describe('DemandCapacityPreview (acceptance 11)', () => {
+describe('DemandCapacityPreview', () => {
   it('shows market demand 100 on a peak day and expected capacity 88 for the defaults (lambda 25, 4 seats, 22 each)', () => {
     const { container } = show(<DemandCapacityPreview />)
     openTables()
@@ -227,7 +227,7 @@ describe('DemandSplitPreview', () => {
   })
 })
 
-describe('chart titles (plan 25 §3.4a)', () => {
+describe('chart titles', () => {
   it('WeekdayPreview is titled Weekday multiplier', () => {
     show(<WeekdayPreview />)
     expect(screen.getByText('Weekday multiplier')).toBeInTheDocument()

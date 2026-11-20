@@ -1,5 +1,5 @@
 /**
- * Section 33 - chart kit hardening: Legend as a control, CrosshairGroup, ChartBox in a group and its error
+ * Chart kit hardening: Legend as a control, CrosshairGroup, ChartBox in a group and its error
  * fallback, DemandSupplyChart on Legend, and the one-hatch-helper rule (design.md §7.18, §9.2, §9.4, §9.5).
  * The pure chartSetup pieces (hatching, bands, emphasis, crosshair store and plugin) are in chartSetup.test.ts.
  */
@@ -36,7 +36,7 @@ const ITEMS = [
 
 afterEach(() => vi.restoreAllMocks())
 
-describe('Legend: static mode (criterion 6)', () => {
+describe('Legend: static mode', () => {
   it('is a ul with one li per item, swatch then label, and no focusable item', () => {
     const { container } = render(<Legend items={ITEMS} />)
     const list = container.querySelector('ul') as HTMLElement
@@ -74,7 +74,7 @@ describe('Legend: static mode (criterion 6)', () => {
   })
 })
 
-describe('Legend: switch mode (criterion 6)', () => {
+describe('Legend: switch mode', () => {
   it('one role=switch button per item, named by its label, in a print:hidden list', () => {
     const { container } = render(<Legend items={ITEMS} hidden={new Set()} onToggle={() => undefined} />)
     const switches = screen.getAllByRole('switch')
@@ -90,7 +90,7 @@ describe('Legend: switch mode (criterion 6)', () => {
     expect(within(ul).getAllByRole('listitem')).toHaveLength(3)
   })
 
-  // Failure mode 4: switch state inverted.
+  // Guards against an inverted switch state.
   it('aria-checked is false exactly for the keys in hidden', () => {
     render(<Legend items={ITEMS} hidden={new Set(['b'])} onToggle={() => undefined} />)
     expect(screen.getByRole('switch', { name: 'Alpha' })).toHaveAttribute('aria-checked', 'true')
@@ -132,7 +132,7 @@ describe('Legend: switch mode (criterion 6)', () => {
   })
 })
 
-describe('Legend: emphasis mode (criterion 6)', () => {
+describe('Legend: emphasis mode', () => {
   it('static: items become focusable and report hover and focus, leaving and blur report null', () => {
     const onFocusItem = vi.fn()
     render(<Legend items={ITEMS} onFocusItem={onFocusItem} />)
@@ -188,7 +188,7 @@ function box(title: string, children: ReactElement = <div>plot {title}</div>) {
 
 const liveRegion = (container: HTMLElement): HTMLElement => container.querySelector('[aria-live="polite"]') as HTMLElement
 
-describe('CrosshairGroup (criterion 10)', () => {
+describe('CrosshairGroup', () => {
   it('provides a group id to useCrosshairGroup, null outside, and a different id per mount', () => {
     const ids: Array<string | null> = []
     render(<Probe onId={(i) => ids.push(i)} />)
@@ -234,7 +234,7 @@ describe('CrosshairGroup (criterion 10)', () => {
   })
 })
 
-describe('ChartBox in a CrosshairGroup (criterion 10, §3.6, §4)', () => {
+describe('ChartBox in a CrosshairGroup', () => {
   const plots = () => screen.getAllByRole('img')
 
   it('outside a group the plot has no tabIndex and ignores keys', () => {
@@ -254,7 +254,7 @@ describe('ChartBox in a CrosshairGroup (criterion 10, §3.6, §4)', () => {
     }
   })
 
-  it('walks the §4 example: focus -> Day 14, ArrowLeft -> 13, Home -> 1, ArrowLeft -> 1, Escape -> empty', () => {
+  it('walks the worked example: focus -> Day 14, ArrowLeft -> 13, Home -> 1, ArrowLeft -> 1, Escape -> empty', () => {
     const { container } = render(<CrosshairGroup days={14}>{box('One')}{box('Two')}</CrosshairGroup>)
     const live = liveRegion(container)
     const [plot] = plots()
@@ -324,11 +324,11 @@ describe('ChartBox in a CrosshairGroup (criterion 10, §3.6, §4)', () => {
   })
 })
 
-/* ───────────── ChartBox error fallback (criterion 11) ───────────── */
+/* ───────────── ChartBox error fallback ───────────── */
 
 const FALLBACK = 'The chart could not be drawn here. The same figures are in the table.'
 
-describe('ChartBox error fallback (criterion 11)', () => {
+describe('ChartBox error fallback', () => {
   const state = { throws: true }
   function Bomb(): ReactElement {
     if (state.throws) throw new Error('chart exploded')
@@ -369,7 +369,7 @@ describe('ChartBox error fallback (criterion 11)', () => {
     expect(screen.queryByText('the live chart')).toBeNull()
   })
 
-  // Failure mode 8: the fallback eating the table.
+  // Guards against the fallback eating the table.
   it('Show table still renders the table prop after the chart threw', async () => {
     setup()
     await userEvent.click(screen.getByRole('button', { name: 'Show table' }))
@@ -400,10 +400,10 @@ describe('ChartBox error fallback (criterion 11)', () => {
   })
 })
 
-/* ───────────── DemandSupplyChart on Legend (criterion 7) ───────────── */
+/* ───────────── DemandSupplyChart on Legend ───────────── */
 
-describe('DemandSupplyChart uses Legend in switch mode (criterion 7, §3.3)', () => {
-  it('renders one switch per series in legend order with the section 29 labels, all on, in a print:hidden list', () => {
+describe('DemandSupplyChart uses Legend in switch mode', () => {
+  it('renders one switch per series in legend order with the summary labels, all on, in a print:hidden list', () => {
     render(<DemandSupplyChart view={makeView()} />)
     const switches = screen.getAllByRole('switch')
     expect(switches.map((s) => s.textContent)).toEqual(DEMAND_SUPPLY_LEGEND_ORDER.map((k) => DEMAND_SUPPLY_LABELS[k]))
@@ -438,7 +438,7 @@ describe('DemandSupplyChart uses Legend in switch mode (criterion 7, §3.3)', ()
   })
 })
 
-/* ───────────── one hatch helper (criterion 1) ───────────── */
+/* ───────────── one hatch helper ───────────── */
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -448,7 +448,7 @@ function sourceFiles(dir: string): string[] {
   })
 }
 
-describe('one hatch helper (criterion 1)', () => {
+describe('one hatch helper', () => {
   const root = resolve(process.cwd(), 'src')
   const kit = resolve(root, 'components/charts/chartSetup.ts')
   const files = sourceFiles(root)

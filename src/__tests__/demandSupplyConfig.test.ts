@@ -1,6 +1,5 @@
 /**
- * Section 29 - demandSupplyConfig.ts (spec 13.8 blocks 2, 3 and 5; design.md 3.3, 9.1, 9.3).
- * Acceptance criteria 5, 12, 13; failure modes 5, 10, 11, 12.
+ * demandSupplyConfig.ts (spec 13.8 blocks 2, 3 and 5; design.md 3.3, 9.1, 9.3).
  */
 import { describe, expect, it } from 'vitest'
 import {
@@ -39,12 +38,12 @@ describe('DEMAND_SUPPLY_LEGEND_ORDER', () => {
   })
 })
 
-describe('buildDemandSupplyConfig (criterion 5)', () => {
+describe('buildDemandSupplyConfig', () => {
   it('is a line chart', () => {
     expect(buildDemandSupplyConfig(view(), DEMAND_SUPPLY_LEGEND_ORDER).type).toBe('line')
   })
 
-  it('draws demand last, after delivered, sold, spoiled and backlog (failure mode 5)', () => {
+  it('draws demand last, after delivered, sold, spoiled and backlog', () => {
     const cfg = buildDemandSupplyConfig(view(), DEMAND_SUPPLY_LEGEND_ORDER)
     expect(labelsOf(cfg)).toEqual(['Pulque delivered', 'Units sold', 'Units spoiled', 'Backlog at day end', 'Market demand'])
     expect(cfg.data.datasets.at(-1)!.label).toBe('Market demand')
@@ -177,7 +176,7 @@ describe('buildDemandSupplyConfig (criterion 5)', () => {
   })
 })
 
-describe('buildWherePulqueWentConfig (criterion 12, failure modes 10 and 11)', () => {
+describe('buildWherePulqueWentConfig', () => {
   it('is a horizontal stacked bar chart', () => {
     const cfg = buildWherePulqueWentConfig(view()) as Dict
     expect(cfg.type).toBe('bar')
@@ -214,7 +213,7 @@ describe('buildWherePulqueWentConfig (criterion 12, failure modes 10 and 11)', (
     expect(byLabel['Liquidated at the end']).toEqual(v.players.map((p) => p.liquidated_units))
   })
 
-  it('failure mode 10: Sold carries units_sold only, not units_sold + peer_units_sold', () => {
+  it('Sold carries units_sold only, not units_sold + peer_units_sold', () => {
     const v = view()
     const sold = buildWherePulqueWentConfig(v).data.datasets.find((d) => d.label === 'Sold')!
     expect(v.players.some((p) => (p.peer_units_sold ?? 0) > 0)).toBe(true)
@@ -227,7 +226,7 @@ describe('buildWherePulqueWentConfig (criterion 12, failure modes 10 and 11)', (
     expect(peer.backgroundColor).not.toEqual(sold.backgroundColor)
   })
 
-  it('failure mode 11: without peer_units_sold there is no Sold to pulquerías dataset', () => {
+  it('without peer_units_sold there is no Sold to pulquerías dataset', () => {
     const v = makeView(withoutPeer)
     const labels = labelsOf(buildWherePulqueWentConfig(v))
     expect(labels).not.toContain('Sold to pulquerías')
@@ -235,7 +234,7 @@ describe('buildWherePulqueWentConfig (criterion 12, failure modes 10 and 11)', (
   })
 })
 
-describe('buildPeerUnitsConfig (criterion 12, failure mode 12)', () => {
+describe('buildPeerUnitsConfig', () => {
   const p1 = () => buildPeerUnitsConfig(view(), 'P1')
 
   it('is a bar chart with a Bought and a Sold dataset', () => {
@@ -249,7 +248,7 @@ describe('buildPeerUnitsConfig (criterion 12, failure mode 12)', () => {
     expect(norm(sold.data)).toEqual([0, -4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
   })
 
-  it('failure mode 12: every Sold value is at or below zero, for every pulquería', () => {
+  it('every Sold value is at or below zero, for every pulquería', () => {
     for (const alias of RANK_ORDER) {
       const sold = buildPeerUnitsConfig(view(), alias).data.datasets.find((d) => d.label === 'Sold')!
       for (const value of sold.data as number[]) expect(value).toBeLessThanOrEqual(0)
@@ -294,7 +293,7 @@ describe('buildPeerUnitsConfig (criterion 12, failure mode 12)', () => {
   })
 })
 
-describe('section 35: buildWherePulqueWentConfig scale (criterion 7, failure mode 5)', () => {
+describe('buildWherePulqueWentConfig scale', () => {
   const sumsPerPulqueria = (cfg: Dict): number[] =>
     cfg.data.labels.map((_: unknown, i: number) => cfg.data.datasets.reduce((s: number, d: Dict) => s + d.data[i], 0))
 
@@ -315,7 +314,7 @@ describe('section 35: buildWherePulqueWentConfig scale (criterion 7, failure mod
     for (const total of sumsPerPulqueria(cfg)) expect(Math.abs(total - 100)).toBeLessThan(1e-9)
   })
 
-  it('failure mode 5: each value is 100 x value / the pulquería\'s own total over the datasets present', () => {
+  it('each value is 100 x value / the pulquería\'s own total over the datasets present', () => {
     const v = view()
     const units = buildWherePulqueWentConfig(v) as Dict
     const pct = buildWherePulqueWentConfig(v, 'percent') as Dict
@@ -329,7 +328,7 @@ describe('section 35: buildWherePulqueWentConfig scale (criterion 7, failure mod
     expect(pct.data.datasets[0].data[0]).toBeCloseTo((100 * 520) / 543, 9)
   })
 
-  it('section 4: sold 60, sold to pulquerías 0, spoiled 20, lost 10, liquidated 10 gives [60, 0, 20, 10, 10]', () => {
+  it('the worked example: sold 60, sold to pulquerías 0, spoiled 20, lost 10, liquidated 10 gives [60, 0, 20, 10, 10]', () => {
     const v = makeView()
     Object.assign(v.players[0], { units_sold: 60, peer_units_sold: 0, units_spoiled: 20, units_lost_transport: 10, liquidated_units: 10 })
     const cfg = buildWherePulqueWentConfig(v, 'percent') as Dict
@@ -352,7 +351,7 @@ describe('section 35: buildWherePulqueWentConfig scale (criterion 7, failure mod
     for (const total of sumsPerPulqueria(cfg)) expect(Math.abs(total - 100)).toBeLessThan(1e-9)
   })
 
-  it('percent: the x axis stops at 100 and is titled "% of the pulquería\'s pulque"; units keep section 29\'s axis', () => {
+  it('percent: the x axis stops at 100 and is titled "% of the pulquería\'s pulque"; units keep their usual axis', () => {
     const v = view()
     const pct = buildWherePulqueWentConfig(v, 'percent') as Dict
     expect(pct.options.scales.x.max).toBe(100)

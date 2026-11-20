@@ -1,7 +1,7 @@
 /**
- * Section 35 - the profit race: buildRaceConfig, buildProfitRaceConfig and ProfitRaceChart
- * (plan 35 section 3.1; acceptance criteria 1, 3, 8, 9; failure mode 1).
- * The Reveal placement (criterion 2, failure mode 3) is in ResultsSummary.test.tsx.
+ * The profit race: buildRaceConfig, buildProfitRaceConfig and ProfitRaceChart
+ * (spec 13.8 block 1).
+ * The Reveal placement is in ResultsSummary.test.tsx.
  */
 import { createElement } from 'react'
 import { fireEvent, render, screen, within } from '@testing-library/react'
@@ -45,7 +45,7 @@ describe('buildRaceConfig', () => {
     ...over,
   })
 
-  it('is a line chart; without totals it has no End label and no End point (section 4)', () => {
+  it('is a line chart; without totals it has no End label and no End point', () => {
     const cfg = buildRaceConfig(input(), null) as Dict
     expect(cfg.type).toBe('line')
     expect(cfg.data.labels).toEqual([['1', 'Mon'], ['2', 'Tue'], ['3', 'Wed']])
@@ -64,7 +64,7 @@ describe('buildRaceConfig', () => {
     for (const d of partial.data.datasets) expect(d.data).toHaveLength(3)
   })
 
-  it('failure mode 1: plots the server running totals as sent and sums nothing itself', () => {
+  it('plots the server running totals as sent and sums nothing itself', () => {
     // The server rounds the running total once (spec 8.6); re-summing on the client would drift from it.
     const cfg = buildRaceConfig(input({ lines: [{ alias: 'P1', name: 'A', cumulative: [0.01, 0.01, 0.02] }] }), null) as Dict
     expect(dataOf(cfg, 'A')).toEqual([0.01, 0.01, 0.02])
@@ -85,7 +85,7 @@ describe('buildRaceConfig', () => {
     }
   })
 
-  it('section 4 emphasis: focus P1 gives P1 width 3 and order 0, the others the context colour; no focus gives 2.5 everywhere', () => {
+  it('emphasis: focus P1 gives P1 width 3 and order 0, the others the context colour; no focus gives 2.5 everywhere', () => {
     const f = buildRaceConfig(input(), 'P1') as Dict
     expect(dataset(f, 'Don Agave')).toMatchObject({ borderWidth: 3, order: 0 })
     expect(dataset(f, 'La Chula').borderColor).toBe('#C9BEA6')
@@ -115,7 +115,7 @@ describe('buildRaceConfig', () => {
   })
 })
 
-describe('buildProfitRaceConfig (section 4, criterion 1, failure mode 1)', () => {
+describe('buildProfitRaceConfig', () => {
   const view = makeSmallView()
 
   it('adds the End column and the End points: 200.6, 139.5 and 30', () => {
@@ -162,7 +162,7 @@ describe('buildProfitRaceConfig (section 4, criterion 1, failure mode 1)', () =>
     ])
   })
 
-  it("criterion 1 and 8: End is total_profit and the days are the server's cumulative_profit, live and by URL, for every pulquería", () => {
+  it("End is total_profit and the days are the server's cumulative_profit, live and by URL, for every pulquería", () => {
     const live = resultsViewFromLive(makeFinished() as unknown as GameFinishedPayload, { roomCode: ROOM, durationDays: DAYS })
     const stored = resultsViewFromResponse(makeResponse() as unknown as ResultsResponse)
     const a = buildProfitRaceConfig(live, null) as Dict
@@ -203,7 +203,7 @@ describe('ProfitRaceChart', () => {
     ).toBeInTheDocument()
   })
 
-  it('plots buildProfitRaceConfig, with the viewer emphasised (criterion 3)', () => {
+  it('plots buildProfitRaceConfig, with the viewer emphasised', () => {
     renderRace('P1')
     const cfg = config()
     expect(cfg.type).toBe('line')
@@ -213,7 +213,7 @@ describe('ProfitRaceChart', () => {
     expect(dataOf(cfg, 'La Chula')).toEqual([100.1, 150.3, 180.6, 200.6])
   })
 
-  it('has no emphasis without myAlias (criterion 3)', () => {
+  it('has no emphasis without myAlias', () => {
     renderRace(null)
     for (const d of config().data.datasets) expect(d.borderWidth).toBe(2.5)
   })
@@ -226,7 +226,7 @@ describe('ProfitRaceChart', () => {
     }
   })
 
-  it('focusing a legend item emphasises that line over myAlias, and leaving it restores myAlias (criterion 3)', () => {
+  it('focusing a legend item emphasises that line over myAlias, and leaving it restores myAlias', () => {
     renderRace('P1')
     fireEvent.focus(legendItem('El Tinacal'))
     expect(dataset(config(), 'El Tinacal')).toMatchObject({ borderWidth: 3, order: 0 })
@@ -236,7 +236,7 @@ describe('ProfitRaceChart', () => {
     expect(dataset(config(), 'El Tinacal').borderColor).toBe('#C9BEA6')
   })
 
-  it('with no myAlias every line is plain until a legend item is hovered, which emphasises it (criterion 3)', async () => {
+  it('with no myAlias every line is plain until a legend item is hovered, which emphasises it', async () => {
     renderRace(null)
     await userEvent.hover(legendItem('La Chula'))
     expect(dataset(config(), 'La Chula')).toMatchObject({ borderWidth: 3 })
@@ -245,7 +245,7 @@ describe('ProfitRaceChart', () => {
     for (const d of config().data.datasets) expect(d.borderWidth).toBe(2.5)
   })
 
-  it('criterion 9: the table view holds the plotted values, Day first and End last', async () => {
+  it('the table view holds the plotted values, Day first and End last', async () => {
     renderRace(null)
     await userEvent.click(screen.getByRole('button', { name: /Show table/ }))
     const table = screen.getByRole('table', { name: 'Profit race' })

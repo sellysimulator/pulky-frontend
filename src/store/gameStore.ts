@@ -163,7 +163,7 @@ function appendByDay<T extends { day: number }>(list: T[], entry: T): T[] {
   return [...list, entry]
 }
 
-/** Host rule (spec §3.2): a host never loses a key players do not see. */
+/** Host rule (spec §13.6, Store and handlers): a host never loses a key players do not see. */
 function nextConfig(
   state: GameState,
   incoming: GameConfig | PublicConfig,

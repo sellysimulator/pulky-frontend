@@ -1,4 +1,4 @@
-/** Section 23 — InvitePanel (spec 23 §3.1). Acceptance criteria 1, 8. */
+/** InvitePanel (design.md §8.3). */
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

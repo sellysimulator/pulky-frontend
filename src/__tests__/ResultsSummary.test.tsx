@@ -1,6 +1,5 @@
 /**
- * Section 29 - ResultsSummary: the six blocks (spec 13.8; design.md 7.18, 8.8, 9.2, 9.3).
- * Acceptance criteria 1, 3, 4, 6, 8 (claim conditions), 10, 11, 12, 13; failure modes 3, 4, 7, 10, 11.
+ * ResultsSummary: the six blocks (spec 13.8; design.md 7.18, 8.8, 9.2, 9.3).
  * The ratio table and the Decisions block have their own files (RatioTable, DecisionsCharts).
  */
 import { createElement, useEffect, type ReactNode } from 'react'
@@ -25,7 +24,7 @@ vi.mock('react-chartjs-2', () => {
         'data-chart': JSON.stringify({ type, data: props.data, options: props.options }),
       })
     }
-  // The generic `Chart` (section 35: the Sankey) reads its type from its `type` prop.
+  // The generic `Chart` (the Sankey of block 3) reads its type from its `type` prop.
   const Chart = (props: Props & { type?: string }) => make(props.type ?? 'chart')(props)
   return { Bar: make('bar'), Line: make('line'), Pie: make('pie'), Doughnut: make('doughnut'), Chart }
 })
@@ -122,7 +121,7 @@ afterEach(() => {
 
 const before = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
 
-describe('the six blocks (criterion 1)', () => {
+describe('the six blocks', () => {
   it('renders the blocks in spec order: leaderboard, chart, where it went, ratios, decisions, actions', () => {
     renderSummary()
     const anchors = [
@@ -147,7 +146,7 @@ describe('the six blocks (criterion 1)', () => {
     expect(numbers).toEqual(['1', '2', '3', '4', '5', '6'])
   })
 
-  it('criterion 11: with showActions false it renders blocks 1 to 5 only', () => {
+  it('with showActions false it renders blocks 1 to 5 only', () => {
     renderSummary({ showActions: false })
     const numbers = screen
       .getAllByRole('heading')
@@ -171,7 +170,7 @@ describe('the six blocks (criterion 1)', () => {
   })
 })
 
-describe('block 1 inside the summary (criterion 4, failure modes 3 and 4)', () => {
+describe('block 1 inside the summary', () => {
   it('hides every profit from the host until Reveal is pressed', () => {
     renderSummary({ viewer: HOST })
     for (const text of PROFITS) expect(onScreen(text), text).toHaveLength(0)
@@ -193,7 +192,7 @@ describe('block 1 inside the summary (criterion 4, failure modes 3 and 4)', () =
   })
 })
 
-describe('block 2: demand vs supply (criteria 5 and 6)', () => {
+describe('block 2: demand vs supply', () => {
   it('titles the chart and plots buildDemandSupplyConfig, demand last', () => {
     renderSummary()
     expect(screen.getByText(CHART_TITLE)).toBeInTheDocument()
@@ -287,7 +286,7 @@ describe('block 2: demand vs supply (criteria 5 and 6)', () => {
   })
 })
 
-describe('block 3: where the pulque went (criterion 12, failure mode 10)', () => {
+describe('block 3: where the pulque went', () => {
   it('plots the five datasets in stack order from the view', () => {
     renderSummary()
     const chart = chartWithDataset('Sold to pulquerías')!
@@ -349,7 +348,7 @@ describe('block 3: where the pulque went (criterion 12, failure mode 10)', () =>
     expect(notes).toHaveStyle({ paddingTop: '6px', paddingBottom: '50px' })
   })
 
-  it('criterion 13 / failure mode 11: without peer fields there is no peer segment and no Bought from line', () => {
+  it('without peer fields there is no peer segment and no Bought from line', () => {
     renderSummary({ view: makeView(withoutPeer) })
     const chart = chartWithDataset('Sold')!
     expect(chart.data.datasets.map((d) => d.label)).not.toContain('Sold to pulquerías')
@@ -358,7 +357,7 @@ describe('block 3: where the pulque went (criterion 12, failure mode 10)', () =>
   })
 })
 
-describe('print markup (criterion 10, design.md 8.8)', () => {
+describe('print markup (design.md 8.8)', () => {
   it('hides blocks 3, 5 and 6 in print', () => {
     renderSummary()
     expect(hasClassAncestor(chartWithDataset('Sold to pulquerías')!.element, 'print:hidden')).toBe(true)
@@ -545,7 +544,7 @@ describe('the risks, revealed (spec §9.3, §13.8 block 5)', () => {
   })
 })
 
-describe('the claim prompt appears only under all three conditions (criterion 8, failure mode 7)', () => {
+describe('the claim prompt appears only under all three conditions', () => {
   const PROMPT = 'Sign in to keep these results in your profile.'
 
   function guestWhoPlayed(gameId = GAME_ID) {
@@ -562,7 +561,7 @@ describe('the claim prompt appears only under all three conditions (criterion 8,
     expect(screen.getByRole('button', { name: 'Sign in with Google' })).toBeInTheDocument()
   })
 
-  it('failure mode 7: not for a signed-in user', () => {
+  it('not for a signed-in user', () => {
     guestWhoPlayed()
     auth.mode = 'authenticated'
     player()
@@ -681,7 +680,7 @@ describe('Play again', () => {
   })
 })
 
-describe('nothing is computed in the client (criterion 3)', () => {
+describe('nothing is computed in the client', () => {
   it('shows server figures only: a changed field changes the screen, nothing else moves', () => {
     const view = makeView((s) => {
       s.players.P2.total_profit = 99999.99
@@ -692,12 +691,12 @@ describe('nothing is computed in the client (criterion 3)', () => {
   })
 })
 
-describe('section 35: the profit race inside block 1 (criterion 2, failure mode 3)', () => {
+describe('the profit race inside block 1', () => {
   const raceChart = () => allCharts().find((c) => c.type === 'line' && JSON.stringify(c.data.labels?.at(-1)) === '["End"]')
   const raceOnScreen = () =>
     Boolean(raceChart()) || screen.queryAllByText('Profit race').length > 0 || screen.queryAllByRole('img', { name: /running profit/ }).length > 0
 
-  it('failure mode 3: with the host\'s leaderboard hidden, no element of the race is in the DOM', () => {
+  it('with the host\'s leaderboard hidden, no element of the race is in the DOM', () => {
     renderSummary({ viewer: HOST })
     expect(screen.getByRole('button', { name: 'Reveal' })).toBeInTheDocument()
     expect(raceChart()).toBeUndefined()
@@ -725,7 +724,7 @@ describe('section 35: the profit race inside block 1 (criterion 2, failure mode 
     expect(hasClassAncestor(chart.element, 'print:hidden')).toBe(true)
   })
 
-  it('emphasises the viewer\'s own line and no other when a player looks (criterion 3)', () => {
+  it('emphasises the viewer\'s own line and no other when a player looks', () => {
     renderSummary({ viewer: PLAYER })
     const byLabel = Object.fromEntries(raceChart()!.data.datasets.map((d) => [d.label, d]))
     expect(byLabel[NAMES.P1].borderWidth).toBe(3)
@@ -733,7 +732,7 @@ describe('section 35: the profit race inside block 1 (criterion 2, failure mode 
     expect(byLabel[NAMES.P3].borderColor).toBe('#C9BEA6')
   })
 
-  it('draws every line plain for the host until a legend item is pointed at (criterion 3)', async () => {
+  it('draws every line plain for the host until a legend item is pointed at', async () => {
     renderSummary({ viewer: HOST })
     fireEvent.click(screen.getByRole('button', { name: 'Reveal' }))
     for (const d of raceChart()!.data.datasets) expect(d.borderWidth).toBe(2.5)
@@ -753,7 +752,7 @@ describe('section 35: the profit race inside block 1 (criterion 2, failure mode 
   })
 })
 
-describe('section 35: fill vs waste above the ratio table (criteria 4 and 9)', () => {
+describe('fill vs waste above the ratio table', () => {
   it('puts the chart above the ratio table, hidden in print, and leaves the table', () => {
     renderSummary()
     const chart = chartWithDataset('Average fill rate')!
@@ -784,7 +783,7 @@ describe('section 35: fill vs waste above the ratio table (criteria 4 and 9)', (
   })
 })
 
-describe('section 35: block 3 View control (criterion 6, failure mode 6)', () => {
+describe('block 3 View control', () => {
   const viewGroup = () => screen.getByRole('group', { name: 'View' })
   const showGroup = () => screen.getByRole('group', { name: 'Show' })
   const sankey = () => allSankeys()
@@ -807,7 +806,7 @@ describe('section 35: block 3 View control (criterion 6, failure mode 6)', () =>
     expect(screen.getByText(`${NAMES.P3}: from shipments to sold, spoiled and left at the end`)).toBeInTheDocument()
   })
 
-  it('Compare all shows section 29\'s chart with a Show control on Units first', () => {
+  it('Compare all shows the stacked bar chart with a Show control on Units first', () => {
     renderSummary({ view: makeFlowView() })
     fireEvent.click(within(viewGroup()).getByRole('button', { name: 'Compare all' }))
     expect(allSankeys()).toHaveLength(0)
@@ -819,7 +818,7 @@ describe('section 35: block 3 View control (criterion 6, failure mode 6)', () =>
     expect(numbersAfter('Peak backlog')).toEqual(['3', '11', '7'])
   })
 
-  it('Percent re-plots the same datasets in percent and shows percents in the table (criterion 7)', async () => {
+  it('Percent re-plots the same datasets in percent and shows percents in the table', async () => {
     renderSummary({ view: makeFlowView() })
     fireEvent.click(within(viewGroup()).getByRole('button', { name: 'Compare all' }))
     fireEvent.click(within(showGroup()).getByRole('button', { name: 'Percent' }))
@@ -835,7 +834,7 @@ describe('section 35: block 3 View control (criterion 6, failure mode 6)', () =>
     expect(chartWithDataset('Sold to pulquerías')!.data.datasets[0].data).toEqual([520, 300, 410])
   })
 
-  it('failure mode 6: without flow there is no View control and no Sankey; Compare all stands as in section 29, with Units / Percent', () => {
+  it('without flow there is no View control and no Sankey; Compare all stands alone, with Units / Percent', () => {
     renderSummary()
     expect(screen.queryByRole('group', { name: 'View' })).not.toBeInTheDocument()
     expect(allSankeys()).toHaveLength(0)
@@ -843,7 +842,7 @@ describe('section 35: block 3 View control (criterion 6, failure mode 6)', () =>
     expect(within(showGroup()).getAllByRole('button').map((b) => b.textContent)).toEqual(['Units', 'Percent'])
   })
 
-  it('failure mode 6: flow on only some pulquerías offers no Flow view either', () => {
+  it('flow on only some pulquerías offers no Flow view either', () => {
     renderSummary({ view: makeFlowView(['P1', 'P2']) })
     expect(screen.queryByRole('group', { name: 'View' })).not.toBeInTheDocument()
     expect(allSankeys()).toHaveLength(0)
@@ -856,7 +855,7 @@ describe('section 35: block 3 View control (criterion 6, failure mode 6)', () =>
   })
 })
 
-describe('section 35: Insurance used in solid tier colours (criterion 10, failure mode 7)', () => {
+describe('Insurance used in solid tier colours', () => {
   const figure = () => figureTitled('Insurance used')
 
   it('fills the four datasets with the four INSURANCE_TIER_COLORS', () => {
@@ -866,7 +865,7 @@ describe('section 35: Insurance used in solid tier colours (criterion 10, failur
     expect([...fills].sort()).toEqual(Object.values(INSURANCE_TIER_COLORS).map((c) => c.toLowerCase()).sort())
   })
 
-  it('failure mode 7: no colour in the chart or its legend is an eight-digit hex', () => {
+  it('no colour in the chart or its legend is an eight-digit hex', () => {
     renderSummary()
     const chartEl = figure().querySelector('[data-testid^="chart-"]')!
     const chart = JSON.parse(chartEl.getAttribute('data-chart')!)

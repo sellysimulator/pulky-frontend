@@ -1,4 +1,4 @@
-/** Section 28 — presentationData (plan 28 §2, §3.7). Acceptance 5, 8; failure modes 1, 2, 4, 8. */
+/** presentationData (spec §11.4; design.md §8.7). */
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { selectHostHistories, selectPresentationData } from '../components/host/presentationData'
@@ -163,7 +163,7 @@ describe('selectPresentationData', () => {
     expect(selectPresentationData(useGameStore.getState())?.isPeak).toBe(false)
   })
 
-  it('failure mode 4: the result has exactly the PresentationData keys', () => {
+  it('the result has exactly the PresentationData keys', () => {
     seed()
     const data = selectPresentationData(useGameStore.getState())
     expect(Object.keys(data!).sort()).toEqual(PRESENTATION_KEYS)
@@ -204,7 +204,7 @@ describe('selectPresentationData', () => {
     expect(aliases).toEqual(['P1', 'P2', 'P3', 'P10'])
   })
 
-  it('failure modes 1, 2: no private value of the host view survives anywhere in the result', () => {
+  it('no private value of the host view survives anywhere in the result', () => {
     seed()
     const text = JSON.stringify(selectPresentationData(useGameStore.getState()))
     for (const secret of ['6120.55', '1120.55', '987654321', '0.1234', '0.337', '0.05', 'spot_spread', 'failure_probability']) {
@@ -216,7 +216,7 @@ describe('selectPresentationData', () => {
     }
   })
 
-  it('failure mode 8: no peer decision or trade key anywhere, recursively', () => {
+  it('no peer decision or trade key anywhere, recursively', () => {
     seed()
     const keys = allKeys(selectPresentationData(useGameStore.getState()))
     for (const k of ['peer_trades', 'peer_buy', 'peer_sell', 'counterparty', 'last_peer_bought', 'last_peer_sold']) {
@@ -272,7 +272,7 @@ describe('selectHostHistories', () => {
   })
 })
 
-describe('selectPresentationData history (plan 37 §3.1, acceptance 1, failure mode 1)', () => {
+describe('selectPresentationData history', () => {
   const DAY_KEYS = ['day', 'demand_total', 'shares', 'units_sold_total', 'weekday']
 
   function poisonedEntry(day: number, share: Record<string, number>): PublicDayResults {
@@ -337,7 +337,7 @@ describe('selectPresentationData history (plan 37 §3.1, acceptance 1, failure m
     }
   })
 
-  it('failure mode 1: no private key or value of the public entries or of the host data reaches history', () => {
+  it('no private key or value of the public entries or of the host data reaches history', () => {
     seed({ publicHistory: store() })
     const { history } = selectPresentationData(useGameStore.getState())!
     const text = JSON.stringify(history)

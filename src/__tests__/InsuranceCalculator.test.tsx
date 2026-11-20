@@ -1,4 +1,4 @@
-/** Section 25 — InsuranceCalculator (plan 25 §3.5, §4). Acceptance 8, 9, 12; failure modes 1, 2, 6. */
+/** InsuranceCalculator (spec §13.9; design.md §8.4). */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fireEvent, render, screen, within } from '@testing-library/react'
@@ -75,7 +75,7 @@ function tileText(label: string, other: string): string {
   throw new Error(`no tile found for ${label}`)
 }
 
-describe('layout and strings (acceptance 8, 12)', () => {
+describe('layout and strings', () => {
   it('shows the inputs and the three tier blocks', () => {
     mount()
     expect(screen.getByLabelText('Reference shipment (units)')).toBeInTheDocument()
@@ -93,7 +93,7 @@ describe('layout and strings (acceptance 8, 12)', () => {
   })
 })
 
-describe('long rather than wide (acceptance 14, failure mode 12)', () => {
+describe('long rather than wide', () => {
   it('has three blocks in the order CIP, DAP, DDP', () => {
     mount()
     expect(screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual([
@@ -142,7 +142,7 @@ describe('long rather than wide (acceptance 14, failure mode 12)', () => {
   })
 })
 
-describe('worked examples with the defaults (acceptance 8)', () => {
+describe('worked examples with the defaults', () => {
   it('not shared break-evens are $0.50 / $0.50 / $1.26 and shared with 4 are $0.08 / $0.08 / $0.21', () => {
     mount()
     const cip = blockFor('CIP').textContent ?? ''
@@ -196,7 +196,7 @@ describe('worked examples with the defaults (acceptance 8)', () => {
   })
 })
 
-describe('verdict thresholds (failure mode 1)', () => {
+describe('verdict thresholds', () => {
   // CIP break-even is 0.504 not shared. The shared column always reads Not worth it on average at these fees.
   // The server picks the badge (insurance.ratio_badge); the calculator names it.
   const cases: Array<[string, number, string]> = [
@@ -212,7 +212,7 @@ describe('verdict thresholds (failure mode 1)', () => {
   }
 })
 
-describe('no risk configured (failure mode 2)', () => {
+describe('no risk configured', () => {
   it('p = 0 shows No risk configured everywhere and never Infinity or NaN', () => {
     const { container } = mount('failure0')
     for (const t of ['CIP', 'DAP', 'DDP'] as const) {
@@ -236,7 +236,7 @@ describe('no risk configured (failure mode 2)', () => {
   })
 })
 
-describe('out-of-sync note (acceptance 8)', () => {
+describe('out-of-sync note', () => {
   it('names the tier, the ratio and the target to two decimals', () => {
     mount('cip04738')
     expect(screen.getByText('Paid-price insurance ratio 0.94 — target 1.10')).toBeInTheDocument()
@@ -274,7 +274,7 @@ describe('disabled tiers', () => {
   })
 })
 
-describe('Set fees from margin (acceptance 9, failure mode 6)', () => {
+describe('Set fees from margin', () => {
   it('sets every enabled tier in one onChange with the worked-example patch', () => {
     const { onChange } = mount('cip02')
     fireEvent.click(screen.getByRole('button', { name: 'Set fees from margin' }))
@@ -328,7 +328,7 @@ describe('inputs', () => {
   })
 })
 
-describe('tier controls (plan 25 §3.5)', () => {
+describe('tier controls', () => {
   const tiers = ['cip', 'dap', 'ddp'] as const
 
   it('are found by the DOCS labels, a switch and a fee per tier', () => {
@@ -360,7 +360,7 @@ describe('tier controls (plan 25 §3.5)', () => {
   })
 })
 
-describe('issues prop (plan 25 §2, §3.5)', () => {
+describe('issues prop', () => {
   it('renders an error at the fee control with aria-invalid and a description', () => {
     mount('typed', false, { 'insurance.tiers.cip.fee': { kind: 'error', message: 'Fee problem.' } })
     const input = screen.getByLabelText(DOCS['insurance.tiers.cip.fee'].label)
@@ -400,7 +400,7 @@ describe('issues prop (plan 25 §2, §3.5)', () => {
   })
 })
 
-describe('heading (plan 25 §3.4a)', () => {
+describe('heading', () => {
   it('the calculator card is headed Insurance calculator', () => {
     mount()
     expect(screen.getByText('Insurance calculator')).toBeInTheDocument()

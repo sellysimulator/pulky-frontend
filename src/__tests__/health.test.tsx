@@ -32,7 +32,7 @@ afterEach(() => {
 const OK = { outcome: 'ok' }
 const NO_ANSWER = { outcome: 'no-answer' }
 
-describe('probeHealth (spec 13.6, criterion 9)', () => {
+describe('probeHealth (spec 13.6)', () => {
   it('is ok for a 200 JSON body whose status is exactly "ok"', async () => {
     stubFetch(async () => json({ status: 'ok' }))
     await expect(probeHealth()).resolves.toEqual(OK)
@@ -43,7 +43,7 @@ describe('probeHealth (spec 13.6, criterion 9)', () => {
     await expect(probeHealth()).resolves.toEqual(OK)
   })
 
-  it('failure mode 8: a 200 text/html response (the Hosting SPA rewrite) is no answer', async () => {
+  it('a 200 text/html response (the Hosting SPA rewrite) is no answer', async () => {
     stubFetch(async () => html())
     await expect(probeHealth()).resolves.toEqual(NO_ANSWER)
   })

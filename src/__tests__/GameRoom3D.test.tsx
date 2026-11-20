@@ -1,6 +1,5 @@
 /**
- * Section 32 - GameRoom with the 3D board (plan 32 section 3.4; acceptance 3, 4, 5, 6;
- * failure modes 1, 2, 3, 15). Board3D is mocked: jsdom has no WebGL.
+ * GameRoom with the 3D board (spec §13.11.1, §13.11.2). Board3D is mocked: jsdom has no WebGL.
  */
 import { createElement, type ReactNode } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -363,7 +362,7 @@ describe('BOARD_VIEWS', () => {
   })
 })
 
-describe('the toggle in the header (acceptance 3)', () => {
+describe('the toggle in the header', () => {
   it('appears while the game is running and the player is seated, after the room code and chip', () => {
     seedRunning()
     mount()
@@ -403,7 +402,7 @@ describe('the toggle in the header (acceptance 3)', () => {
     expect(decisionCard()).not.toBeNull()
   })
 
-  it('failure mode 3: without support 3D is disabled and the reason is in its InfoTip', () => {
+  it('without support 3D is disabled and the reason is in its InfoTip', () => {
     support.value = { ok: false, reason: REASON }
     seedRunning()
     mount()
@@ -413,7 +412,7 @@ describe('the toggle in the header (acceptance 3)', () => {
   })
 })
 
-describe('which board is shown (acceptance 4)', () => {
+describe('which board is shown', () => {
   it('a stored 3D with support shows Board3D', async () => {
     setBoardView('3D')
     seedRunning()
@@ -423,7 +422,7 @@ describe('which board is shown (acceptance 4)', () => {
     expect(screen.getByRole('button', { name: '3D' })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('failure mode 3: a stored 3D without support shows Board2D and keeps 3D stored', () => {
+  it('a stored 3D without support shows Board2D and keeps 3D stored', () => {
     support.value = { ok: false, reason: REASON }
     setBoardView('3D')
     seedRunning()
@@ -433,7 +432,7 @@ describe('which board is shown (acceptance 4)', () => {
     expect(getBoardView()).toBe('3D')
   })
 
-  it('failure mode 2: a finished game shows Board2D, the GameOverPanel and no toggle', () => {
+  it('a finished game shows Board2D, the GameOverPanel and no toggle', () => {
     setBoardView('3D')
     seedRunning()
     useGameStore.setState({ roomState: 'finished' })
@@ -479,7 +478,7 @@ describe('which board is shown (acceptance 4)', () => {
   })
 })
 
-describe('falling back (acceptance 5, failure mode 1)', () => {
+describe('falling back', () => {
   it('a throwing Board3D renders Board2D at once, stores 2D and shows the info alert', async () => {
     board3d.throws = true
     setBoardView('3D')
@@ -512,7 +511,7 @@ describe('falling back (acceptance 5, failure mode 1)', () => {
   })
 })
 
-describe('both views share every endpoint (acceptance 6, failure mode 15)', () => {
+describe('both views share every endpoint', () => {
   it('switching 3D, 2D, 3D emits no socket event and makes no HTTP request', async () => {
     setSessionToken('K7M2QX', 'tok-123')
     setDisplayName('Don Agave')
@@ -560,7 +559,7 @@ describe('SceneLoading', () => {
 })
 
 describe('within the page', () => {
-  it('keeps the section 27 states: the lobby is still the lobby', () => {
+  it('keeps the 2D page states: the lobby is still the lobby', () => {
     setSessionToken('K7M2QX', 'tok')
     useGameStore.setState({ ...INITIAL_STATE, roomCode: 'K7M2QX', myAlias: 'P1', roomState: 'configuring', participants: PARTICIPANTS, seatsTotal: 4 })
     mount()

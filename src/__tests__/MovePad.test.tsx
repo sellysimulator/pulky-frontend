@@ -1,4 +1,4 @@
-/** Section 32 - the on-screen movement pad (plan 32 section 3.6, touch controls). */
+/** The on-screen movement pad (spec §13.11.6, touch controls). */
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import MovePad from '../components/game/views/board3d/MovePad'

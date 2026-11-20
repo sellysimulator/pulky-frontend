@@ -1,6 +1,5 @@
 /**
- * Section 28 — HostConsole with SubmissionTracker, MarketCharts and EventHistory (plan 28 §3.2–§3.6).
- * Acceptance 2 (console, finished), 4, 5, 6, 9; failure modes 3, 5, 9 (and 7 for the end action).
+ * HostConsole with SubmissionTracker, MarketCharts and EventHistory (spec §11.4; design.md §8.6).
  */
 import { createElement } from 'react'
 import { fireEvent, render, screen, within } from '@testing-library/react'
@@ -268,10 +267,10 @@ describe('HostConsole header', () => {
   })
 })
 
-describe('HostConsole End game early (acceptance 9, failure modes 5 and 7)', () => {
+describe('HostConsole End game early', () => {
   const endCalls = () => emit.mock.calls.filter((c: unknown[]) => c[0] === 'end_game_early')
 
-  it('failure mode 5: clicking End game early alone emits nothing', () => {
+  it('clicking End game early alone emits nothing', () => {
     renderConsole()
     fireEvent.click(screen.getByRole('button', { name: 'End game early' }))
     expect(endCalls()).toHaveLength(0)
@@ -293,7 +292,7 @@ describe('HostConsole End game early (acceptance 9, failure modes 5 and 7)', () 
   })
 })
 
-describe('HostConsole when finished (acceptance 2)', () => {
+describe('HostConsole when finished', () => {
   it('replaces the controls with a See the results link to the game, by id', () => {
     renderConsole({ finished: true, gamePublicId: 'g8f2c1' })
     const link = screen.getByRole('link', { name: 'See the results' })
@@ -326,7 +325,7 @@ describe('HostConsole when finished (acceptance 2)', () => {
   })
 })
 
-describe('SubmissionTracker (acceptance 4, failure mode 3)', () => {
+describe('SubmissionTracker', () => {
   it('shows each pulquería with its name and a state word', () => {
     renderConsole()
     const card = screen.getByRole('region', { name: 'Submissions' })
@@ -350,7 +349,7 @@ describe('SubmissionTracker (acceptance 4, failure mode 3)', () => {
     expect(text.indexOf('La Chula')).toBeLessThan(text.indexOf('El Tinacal'))
   })
 
-  it('failure mode 3: carries names and state words only, no figure of any kind', () => {
+  it('carries names and state words only, no figure of any kind', () => {
     const view = hostView(true) as unknown as { players: Record<string, Obj> }
     view.players.P1.pending_decision = { order_spot: 7771, order_futures: 6662, incoterm_tier: 'ddp' }
     view.players.P1.decision = { order_spot: 7771 }
@@ -362,7 +361,7 @@ describe('SubmissionTracker (acceptance 4, failure mode 3)', () => {
   })
 })
 
-describe('MarketCharts (acceptance 5)', () => {
+describe('MarketCharts', () => {
   const titles = (): string[] =>
     screen.getAllByRole('figure').map((f) => (f.querySelector('figcaption')?.textContent ?? '').trim())
 
@@ -520,7 +519,7 @@ describe('MarketCharts (acceptance 5)', () => {
   })
 })
 
-describe('EventHistory (acceptance 6, failure mode 9)', () => {
+describe('EventHistory', () => {
   const region = (): HTMLElement => screen.getByRole('region', { name: 'Events' })
 
   const EXPECTED = [
@@ -547,7 +546,7 @@ describe('EventHistory (acceptance 6, failure mode 9)', () => {
     expect(allLines(region())).toEqual(EXPECTED)
   })
 
-  it('failure mode 9: each trade is listed once even though both parties hold it', () => {
+  it('each trade is listed once even though both parties hold it', () => {
     renderConsole()
     const root = region()
     for (const expected of EXPECTED.filter((l) => l.includes(' sold '))) {
@@ -589,11 +588,11 @@ describe('EventHistory (acceptance 6, failure mode 9)', () => {
   })
 })
 
-/* ------------------------------------------------------------------ section 37 */
+/* ------------------------------------------------------------------ the console charts */
 
 const M2: Record<string, string> = { P1: 'Don Agave', P2: 'La Chula' }
 
-/** plan 37 §4 as the console's inputs: two pulquerías, closed days Mon-Wed (Tue and Wed peak). */
+/** The worked example as the console's inputs: two pulquerías, closed days Mon-Wed (Tue and Wed peak). */
 function section4(over: { omitP2Day1?: boolean } = {}): { view: HostView; hist: HostHistories } {
   const profit: Record<string, number[]> = { P1: [100, -10, 40.25], P2: [80, 30, 20] }
   const spoiled: Record<string, number[]> = { P1: [2, 0, 1], P2: [0, 3, 1] }
@@ -669,7 +668,7 @@ const table = (title: string): HTMLElement => {
 const legendItem = (title: string, label: string): HTMLElement =>
   within(fig(title)).getAllByText(label).map((e) => e.closest('li')).find(Boolean) as HTMLElement
 
-describe('Profit race (plan 37 §3.3, acceptance 3, 6, failure mode 3)', () => {
+describe('Profit race', () => {
   it('is the first chart, ahead of Market share, with its accessible name', () => {
     mount(section4())
     const figures = screen.getAllByRole('figure')
@@ -688,7 +687,7 @@ describe('Profit race (plan 37 §3.3, acceptance 3, 6, failure mode 3)', () => {
     expect(c.data.datasets[1].data).toEqual([80, 110, 130])
   })
 
-  it('failure mode 3: there is no End point, exactly one label per closed day', () => {
+  it('there is no End point, exactly one label per closed day', () => {
     mount(section4())
     const c = chart('Profit race')
     expect(c.data.labels).toEqual([['1', 'Mon'], ['2', 'Tue'], ['3', 'Wed']])
@@ -705,7 +704,7 @@ describe('Profit race (plan 37 §3.3, acceptance 3, 6, failure mode 3)', () => {
     ])
   })
 
-  it('acceptance 3: its day points equal the results race for the same records', () => {
+  it('its day points equal the results race for the same records', () => {
     const s = section4()
     mount(s)
     const cumulative = { P1: [100, 90, 130.25], P2: [80, 110, 130] } as Record<string, number[]>
@@ -749,7 +748,7 @@ describe('Profit race (plan 37 §3.3, acceptance 3, 6, failure mode 3)', () => {
   })
 })
 
-describe('Reputation emphasis (plan 37 §3.3, acceptance 5, failure mode 4)', () => {
+describe('Reputation emphasis', () => {
   const styles = () => chart('Reputation').data.datasets
 
   it('with nothing hovered every line has its normal (none) style', () => {
@@ -771,14 +770,14 @@ describe('Reputation emphasis (plan 37 §3.3, acceptance 5, failure mode 4)', ()
     expect(styles()[0]).toMatchObject(pulqueriaLine('P1', 'context'))
   })
 
-  it('failure mode 4: after the pointer leaves, every line is back to none', () => {
+  it('after the pointer leaves, every line is back to none', () => {
     mount(section4())
     fireEvent.pointerEnter(legendItem('Reputation', 'Don Agave'))
     fireEvent.pointerLeave(legendItem('Reputation', 'Don Agave'))
     styles().forEach((d, i) => expect(d).toMatchObject(pulqueriaLine(`P${i + 1}`, 'none')))
   })
 
-  it('failure mode 4: after blur, every line is back to none', () => {
+  it('after blur, every line is back to none', () => {
     mount(section4())
     fireEvent.focus(legendItem('Reputation', 'Don Agave'))
     fireEvent.blur(legendItem('Reputation', 'Don Agave'))
@@ -792,7 +791,7 @@ describe('Reputation emphasis (plan 37 §3.3, acceptance 5, failure mode 4)', ()
   })
 })
 
-describe('Spoilage per day stacked by pulquería (plan 37 §3.3, acceptance 2, failure mode 2)', () => {
+describe('Spoilage per day stacked by pulquería', () => {
   it('has one dataset per pulquería with the spoiled units per day, stacked, y titled Units', () => {
     mount(section4())
     const c = chart('Spoilage per day')
@@ -805,14 +804,14 @@ describe('Spoilage per day stacked by pulquería (plan 37 §3.3, acceptance 2, f
     expect(scales.y.title.text).toBe('Units')
   })
 
-  it('failure mode 2: the datasets sum, day by day, to 2, 3, 2', () => {
+  it('the datasets sum, day by day, to 2, 3, 2', () => {
     mount(section4())
     const ds = chart('Spoilage per day').data.datasets
     const sums = [0, 1, 2].map((i) => ds.reduce((s, d) => s + ((d.data as Array<number | null>)[i] ?? 0), 0))
     expect(sums).toEqual([2, 3, 2])
   })
 
-  it('failure mode 2: the table Total column reads 2, 3, 2', () => {
+  it('the table Total column reads 2, 3, 2', () => {
     mount(section4())
     const t = table('Spoilage per day')
     expect(within(t).getAllByRole('columnheader').map((h) => h.textContent?.trim())).toEqual(['Day', 'Don Agave', 'La Chula', 'Total'])

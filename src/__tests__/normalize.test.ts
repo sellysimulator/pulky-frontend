@@ -1,4 +1,4 @@
-/** Section 32 - model normalisation (plan 32 sections 2 and 4). Failure mode 14. */
+/** Model normalisation (spec §13.11.9). */
 import { Box3, Vector3 } from 'three'
 import { describe, expect, it } from 'vitest'
 import { MODEL_FIT, normalizeTransform } from '../components/game/views/board3d/normalize'
@@ -23,7 +23,7 @@ describe('MODEL_FIT', () => {
   })
 })
 
-describe('normalizeTransform (failure mode 14)', () => {
+describe('normalizeTransform', () => {
   it('fits the z axis', () =>
     expectTransform(normalizeTransform(box([-2, -1, -3], [2, 3, 5]), { axis: 'z', size: 4 }), [0, -1, 1], 0.5))
   it('fits the y axis', () =>

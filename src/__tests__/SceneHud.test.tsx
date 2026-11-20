@@ -1,4 +1,4 @@
-/** Section 32 - SceneHud (plan 32 section 3.6; acceptance 7). */
+/** SceneHud (spec §13.11.7; design.md §14.4). */
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { act } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'

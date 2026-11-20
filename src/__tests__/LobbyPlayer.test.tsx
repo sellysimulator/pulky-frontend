@@ -1,4 +1,4 @@
-/** Section 23 — LobbyPlayer (spec 23 §3.6). Acceptance criteria 5, 6, 7, 8; failure modes 4, 5. */
+/** LobbyPlayer (design.md §8.3). */
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
@@ -94,7 +94,7 @@ describe('LobbyPlayer without a seat', () => {
     expect(getDisplayName()).toBeNull()
   })
 
-  it('stores the sanitised name, not the raw one (failure mode 5)', () => {
+  it('stores the sanitised name, not the raw one', () => {
     renderPlayer()
     fireEvent.change(nameInput(), { target: { value: 'Don\tAgave' } })
     fireEvent.click(screen.getByRole('button', { name: 'Take a seat' }))
@@ -116,7 +116,7 @@ describe('LobbyPlayer without a seat', () => {
     expect(screen.getByRole('button', { name: 'Take a seat' })).not.toHaveAttribute('aria-busy')
   })
 
-  it('drops the danger alert once joined arrives (failure mode 4)', () => {
+  it('drops the danger alert once joined arrives', () => {
     renderPlayer()
     act(() => useGameStore.getState().applyJoinError({ message: 'The room is full.' }))
     expect(screen.getByRole('alert')).toBeInTheDocument()

@@ -1,4 +1,4 @@
-/** Section 32 - ErrorBoundary (plan 32 section 2). */
+/** ErrorBoundary (spec §13.11.2). */
 import { fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

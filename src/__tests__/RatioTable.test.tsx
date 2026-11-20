@@ -1,7 +1,6 @@
 /**
- * Section 29 - block 4, the Ratios table (spec 13.8 block 4, 8.6 null rules; design.md 8.8).
- * Rendered through ResultsSummary (RatioTable's props are not part of the Public surface).
- * Acceptance criteria 3, 9, 12, 13; failure modes 2, 9, 11.
+ * Block 4, the Ratios table (spec 13.8 block 4, 8.6 null rules; design.md 8.8).
+ * Rendered through ResultsSummary (RatioTable is not rendered on its own).
  */
 import { createElement, type ReactNode } from 'react'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
@@ -74,7 +73,7 @@ function rowOf(table: HTMLElement, alias: string): Record<string, HTMLElement> {
   return Object.fromEntries(names.map((n, i) => [n, cells[i]]))
 }
 
-describe('layout (criterion 12)', () => {
+describe('layout', () => {
   it('is a table captioned Ratios with the nine columns, in order', () => {
     expect(headerNames(renderTable())).toEqual(COLUMNS)
   })
@@ -99,7 +98,7 @@ describe('server figures are shown as sent', () => {
     expect(p1['Peer net'].textContent).toContain('170.00')
   })
 
-  it('failure mode 9: peer net is the sent peer_net, not revenue_peer - cost_peer', () => {
+  it('peer net is the sent peer_net, not revenue_peer - cost_peer', () => {
     const view = makeView()
     const p2 = view.players.find((p) => p.alias === 'P2')!
     expect((p2.revenue_peer ?? 0) - (p2.cost_peer ?? 0)).toBe(25)
@@ -113,7 +112,7 @@ describe('server figures are shown as sent', () => {
   })
 })
 
-describe('null ratios (criterion 9, failure mode 2)', () => {
+describe('null ratios', () => {
   it('renders — for each null ratio, although units_sold is positive', () => {
     const view = makeView()
     expect(view.players.find((p) => p.alias === 'P3')!.units_sold).toBe(300)
@@ -159,7 +158,7 @@ describe('null ratios (criterion 9, failure mode 2)', () => {
   })
 })
 
-describe('a stored payload without peer fields (criterion 13, failure mode 11)', () => {
+describe('a stored payload without peer fields', () => {
   it('has no Peer net column and no NaN anywhere', () => {
     const table = renderTable(makeView(withoutPeer))
     expect(headerNames(table)).toEqual(COLUMNS.filter((c) => c !== 'Peer net'))

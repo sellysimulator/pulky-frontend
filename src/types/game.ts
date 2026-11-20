@@ -1,6 +1,6 @@
 /**
  * Wire types for Pulky. Hand-written, one place, snake_case exactly as on the
- * wire (spec §2, §12; backend contracts of sections 03, 04, 10, 11, 13-16, 19).
+ * wire (spec §2, §12, §13.4).
  */
 
 export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
@@ -31,7 +31,7 @@ export interface Limits {
   [name: string]: number
 }
 
-/** Spec §9.3's five shown dot paths, in section 04's order. */
+/** Spec §9.3's five shown dot paths, in the order of the backend's `PLAYER_CONFIG_KEYS` (app/core/defaults.py). */
 export const PLAYER_CONFIG_KEYS: readonly string[] = [
   'demand.retail_price',
   'stock.conservation_extra_fresh_days',
@@ -223,7 +223,7 @@ export interface PeerTrade {
   price: number
 }
 
-/** Every key of the backend DayRecord (section 03). */
+/** Every key of the backend DayRecord (app/core/records.py). */
 export interface DayRecord {
   day: number
   weekday: Weekday
@@ -303,7 +303,7 @@ export interface PublicDayResults {
   >
 }
 
-/** Section 03 MarketDay. */
+/** The backend MarketDay (app/core/records.py). */
 export interface MarketDay {
   day: number
   weekday: Weekday
@@ -529,7 +529,7 @@ export interface Participant {
   connected: boolean
 }
 
-// ---------------------------------------------------------------- stats (section 10)
+// ---------------------------------------------------------------- stats (spec §8.6)
 
 /** Spec §8.6: one pulquería's pulque, from the supplier to where it ended. It balances by construction. */
 export interface PulqueFlow {
@@ -642,7 +642,7 @@ export interface GameStats {
 
 // ---------------------------------------------------------------- REST
 
-/** Section 19. */
+/** `GET /games/id/{public_id}/results` (spec §13.4). */
 export interface ResultsResponse {
   game_id: string
   room_code: string

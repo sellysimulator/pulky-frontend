@@ -10,7 +10,10 @@ It renders what the backend (`../Pulky_Backend`) sends; the backend owns the gam
 
 - The spec: `../docs/spec/` (start at `README.md` and `glossary.md`; frontend layout is
   `13-frontend.md`, the screens `13-screens-*.md`, the wire `12-wire.md`).
-- The build plan: `../docs/plan/` (`00-conventions.md` first); visual rules: `../docs/design.md`.
+- Visual rules: `../docs/design.md`. The 3D board: spec `13-board-3d.md` (§13.11; most of its
+  rules are [HARD-WON]).
+- `../docs/` is not in this repository: it is versioned in the Novus docs repository, so a
+  change that edits the spec or `design.md` is committed there, separately.
 - `README.md` here: the contracts with the backend and the chart kit.
 
 ## Commands
@@ -36,8 +39,34 @@ npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build
   axes, sorting and filtering. `src/game/configMath.ts` and `src/game/estimates.ts` are
   gone on purpose; do not bring them back.
 - Limits come from `GET /config/defaults` (`useLimits()`), hidden defaults stay null in
-  the host's config (spec §9.3), and the store is written only by socket handlers and the
-  REST loaders (`../docs/plan/00-conventions.md` §4).
+  the host's config (spec §9.3), and the store's game state is written only by socket
+  handlers (`src/api/socketHandlers.ts`) and the REST loaders. Components write only two UI
+  slices, `alerts` (`addAlert`/`dismissAlert`) and `selectedDay` (`selectDay`); `reset()` is
+  called by sign-out and the multi-game dashboard only (spec §13.6 "Store and handlers").
+- **Copy**: copy that states a rule (messages, window copy, reasons, recap and debrief lines)
+  comes from the spec word for word; never invent copy that states a rule. Incidental UI
+  copy (labels, headings, helper text, empty states) lives in the code and needs no spec
+  entry.
+- Two modules in one folder never have names that differ only in case (`modelCredits.ts`
+  beside `ModelCredits.tsx`): macOS resolves the import to the wrong file and `tsc -b` fails
+  (TS1149/TS1192) while Linux CI passes. That is why the data modules are `assetCredits.ts`
+  and `projectorChartsConfig.ts` (spec §13.6).
+- **Presentation mode is projected to the class** (spec §11.1, §11.4): `PresentationMode`,
+  `PresentationCharts` and `projectorChartsConfig` render only `PresentationData`, which
+  `selectPresentationData` (`components/host/presentationData.ts`) builds by copying public
+  fields one by one. Those three files never import the store, `HostView`, `DayRecord`,
+  `MarketDay` or the host histories; a new projected figure is an explicit copy of a public
+  field, never a spread of a view. Tests check the key lists and the files' imports.
+- **3D board** (spec §13.11): layout numbers live only in `board3d/sceneLayout.ts`; a visual
+  fix changes them there and keeps the `sceneModel.test.ts` sweep green. `Board3D.tsx` and
+  `board3d/render/**` cannot run in jsdom and are excluded from coverage.
+- The `pulky:forbid-three-in-entry-graph` plugin (`vite.config.ts`) fails the build when the
+  entry chunk statically reaches `three`. To check it, add a used import to
+  `src/pages/GameRoom.tsx` (`import { Vector3 } from 'three'; export const ORIGIN = new
+  Vector3()`): `npm run build` must fail; then restore the file. A bare `import 'three'` is
+  tree-shaken (three declares `sideEffects`) and proves nothing.
+- No `TODO`, no commented-out code and no `console.log` in committed code; the eslint
+  config has no `no-console` rule to catch them.
 - No raw hex outside the canvas modules, no gradient, lucide icons only, no emoji.
 - **Safe area**: `viewport-fit=cover` is on, so a `fixed` element on a viewport edge (or an
   `absolute` one on an edge of a full-viewport overlay) offsets by
@@ -62,6 +91,23 @@ npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build
 
 ## Tests
 
+- Tests are `src/__tests__/<subject>.test.ts(x)`, with shared setup in
+  `src/__tests__/setup.ts` and data in `src/__tests__/fixtures/`. REST goes only through
+  the axios instance in `src/api/http.ts` (never import axios anywhere else), and tests swap
+  `http.defaults.adapter`. Charts are tested by mocking `react-chartjs-2` and asserting on the
+  built config.
+- `src/__tests__/fixtures/rounding_cases.json` is the money-rounding contract (spec §8.1)
+  and has a byte-identical twin in `Pulky_Backend/tests/fixtures/`; change both together,
+  since no test compares them. `public/3dmodels/` is the only copy of the 3D models; never
+  edit their bytes (give a changed model a new file name).
+- Test through rendered output and public functions. Never assert on a private name, on log
+  text, or on copy the spec does not quote: for an unquoted message assert the error code
+  (and field) and that the message is a non-empty string.
+- A regression test must fail against the bug it names: break the code once, see it go
+  red, then restore the code. Never edit a test just to make it pass.
+- An expected value sits next to the input that produces it, or comes from a named shared
+  input (a fixture); never copy numbers from another file, and assert chart data by dataset
+  label, never by a comment next to a hand-transposed array.
 - jsdom and Testing Library only: no browser, screenshot or headless checks (visual
   checks are the human's).
 - The decision form tests answer `preview_decision` with

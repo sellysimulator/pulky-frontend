@@ -1,6 +1,5 @@
 /**
- * Section 22 — `src/components/charts/chartSetup.ts` (design.md §3, §4.4, §9).
- * Acceptance criteria 4, 5, 6; failure mode 7 (hardcoded hex drift).
+ * `src/components/charts/chartSetup.ts` (design.md §3, §4.4, §9).
  * jsdom has no canvas, so nothing is drawn: tests read Chart.js's registry and
  * defaults, and call the plugin with a fake chart.
  */
@@ -42,7 +41,7 @@ function mismatches(colors: Record<string, string>, css: Record<string, string>)
   return Object.keys(colors).filter((k) => css[k] === undefined || norm(colors[k]) !== css[k])
 }
 
-describe('CHART_COLORS parity with src/index.css (criterion 4, failure mode 7)', () => {
+describe('CHART_COLORS parity with src/index.css', () => {
   it('holds every chart colour design.md §2-§3 gives a token', async () => {
     const { setup } = await fresh()
     const required = [
@@ -76,7 +75,7 @@ describe('CHART_COLORS parity with src/index.css (criterion 4, failure mode 7)',
   })
 })
 
-describe('pulqueriaStyle (criterion 5, design.md §3.1)', () => {
+describe('pulqueriaStyle (design.md §3.1)', () => {
   const SLOTS: Array<[string, string, string]> = [
     ['P1', '#2a78d6', 'circle'],
     ['P2', '#d9622b', 'rect'],
@@ -107,7 +106,7 @@ describe('pulqueriaStyle (criterion 5, design.md §3.1)', () => {
     },
   )
 
-  it('matches the worked examples of the section document', async () => {
+  it('matches the worked examples', async () => {
     const { setup } = await fresh()
     expect(setup.pulqueriaStyle('P8')).toMatchObject({ pointStyle: 'rect', dashed: true, hatched: true })
     expect(norm(setup.pulqueriaStyle('P8').color)).toBe('#d9622b')
@@ -201,7 +200,7 @@ function destroyDuringColourAnimation({ BasicPlatform, Chart, animator }: ChartJ
   }
 }
 
-describe('registerCharts (criterion 6, design.md §9.1)', () => {
+describe('registerCharts (design.md §9.1)', () => {
   it('is called once at module load: importing the module registers Chart.js with no explicit call', async () => {
     const { chartjs } = await fresh()
     const { registry } = chartjs.Chart
@@ -454,7 +453,7 @@ beforeEach(() => {
   vi.resetModules()
 })
 
-/* ───────────────────────── Section 33: chart kit hardening ───────────────────────── */
+/* ───────────────────────── Chart kit hardening ───────────────────────── */
 
 interface KitCall {
   fn: string
@@ -522,7 +521,7 @@ function kitChart({ count = 7, plugins = {}, datasets, hidden = [] }: KitChartOp
 type Hook = (chart: unknown, args: unknown, options: unknown) => unknown
 const hookOf = (plugin: object, name: string): Hook => (plugin as Record<string, Hook>)[name].bind(plugin)
 
-describe('hatchPattern and hatched (section 33, design.md §3.1, §9.1)', () => {
+describe('hatchPattern and hatched (design.md §3.1, §9.1)', () => {
   interface Tile {
     width: number
     height: number
@@ -644,7 +643,7 @@ describe('hatchPattern and hatched (section 33, design.md §3.1, §9.1)', () => 
   })
 })
 
-describe('eventBandsPlugin and peakShadingPlugin (section 33, design.md §9.3)', () => {
+describe('eventBandsPlugin and peakShadingPlugin (design.md §9.3)', () => {
   const fills = (calls: KitCall[]) => calls.filter((c) => c.fn === 'fillRect')
 
   async function bands(list: unknown, plugins: Record<string, unknown> = {}, passOptions = true) {
@@ -664,7 +663,7 @@ describe('eventBandsPlugin and peakShadingPlugin (section 33, design.md §9.3)',
     expect(setup.eventBandsPlugin.afterDatasetsUpdate).toBeUndefined()
   })
 
-  it('draws one column and one 3px rule for a danger band, at the §4 pixels', async () => {
+  it('draws one column and one 3px rule for a danger band, at the expected pixels', async () => {
     const { calls } = await bands([{ index: 3, tone: 'danger' }])
     const f = fills(calls)
     expect(f).toHaveLength(2)
@@ -732,7 +731,7 @@ describe('eventBandsPlugin and peakShadingPlugin (section 33, design.md §9.3)',
     expect(fills(b.calls)).toHaveLength(0)
   })
 
-  it('peakShading { days: [3] } draws the same pixels as the peak band, in the peak colours (§4)', async () => {
+  it('peakShading { days: [3] } draws the same pixels as the peak band, in the peak colours', async () => {
     const { setup } = await fresh()
     const { chart, calls } = kitChart({ plugins: { peakShading: { days: [3] } } })
     hookOf(setup.peakShadingPlugin, 'beforeDatasetsDraw')(chart, {}, { days: [3] })
@@ -743,7 +742,7 @@ describe('eventBandsPlugin and peakShadingPlugin (section 33, design.md §9.3)',
     expect(setup.peakShadingPlugin.id).toBe('peakShading')
   })
 
-  // Failure mode 1: peakShading reads eventBands.bands, or nothing, instead of peakShading.days.
+  // Guards against peakShading reading eventBands.bands, or nothing, instead of peakShading.days.
   it('peakShading reads plugins.peakShading.days from the chart options when no plugin options arrive, with no eventBands option', async () => {
     const { setup } = await fresh()
     const { chart, calls } = kitChart({ plugins: { peakShading: { days: [2, 4] } } })
@@ -776,7 +775,7 @@ describe('eventBandsPlugin and peakShadingPlugin (section 33, design.md §9.3)',
   })
 })
 
-describe('emphasisOf and pulqueriaLine (section 33, design.md §9.6)', () => {
+describe('emphasisOf and pulqueriaLine (design.md §9.6)', () => {
   const ALIASES = Array.from({ length: 12 }, (_, i) => `P${i + 1}`)
 
   it('emphasisOf: null focus is none, the focused alias is focus, every other is context', async () => {
@@ -786,7 +785,7 @@ describe('emphasisOf and pulqueriaLine (section 33, design.md §9.6)', () => {
     expect(setup.emphasisOf('P3', 'P2')).toBe('context')
   })
 
-  it('matches the §4 worked examples exactly', async () => {
+  it('matches the worked examples exactly', async () => {
     const { setup } = await fresh()
     const lower = (o: Record<string, unknown>) => JSON.parse(JSON.stringify(o).toLowerCase())
     expect(lower(setup.pulqueriaLine('P2', 'none') as never)).toEqual(
@@ -800,7 +799,7 @@ describe('emphasisOf and pulqueriaLine (section 33, design.md §9.6)', () => {
     )
   })
 
-  // Failure mode 7: a context line still in its colour.
+  // Guards against a context line still in its colour.
   it.each(ALIASES)('%s: a context line is border-strong in every colour field', async (alias) => {
     const { setup } = await fresh()
     const line = setup.pulqueriaLine(alias, 'context')
@@ -810,7 +809,7 @@ describe('emphasisOf and pulqueriaLine (section 33, design.md §9.6)', () => {
     expect(norm(line.pointBorderColor)).toBe('#c9bea6')
   })
 
-  it.each(ALIASES)('%s follows the §3.5 table in all three states', async (alias) => {
+  it.each(ALIASES)('%s follows the design.md §9.6 table in all three states', async (alias) => {
     const { setup } = await fresh()
     const s = setup.pulqueriaStyle(alias)
     const dash = s.dashed ? [6, 4] : []
@@ -852,7 +851,7 @@ describe('emphasisOf and pulqueriaLine (section 33, design.md §9.6)', () => {
   })
 })
 
-describe('crosshair store (section 33, design.md §9.5)', () => {
+describe('crosshair store (design.md §9.5)', () => {
   it('getCrosshair is null for a group never set; setCrosshair stores and notifies only that group', async () => {
     const { setup } = await fresh()
     const a = vi.fn()
@@ -864,7 +863,7 @@ describe('crosshair store (section 33, design.md §9.5)', () => {
     expect(setup.getCrosshair('A')).toBe(3)
     expect(a).toHaveBeenCalledTimes(1)
     expect(a).toHaveBeenCalledWith(3)
-    // Failure mode 5: a crosshair leaking across groups.
+    // Guards against a crosshair leaking across groups.
     expect(b).not.toHaveBeenCalled()
     expect(setup.getCrosshair('B')).toBeNull()
   })
@@ -908,7 +907,7 @@ describe('crosshair store (section 33, design.md §9.5)', () => {
   })
 })
 
-describe('crosshairSyncPlugin (section 33, design.md §9.5)', () => {
+describe('crosshairSyncPlugin (design.md §9.5)', () => {
   let n = 0
   const group = () => `grp-${++n}`
 
@@ -983,7 +982,7 @@ describe('crosshairSyncPlugin (section 33, design.md §9.5)', () => {
     expect(chart.update).not.toHaveBeenCalled()
   })
 
-  // Failure mode 5: a chart in group B must not get active elements from group A.
+  // A chart in group B must not get active elements from group A.
   it('a chart of another group, or of no group, is untouched by a group index and ignores events', async () => {
     const a = group()
     const b = group()
@@ -1037,7 +1036,7 @@ describe('crosshairSyncPlugin (section 33, design.md §9.5)', () => {
   })
 })
 
-describe('registerCharts registers the section 33 plugins (criterion 5)', () => {
+describe('registerCharts registers the chart kit plugins', () => {
   it('registers eventBands and crosshairSync and still no extra controller, scale or built-in plugin', async () => {
     const { setup, chartjs } = await fresh()
     setup.registerCharts()
@@ -1049,7 +1048,7 @@ describe('registerCharts registers the section 33 plugins (criterion 5)', () => 
   })
 })
 
-describe('section 35: INSURANCE_TIER_COLORS (criterion 10, failure mode 7)', () => {
+describe('INSURANCE_TIER_COLORS', () => {
   it('holds the four solid steps of one hue, light to dark', async () => {
     const { setup } = await fresh()
     expect(setup.INSURANCE_TIER_COLORS).toEqual({ exw: '#86B6EF', cip: '#5598E7', dap: '#2A78D6', ddp: '#1C5CAB' })
@@ -1066,7 +1065,7 @@ describe('section 35: INSURANCE_TIER_COLORS (criterion 10, failure mode 7)', () 
   })
 })
 
-describe('section 35: registerCharts (criterion 11)', () => {
+describe('registerCharts: Sankey and the label plugins', () => {
   it('registers the Sankey controller and the Flow element, and the two new plugins', async () => {
     const { setup, chartjs } = await fresh()
     setup.registerCharts()
@@ -1089,7 +1088,7 @@ describe('section 35: registerCharts (criterion 11)', () => {
   })
 })
 
-describe('section 35: canvas plugins with a recording context', () => {
+describe('canvas plugins with a recording context', () => {
   interface Rec {
     fn: string
     args: unknown[]

@@ -52,7 +52,7 @@ import {
   textBlockSize,
 } from '../components/game/views/board3d/sceneLayout'
 
-describe('sceneLayout constants (plan 31 §2, every value exact)', () => {
+describe('sceneLayout constants (every value exact)', () => {
   it('the hall and its openings', () => {
     expect(HALL).toEqual({
       width: 24,

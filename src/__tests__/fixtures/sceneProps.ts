@@ -1,4 +1,4 @@
-// Fixtures for the section 31 tests: the worked-example props `F` (plan 31 §4) and the sweep of §6.
+// Fixtures for the scene tests: the worked-example props `F` and the sweep.
 // Only wire types and BoardViewProps are imported, and only as types.
 import type { BoardViewProps } from '../../components/game/views/Board2D'
 import type {
@@ -266,7 +266,7 @@ function applyExtremes(p: BoardViewProps): void {
   ]
 }
 
-/** The §6 sweep. Every entry is a complete `BoardViewProps`. */
+/** The sweep. Every entry is a complete `BoardViewProps`. */
 export function sweepVariants(): Variant[] {
   const out: Variant[] = []
   const add = (name: string, fn: (p: BoardViewProps) => void): void => {
@@ -340,7 +340,7 @@ export function sweepVariants(): Variant[] {
   return out
 }
 
-/** The §6 maximal variant for the budget: 6 lots, 4 shipments all with losses, disrupted, peer trades. */
+/** The maximal variant for the budget: 6 lots, 4 shipments all with losses, disrupted, peer trades. */
 export function maximalProps(): BoardViewProps {
   return variant((p) => {
     p.view.cellar = mixedCellar(6)

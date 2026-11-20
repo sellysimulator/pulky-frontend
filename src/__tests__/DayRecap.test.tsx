@@ -357,13 +357,12 @@ export function before(a: HTMLElement, b: HTMLElement): boolean {
 }
 
 /**
- * Section 27 - YesterdayRecap, YesterdayKpis and DayRecap (spec 13.7, 8.1, 8.4).
- * Acceptance criteria 4, 5, 6b; failure modes 3, 4, 5, 9, 10, 12, 14.
+ * YesterdayRecap, YesterdayKpis and DayRecap (spec 13.7, 8.1, 8.4).
  */
 
 import { describe, expect, it } from 'vitest'
 
-/** The names of section 27 4's worked examples: P3 is La Chula and P4 is El Tinacal. */
+/** The names of the worked examples: P3 is La Chula and P4 is El Tinacal. */
 const DOC_PEOPLE = [
   { alias: 'P1', display_name: 'Don Agave', connected: true },
   { alias: 'P2', display_name: 'Los Magueyes', connected: true },
@@ -418,7 +417,7 @@ describe('YesterdayRecap', () => {
     expect(tileText('Profit').some((t) => t.includes('$1,234.00'))).toBe(true)
   })
 
-  it('failure mode 14: Sold is customer sales only, never sold plus peer sold', () => {
+  it('Sold is customer sales only, never sold plus peer sold', () => {
     renderBoard({ view: makeView({ yesterday: makeYesterday({ sold: 287, peer_sold: 13 }) }) })
     expect(tileText('Sold').some((t) => t.includes('287'))).toBe(true)
     expect(tileText('Sold').some((t) => t.includes('300'))).toBe(false)
@@ -490,7 +489,7 @@ describe('DayRecap events', () => {
     expect(openRecap().getByText('Futures shipped 25 units at $12.00 — spot was $13.40, you saved $35.00.')).toBeInTheDocument()
   })
 
-  it('1 (failure mode 4): a negative saving reads as a cost, never as a saving', () => {
+  it('1: a negative saving reads as a cost, never as a saving', () => {
     withRecord(
       { futures_due: 25, futures_filled: 25, futures_vs_spot: -15 },
       { publicHistory: [makePublic(4, { spot_price: 11.4 })] },
@@ -525,7 +524,7 @@ describe('DayRecap events', () => {
     expect(openRecap().getByText('Refrigeration failed: you lost 15 units (sharing the truck).')).toBeInTheDocument()
   })
 
-  it('3 (failure mode 3): no refrigeration event when lost_transport is 0, even if the flag is set', () => {
+  it('3: no refrigeration event when lost_transport is 0, even if the flag is set', () => {
     withRecord({ lost_transport: 0, refrigeration_failure: true })
     expect(openRecap().queryByText(/Refrigeration failed/)).toBeNull()
   })
@@ -540,7 +539,7 @@ describe('DayRecap events', () => {
     expect(openRecap().getByText('6 units spoiled overnight → salvaged for $12.00.')).toBeInTheDocument()
   })
 
-  it('5 (failure mode 5): salvage price 0 drops the salvage clause', () => {
+  it('5: salvage price 0 drops the salvage clause', () => {
     renderBoard({
       view: makeView({ yesterday: makeYesterday({ spoiled: 6, revenue_salvage: 0 }) }),
       lastRecord: makeRecord(4, { spoiled: 6, revenue_salvage: 0 }),
@@ -585,7 +584,7 @@ describe('DayRecap events', () => {
     expect(recap.queryByText(NONE_COVERED)).toBeNull()
   })
 
-  it('7 (failure mode 9): the counterparty is shown by display name, never as its alias', () => {
+  it('7: the counterparty is shown by display name, never as its alias', () => {
     withRecord({ ...BUY_BASE, peer_bought: 16, cost_peer: 228, peer_trades: BUYS })
     expect(screen.queryByText(/from P3/)).toBeNull()
     expect(screen.queryByText(/from P4/)).toBeNull()
@@ -601,7 +600,7 @@ describe('DayRecap events', () => {
     expect(openRecap().getByText(/10 from P3 at \$15\.00 \(62%\)/)).toBeInTheDocument()
   })
 
-  it('7 (failure mode 12): part covered gives the remaining count and only that variant', () => {
+  it('7: part covered gives the remaining count and only that variant', () => {
     withRecord({
       ...BUY_BASE,
       peer_bought: 2,
@@ -615,7 +614,7 @@ describe('DayRecap events', () => {
     expect(recap.getByText('2 from La Chula at $13.00 (62%)')).toBeInTheDocument()
   })
 
-  it('7 (failure mode 12): none covered gives the none line and no sub-lines', () => {
+  it('7: none covered gives the none line and no sub-lines', () => {
     withRecord({ ...BUY_BASE, peer_bought: 0, cost_peer: 0, peer_trades: [] })
     const recap = openRecap()
     expect(recap.getByText(SHORT_LINE)).toBeInTheDocument()
@@ -625,7 +624,7 @@ describe('DayRecap events', () => {
     expect(recap.queryByText(/ from /)).toBeNull()
   })
 
-  it('7 (failure mode 12): with no buy limits only the supplier-short line shows', () => {
+  it('7: with no buy limits only the supplier-short line shows', () => {
     withRecord({ ...BUY_BASE, peer_buy: null, peer_bought: 0, peer_trades: [] })
     const recap = openRecap()
     expect(recap.getByText(SHORT_LINE)).toBeInTheDocument()
@@ -634,7 +633,7 @@ describe('DayRecap events', () => {
     expect(recap.queryByText(NONE_COVERED)).toBeNull()
   })
 
-  it('7 (failure mode 10): a short spot order is still reported with the peer market off', () => {
+  it('7: a short spot order is still reported with the peer market off', () => {
     withRecord(
       { order_spot: 30, shortfall_spot: 5, peer_buy: null },
       { config: makeConfig(false) },

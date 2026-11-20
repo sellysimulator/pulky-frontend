@@ -1,4 +1,4 @@
-/** Section 32 - context loss (plan 32 section 3.5). Failure mode 10. */
+/** Context loss (spec §13.11.10). */
 import { describe, expect, it, vi } from 'vitest'
 import { CONTEXT_LOST_EVENT, observeContextLoss } from '../components/game/views/board3d/contextLoss'
 
@@ -8,7 +8,7 @@ function lose(target: Element): Event {
   return event
 }
 
-describe('observeContextLoss (failure mode 10)', () => {
+describe('observeContextLoss', () => {
   it('names the event', () => expect(CONTEXT_LOST_EVENT).toBe('webglcontextlost'))
 
   it('hears a non-bubbling event fired at a canvas inside the host, once, and cancels it', () => {

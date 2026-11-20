@@ -1,4 +1,4 @@
-/** Section 32 - player motion (plan 32 sections 3.8 and 4). Failure modes 5 to 9. */
+/** Player motion (spec §13.11.6). */
 import { describe, expect, it, vi } from 'vitest'
 import {
   LOOK_SENSITIVITY,
@@ -87,7 +87,7 @@ describe('moveKeyFor', () => {
   })
 })
 
-describe('stepPosition (failure mode 7)', () => {
+describe('stepPosition', () => {
   const close = (got: { x: number; z: number }, x: number, z: number) => {
     expect(got.x).toBeCloseTo(x, 6)
     expect(got.z).toBeCloseTo(z, 6)
@@ -213,7 +213,7 @@ describe('stationPanel (E and the interact button)', () => {
   })
 })
 
-describe('applyLook (failure mode 8)', () => {
+describe('applyLook', () => {
   it('a positive dx lowers the yaw (turns right)', () => {
     const got = applyLook({ yaw: 0, pitch: 0 }, 100, 0)
     expect(got.yaw).toBeCloseTo(-0.26, 6)
@@ -259,7 +259,7 @@ describe('nearestStation', () => {
   it('is null for an empty list', () => expect(nearestStation({ x: 0, z: 0 }, [])).toBeNull())
 })
 
-describe('isTypingTarget (failure mode 5)', () => {
+describe('isTypingTarget', () => {
   const host = (html: string): HTMLElement => {
     const div = document.createElement('div')
     div.innerHTML = html
@@ -291,7 +291,7 @@ describe('isTypingTarget (failure mode 5)', () => {
   })
 })
 
-describe('keyAction (failure modes 5 and 6)', () => {
+describe('keyAction', () => {
   const free = { panel: null, near: null } as const
 
   it('moves on a movement key', () => {
@@ -331,7 +331,7 @@ describe('keyAction (failure modes 5 and 6)', () => {
   it('an unrelated key does nothing', () => expect(keyAction(input({ code: 'KeyQ', key: 'q' }), free)).toBeNull())
 })
 
-describe('createChangeReporter (failure mode 9)', () => {
+describe('createChangeReporter', () => {
   it("calls onChange twice for 'cellar' x3 then null", () => {
     const onChange = vi.fn()
     const report = createChangeReporter<string | null>(onChange, null)

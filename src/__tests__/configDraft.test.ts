@@ -1,4 +1,4 @@
-/** Section 25 — configDraft (plan 25 §2, §4). Pure helpers: getAt, setAt, diffPatch, leafPaths. */
+/** configDraft: the pure helpers getAt, setAt, diffPatch and leafPaths. */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -65,7 +65,7 @@ describe('diffPatch', () => {
     expect(diffPatch(fresh(), fresh())).toEqual({})
   })
 
-  it('is exactly the changed leaf, nested (plan 25 §4 example)', () => {
+  it('is exactly the changed leaf, nested', () => {
     const base = fresh()
     expect(diffPatch(base, setAt(base, 'stock.max_days', 5))).toEqual({ stock: { max_days: 5 } })
   })

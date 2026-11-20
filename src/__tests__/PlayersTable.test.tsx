@@ -1,4 +1,4 @@
-/** Section 28 — PlayersTable (plan 28 §3.4, spec §11.4). Acceptance 3; failure modes 10 (and 3). */
+/** PlayersTable (spec §11.4; design.md §8.6). */
 import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
@@ -116,7 +116,7 @@ describe('PlayersTable structure', () => {
     }
   })
 
-  it('failure/acceptance 3: the Peer market group and its Bought and Sold columns are absent when the peer market is off', () => {
+  it('the Peer market group and its Bought and Sold columns are absent when the peer market is off', () => {
     render(<PlayersTable hostView={view(false, DEFAULT_PLAYERS)} histories={histories()} />)
     expect(leafHeaders()).toEqual(LEAF_OFF)
     expect(screen.queryByRole('columnheader', { name: 'Peer market' })).toBeNull()
@@ -193,7 +193,7 @@ describe('PlayersTable peer columns', () => {
     expect(cell('Don Agave', 'Sold').textContent?.trim()).toBe('4')
   })
 
-  it('failure mode 10: null peer values read a dash, never 0', () => {
+  it('null peer values read a dash, never 0', () => {
     render(<PlayersTable hostView={view(true, DEFAULT_PLAYERS)} histories={histories()} />)
     expect(cell('La Chula', 'Bought').textContent?.trim()).toBe('—')
     expect(cell('La Chula', 'Sold').textContent?.trim()).toBe('—')

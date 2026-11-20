@@ -1,4 +1,4 @@
-/** Section 32 - ScenePanels (plan 32 section 3.7; acceptance 8; failure mode 11). */
+/** ScenePanels (spec §13.11.6). */
 import { createElement } from 'react'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -339,7 +339,7 @@ describe('six wrappers', () => {
     expect(within(wrapper('details')).getAllByText('Details').length).toBeGreaterThan(0)
   })
 
-  it('failure mode 11: with Market open, no other panel is visible', () => {
+  it('with Market open, no other panel is visible', () => {
     mount('market')
     for (const id of PANEL_ORDER) {
       if (id === 'market') continue
@@ -348,7 +348,7 @@ describe('six wrappers', () => {
     expect(screen.getAllByRole('region', { name: 'Market' }).length).toBeGreaterThan(0)
   })
 
-  it('failure mode 11: the decision draft survives switching away and back', async () => {
+  it('the decision draft survives switching away and back', async () => {
     const user = userEvent.setup()
     const { show } = mount('decision', { initialDecision: { ...makeDecision(5), order_spot: 0 } })
     const field = () => screen.getByLabelText('Buy from Supplier') as HTMLInputElement
@@ -360,7 +360,7 @@ describe('six wrappers', () => {
     expect(field()).toHaveValue('40')
   })
 
-  it('failure mode 11: the DOM never holds a second decision form', () => {
+  it('the DOM never holds a second decision form', () => {
     const { show } = mount('decision')
     expect(screen.getAllByRole('button', { name: 'Submit day', hidden: true })).toHaveLength(1)
     show('market')

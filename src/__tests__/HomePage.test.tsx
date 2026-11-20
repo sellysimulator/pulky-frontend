@@ -1,7 +1,6 @@
 /**
- * Section 22 — HomePage (design.md §8.2, spec §11.3). Acceptance criteria 8, 9;
- * failure mode 8. Requests are observed through the axios instance's adapter
- * (section 21, 3.3a), never by mocking axios or the REST clients.
+ * HomePage (design.md §8.2, spec §11.3). Requests are observed through the axios
+ * instance's adapter, never by mocking axios or the REST clients.
  */
 import { AxiosError, type AxiosAdapter, type InternalAxiosRequestConfig } from 'axios'
 import { render, screen, waitFor, within } from '@testing-library/react'
@@ -143,7 +142,7 @@ describe('the room code field', () => {
   })
 })
 
-describe('Join a room (criterion 8)', () => {
+describe('Join a room', () => {
   it('asks the server for the status of the upper-cased code', async () => {
     handler = () => ({ status: 200, data: status({ ok: true }) })
     renderHome()
@@ -176,7 +175,7 @@ describe('Join a room (criterion 8)', () => {
     expect(router.state.location.pathname).toBe('/home')
   })
 
-  it('failure mode 8: an unknown room does not navigate and says why', async () => {
+  it('an unknown room does not navigate and says why', async () => {
     handler = () => ({ status: 200, data: status({ ok: false, reason: 'No room with that code.', state: null }) })
     const router = renderHome()
     await join('abc234')
@@ -247,7 +246,7 @@ describe('Join a room (criterion 8)', () => {
   })
 })
 
-describe('Create a room (criterion 9)', () => {
+describe('Create a room', () => {
   const created = { room_code: 'KQ7M2P', host_secret: 'secret-xyz', state: 'lobby', config: {} }
 
   it("the name field is optional and limited to the server's MAX_DISPLAY_NAME", () => {

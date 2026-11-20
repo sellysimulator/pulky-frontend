@@ -3,7 +3,7 @@ import type { UserStats } from '../../types/game'
 import { formatMoney, formatPercent, formatQty } from '../../utils/format'
 import StatTile from '../shared/StatTile'
 
-/** Plan 3.2: seven tiles; a null average is "—", never 0%. */
+/** Seven tiles; a null average is "—", never 0%. */
 export default function ProfileStats({ stats }: { stats: UserStats }): ReactElement {
   return (
     <div className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-lg border border-border bg-card p-5 shadow-card md:grid-cols-4">

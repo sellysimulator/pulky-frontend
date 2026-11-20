@@ -1,5 +1,5 @@
 /**
- * Section 32 - the hard-won rules in the source (plan 32 failure mode 13; acceptance 10).
+ * The hard-won rules of the 3D board (spec §13.11) in the source.
  * Comments are scanned too: a comment states a rule without writing the forbidden identifier.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'

@@ -25,7 +25,7 @@ const defaults = JSON.parse(
 
 const TOPICS = ['topic.allocation', 'topic.what_players_see']
 
-/** key -> [label, effect]: spec 24 section 3.2, verbatim. */
+/** key -> [label, effect]: the expected copy, verbatim. */
 const COPY: Record<string, [string, string]> = {
   max_players: ['Seats', 'More seats make the market bigger: demand scales with the pulquerías seated.'],
   duration_days: ['Days', 'Longer games cover more weekly cycles and give futures time to pay off.'],
@@ -246,7 +246,7 @@ function hasLine(dialog: HTMLElement, numbers: number[]): boolean {
 
 afterEach(() => cleanup())
 
-describe('DOCS coverage (AC 1, failure mode 6)', () => {
+describe('DOCS coverage', () => {
   it('has the fixture with every leaf', () => {
     expect(Object.keys(defaults.fields)).toContain('insurance.tiers.ddp.fee')
     expect(Object.keys(defaults.fields)).toContain('supplier.quality_min')
@@ -280,7 +280,7 @@ describe('DOCS coverage (AC 1, failure mode 6)', () => {
   })
 })
 
-describe('every entry renders in the dialog (AC 2)', () => {
+describe('every entry renders in the dialog', () => {
   it.each(expectedKeys)('%s: label, the three sub-headings in order, the effect verbatim', (key) => {
     const [label, effect] = COPY[key]
     const dialog = renderDialog(key)
@@ -319,7 +319,7 @@ describe('every entry renders in the dialog (AC 2)', () => {
   })
 })
 
-describe("examples show the server's figures for the config (AC 3, failure mode 7)", () => {
+describe("examples show the server's figures for the config", () => {
   function thursdayRow(): string {
     const dialog = screen.getByRole('dialog')
     showTables()

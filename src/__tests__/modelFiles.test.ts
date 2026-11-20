@@ -1,9 +1,9 @@
 /**
- * Section 32 - the shipped models and their credits (plan 32 section 3.2, failure mode 12; acceptance 2).
+ * The shipped models and their credits (spec §13.11.9).
  * Reads the real files: a changed byte, a missing credit or a stripped asset.extras fails here.
  */
 import { createHash } from 'node:crypto'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { FONT_CREDIT, MODEL_CREDITS, MODEL_LICENSE } from '../components/game/views/board3d/assetCredits'
@@ -47,7 +47,7 @@ describe('MODEL_CREDITS data', () => {
     })
   })
 
-  it('quotes the table of plan 32 section 3.2', () => {
+  it('quotes the table of spec §13.11.9', () => {
     const [truck, money, tree] = MODEL_CREDITS
     expect(truck).toMatchObject({
       title: 'Low Poly Truck',
@@ -79,7 +79,7 @@ describe('MODEL_CREDITS data', () => {
   })
 })
 
-describe('public/3dmodels (failure mode 12, acceptance 2)', () => {
+describe('public/3dmodels', () => {
   it('holds exactly the credited models and ATTRIBUTION.txt', () => {
     expect(readdirSync(MODELS).sort()).toEqual(['ATTRIBUTION.txt', 'money.glb', 'tree.glb', 'truck.glb'])
     expect([...glbs].sort()).toEqual(MODEL_CREDITS.map((c) => c.file).sort())
@@ -129,14 +129,6 @@ describe('public/3dmodels (failure mode 12, acceptance 2)', () => {
       expect(readme).toContain(credit.authorUrl)
       expect(readme).toContain(credit.changes)
     })
-  })
-
-  it('is a byte copy of docs/plan/assets/3dmodels when the plan is beside the repo', () => {
-    const source = resolve(ROOT, '../docs/plan/assets/3dmodels')
-    if (!existsSync(source)) return
-    for (const file of readdirSync(source)) {
-      expect(readFileSync(resolve(MODELS, file)).equals(readFileSync(resolve(source, file)))).toBe(true)
-    }
   })
 
   it('credits the font in ATTRIBUTION.txt', () => {

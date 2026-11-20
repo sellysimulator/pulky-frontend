@@ -357,7 +357,7 @@ export function before(a: HTMLElement, b: HTMLElement): boolean {
 }
 
 /**
- * Section 27 - DetailsPanel (spec 13.7, D40). Acceptance criteria 6, 6b, 7.
+ * DetailsPanel (spec 13.7, D40).
  * Charts are mocked (no canvas in jsdom); assertions are on the configuration a chart receives
  * and on its table view.
  */
@@ -412,7 +412,7 @@ const detailsEl = () => screen.getByText('Details').closest('details') as HTMLDe
 const sets = (title: string) => chartOf(title).data.datasets.map((d) => d.data.map((v) => v + 0))
 const byLabel = (title: string, label: string) => chartOf(title).data.datasets.find((d) => d.label === label)
 
-describe('DetailsPanel collapse (acceptance 7)', () => {
+describe('DetailsPanel collapse', () => {
   it('is closed by default', () => {
     details()
     expect(detailsEl()).not.toHaveAttribute('open')
@@ -595,7 +595,7 @@ describe('DetailsPanel contents', () => {
   })
 })
 
-// ── Section 36: ledger / trend, opening on a choice, one crosshair ──
+// ── Ledger / trend, opening on a choice, one crosshair ──
 
 beforeEach(() => {
   useGameStore.getState().reset()
@@ -607,7 +607,7 @@ const choose = (day: number | null): void => {
 }
 const DAY_TITLE = (d: number): string => `Day ${d}: where the profit came from`
 
-describe('Ledger / Trend (acceptance 5)', () => {
+describe('Ledger / Trend', () => {
   it('offers a Costs control with Ledger first and pressed', () => {
     details()
     const group = screen.getByRole('group', { name: 'Costs' })
@@ -657,7 +657,7 @@ describe('Ledger / Trend (acceptance 5)', () => {
   })
 })
 
-describe('Opening on a choice (acceptance 6; failure mode 5)', () => {
+describe('Opening on a choice', () => {
   it('does not open on its first render when a day is already selected', () => {
     useGameStore.setState({ selectedDay: 2 })
     details()
@@ -702,7 +702,7 @@ describe('Opening on a choice (acceptance 6; failure mode 5)', () => {
   })
 })
 
-describe('One crosshair (acceptance 7)', () => {
+describe('One crosshair', () => {
   const SIX = [
     'Inventory vs backlog',
     'Equal supply votes',

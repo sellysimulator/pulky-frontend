@@ -304,7 +304,7 @@ describe('users.ts', () => {
   })
 })
 
-describe('games.ts emits the spec 12.1 events (criterion 11)', () => {
+describe('games.ts emits the spec 12.1 events', () => {
   const last = () => h.emitted[h.emitted.length - 1]
 
   it('join_waiting {room_id, host_secret?}', () => {
@@ -326,7 +326,7 @@ describe('games.ts emits the spec 12.1 events (criterion 11)', () => {
     expect(last().args).toEqual([{ room_id: 'ABC234', session_token: 'tok' }])
   })
 
-  it('failure mode 10: join(code, null, null) emits a payload with no session_token and no display_name key', () => {
+  it('join(code, null, null) emits a payload with no session_token and no display_name key', () => {
     join('ABC234', null, null)
     const payload = last().args[0] as Record<string, unknown>
     expect(payload).toEqual({ room_id: 'ABC234' })
@@ -386,7 +386,7 @@ describe('games.ts emits the spec 12.1 events (criterion 11)', () => {
     expect(last().args).toEqual([{ room_id: 'ABC234', ...decision }])
   })
 
-  it('failure mode 14: null peer limits stay in the payload as null', () => {
+  it('null peer limits stay in the payload as null', () => {
     submitDay('ABC234', { ...decision, peer_buy: null, peer_sell: null })
     const payload = last().args[0] as Record<string, unknown>
     expect('peer_buy' in payload).toBe(true)

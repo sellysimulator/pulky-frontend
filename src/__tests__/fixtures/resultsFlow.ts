@@ -1,12 +1,12 @@
 /**
- * Section 35 shared test data (test data only): the worked examples of section 35 section 4, and views
+ * Shared test data for the results charts (test data only): the worked examples, and views
  * carrying the spec 8.6 `flow`. Built by hand so they do not depend on the code under test.
  */
 import type { PulqueFlow, Weekday } from '../../types/game'
 import type { PulqueriaResultView, ResultsView } from '../../components/results/resultsView'
 import { makeView } from './results'
 
-/** Section 35 section 4's flow example. */
+/** The flow example. */
 export const FLOW_EXAMPLE: PulqueFlow = {
   initial_stock: 20, initial_pipeline: 10, shipped_spot: 30, shipped_futures: 0,
   lost_transport: 5, in_transit_end: 0, delivered: 35, peer_bought: 2,
@@ -29,7 +29,7 @@ export const FLOW_UNBALANCED: PulqueFlow = {
 
 export const FLOW_KEYS = Object.keys(FLOW_EXAMPLE) as Array<keyof PulqueFlow>
 
-/** The 13 bands of section 35 section 3.3, in order. */
+/** The 13 bands of the flow, in order. */
 export const BAND_TABLE: Array<{ from: string; to: string; field: keyof PulqueFlow }> = [
   { from: 'spot', to: 'shipped', field: 'shipped_spot' },
   { from: 'futures', to: 'shipped', field: 'shipped_futures' },
@@ -73,14 +73,14 @@ export function expectedBands(f: PulqueFlow): Array<{ from: string; to: string; 
 /** `cumulative` is the server's `series.cumulative_profit`: profit so far after each day, in cents. */
 type Profile = { alias: string; name: string; profit: number[]; cumulative: number[]; total: number; fill: number | null; waste: number | null }
 
-/** Section 35 section 4: three pulquerías by rank P2, P1, P3; 3 days, Mon-Wed, multiplier [0.5, 1, 1]. */
+/** Three pulquerías by rank P2, P1, P3; 3 days, Mon-Wed, multiplier [0.5, 1, 1]. */
 export const EXAMPLE_PROFILES: Profile[] = [
   { alias: 'P2', name: 'La Chula', profit: [100.1, 50.2, 30.3], cumulative: [100.1, 150.3, 180.6], total: 200.6, fill: 0.9, waste: 0.1 },
   { alias: 'P1', name: 'Don Agave', profit: [80, -20.5, 60], cumulative: [80, 59.5, 119.5], total: 139.5, fill: 0.8, waste: 0.3 },
   { alias: 'P3', name: 'El Tinacal', profit: [10, 10, 10], cumulative: [10, 20, 30], total: 30, fill: null, waste: 0.2 },
 ]
 
-/** A minimal view for the builders: only the fields section 35's builders and charts read. */
+/** A minimal view for the builders: only the fields their builders and charts read. */
 export function makeSmallView(profiles: Profile[] = EXAMPLE_PROFILES, multipliers = [0.5, 1, 1], flows?: Record<string, PulqueFlow>): ResultsView {
   const weekdays: Weekday[] = ['mon', 'tue', 'wed']
   const players = profiles.map((p, i) => {

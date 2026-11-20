@@ -1,5 +1,5 @@
 /**
- * Section 29 DOM helpers. `react-chartjs-2` is mocked in each test file so that a chart renders as
+ * DOM helpers for the summary tests. `react-chartjs-2` is mocked in each test file so that a chart renders as
  * `<div data-testid="chart-<type>" data-chart="{type,data,options}">`; these helpers read it back.
  */
 import { AxiosError, AxiosHeaders, type AxiosAdapter, type InternalAxiosRequestConfig } from 'axios'
@@ -106,7 +106,7 @@ export interface HttpSpy {
 }
 
 /**
- * Replaces the axios adapter of the shared instance (section 21, 3.3a); nothing else is mocked.
+ * Replaces the axios adapter of the shared instance; nothing else is mocked.
  * A handler may answer later by returning a promise of its reply.
  */
 export function mockHttp(handler: (cfg: InternalAxiosRequestConfig, nth: number) => Reply | Promise<Reply>): HttpSpy {

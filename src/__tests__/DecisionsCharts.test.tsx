@@ -1,7 +1,7 @@
 /**
- * Section 29 - block 5, Decisions (spec 13.8 block 5; design.md 3.3, 7.18).
- * Rendered through ResultsSummary (DecisionsCharts' props are not part of the Public surface).
- * Acceptance criteria 12, 13; failure mode 12 (chart side) and the peer-group rules of 3.2.
+ * Block 5, Decisions (spec 13.8 block 5; design.md 3.3, 7.18).
+ * Rendered through ResultsSummary (DecisionsCharts is not rendered on its own).
+ * Covers the peer market charts and their peer groups.
  */
 import { createElement, type ReactNode } from 'react'
 import { fireEvent, render, screen, within } from '@testing-library/react'
@@ -120,7 +120,7 @@ describe('Lots conserved', () => {
   })
 })
 
-describe('Peer market (criterion 12, failure mode 12)', () => {
+describe('Peer market', () => {
   it('has one chart per pulquería that traded, in rank order, and none for one that did not', () => {
     renderDecisions()
     expect(peerTitles()).toEqual([`Peer units per day: ${NAMES.P2}`, `Peer units per day: ${NAMES.P1}`])
@@ -184,7 +184,7 @@ describe('Peer market (criterion 12, failure mode 12)', () => {
     expect(peerTitles()).toEqual([])
   })
 
-  it('failure mode 11: a payload without peer fields draws no peer chart', () => {
+  it('a payload without peer fields draws no peer chart', () => {
     renderDecisions(makeView(withoutPeer))
     expect(peerTitles()).toEqual([])
     const labels = allCharts().flatMap((c) => c.data.datasets.map((d) => d.label))

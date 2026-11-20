@@ -1,8 +1,7 @@
 /**
- * Section 26 - DecisionForm: layout, prefill, outlay, submit, validity, locking,
+ * DecisionForm: layout, prefill, outlay, submit, validity, locking,
  * closed windows and the conserve rows.
- * Acceptance criteria 1, 2, 4, 5, 6, 9, 10, 14; failure modes 3, 4, 5, 9, 13.
- * Queries are by role, label or text; copy is only what the spec or the section document quotes.
+ * Queries are by role, label or text; copy is only what the spec quotes.
  */
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -230,7 +229,7 @@ function expectDomOrder(elements: HTMLElement[]) {
   }
 }
 
-describe('layout (acceptance criterion 1)', () => {
+describe('layout', () => {
   it('renders the eight rows in order with the peer market on', () => {
     renderForm()
     expect(card()).toBeInTheDocument()
@@ -284,7 +283,7 @@ describe('layout (acceptance criterion 1)', () => {
     ])
   })
 
-  it('failure mode 4: Submit day is the last focusable element of the card', () => {
+  it('Submit day is the last focusable element of the card', () => {
     renderForm()
     const focusables = Array.from(card().querySelectorAll<HTMLElement>(FOCUSABLE))
     expect(focusables.length).toBeGreaterThan(6)
@@ -292,7 +291,7 @@ describe('layout (acceptance criterion 1)', () => {
     expect(last).toBe(submitBtn())
   })
 
-  it('failure mode 4: still last when both peer rows are ticked and filled (more inputs above it)', async () => {
+  it('still last when both peer rows are ticked and filled (more inputs above it)', async () => {
     const user = userEvent.setup()
     renderForm()
     await user.click(buyBox())
@@ -374,7 +373,7 @@ describe('layout (acceptance criterion 1)', () => {
   })
 })
 
-describe('state and prefill (acceptance criterion 2)', () => {
+describe('state and prefill', () => {
   it('renders nothing for a finished view, which has no prefill and no order windows (spec 12.4)', () => {
     const { container } = renderForm({
       view: { ...makeView(), phase: 'finished', order_windows: null },
@@ -437,7 +436,7 @@ describe('state and prefill (acceptance criterion 2)', () => {
     expect(radio('EXW')).toBeChecked()
   })
 
-  it('failure mode 5: a re-sent state for the same day does not reset what the player typed', async () => {
+  it('a re-sent state for the same day does not reset what the player typed', async () => {
     const user = userEvent.setup()
     const { rerenderForm } = renderForm()
     setField(spot(), 77)
@@ -522,7 +521,7 @@ describe('the server preview (spec 12.4)', () => {
   })
 })
 
-describe('outlay line and bar (acceptance criterion 4)', () => {
+describe('outlay line and bar', () => {
   it("shows the server's Today: total of cash as quantities, tier and ticks change", async () => {
     const user = userEvent.setup()
     renderForm()
@@ -562,7 +561,7 @@ describe('outlay line and bar (acceptance criterion 4)', () => {
     expect(tipText('CIP details')).toContain(squash('60 spot and 20 futures units'))
   })
 
-  it('failure mode 9: a peer purchase limit is sent but the server adds nothing for it', async () => {
+  it('a peer purchase limit is sent but the server adds nothing for it', async () => {
     const user = userEvent.setup()
     renderForm()
     await user.click(lotBox('L3'))
@@ -574,12 +573,12 @@ describe('outlay line and bar (acceptance criterion 4)', () => {
   })
 })
 
-describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
+describe('Submit day and affordability', () => {
   async function tickMock(user: ReturnType<typeof userEvent.setup>) {
     await user.click(lotBox('L3'))
   }
 
-  it('failure mode 3: at exactly the cash Submit day is enabled', async () => {
+  it('at exactly the cash Submit day is enabled', async () => {
     const user = userEvent.setup()
     renderForm({ view: makeView({ cash: 910 }) })
     await tickMock(user)
@@ -597,7 +596,7 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
-  it('acceptance criterion 5: an invalid field never disables Submit day; the press shows its message', async () => {
+  it('an invalid field never disables Submit day; the press shows its message', async () => {
     const user = userEvent.setup()
     const { onSubmit } = renderForm({ view: makeView({ cash: 100 }) })
     setField(spot(), '1')
@@ -631,7 +630,7 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
     expect(onSubmit).toHaveBeenCalledTimes(1)
   })
 
-  it('submits once with the full decision of the worked example (acceptance criterion 9)', async () => {
+  it('submits once with the full decision of the worked example', async () => {
     const user = userEvent.setup()
     const { onSubmit } = renderForm()
     await user.click(lotBox('L3'))
@@ -698,7 +697,7 @@ describe('Submit day and affordability (acceptance criteria 5 and 9)', () => {
 
 const RICH = RICH_VIEW() // an order of 10,000 units must not also be over the cash
 
-describe('quantity validity, from the server (acceptance criteria 5 and 16)', () => {
+describe('quantity validity, from the server', () => {
   it.each([
     ['an empty spot field', () => spot(), ''],
     ['a spot order above 9,999', () => spot(), '10000'],
@@ -714,7 +713,7 @@ describe('quantity validity, from the server (acceptance criteria 5 and 16)', ()
     expect(submitBtn()).toBeEnabled()
   })
 
-  it('failure mode 16: emptying a quantity field that still has focus shows no message; leaving it shows the message', async () => {
+  it('emptying a quantity field that still has focus shows no message; leaving it shows the message', async () => {
     renderForm({ view: RICH })
     act(() => spot().focus())
     setField(spot(), '')
@@ -783,7 +782,7 @@ describe('quantity validity, from the server (acceptance criteria 5 and 16)', ()
   })
 })
 
-describe('closed windows (acceptance criterion 6)', () => {
+describe('closed windows', () => {
   it("a closed spot window disables the field at 0 and shows the server's message verbatim", () => {
     renderForm({
       view: makeView({ order_windows: { spot_open: false, spot_message: 'Server says: spot is shut (test copy 1)' } }),
@@ -820,7 +819,7 @@ describe('closed windows (acceptance criterion 6)', () => {
   })
 })
 
-describe('locked form (acceptance criterion 5)', () => {
+describe('locked form', () => {
   it('makes every control read-only, shows Submitted, and swaps the outlay row for lockedFooter', () => {
     renderForm({ locked: true, lockedFooter: <p>Waiting for the others</p> })
     const inert = (el: HTMLElement) =>
@@ -854,7 +853,7 @@ describe('locked form (acceptance criterion 5)', () => {
   })
 })
 
-describe('conserve rows (acceptance criteria 10 and 14)', () => {
+describe('conserve rows', () => {
   it('shows each lot with its quality, a risk of 100 - quality and its cost', () => {
     renderForm()
     const l3 = lotBox('L3').closest('label')!
@@ -867,7 +866,7 @@ describe('conserve rows (acceptance criteria 10 and 14)', () => {
     expect(squash(l4.textContent)).toContain('$30.00')
   })
 
-  it('failure mode 13: a lot at quality 13 with risk_tonight 0.875 shows 87%, not 88%', () => {
+  it('a lot at quality 13 with risk_tonight 0.875 shows 87%, not 88%', () => {
     renderForm({ view: makeView({ cellar: [lot('L7', 4, 13, { risk_tonight: 0.875 })] }) })
     const row = lotBox('L7').closest('label')!
     expect(squash(row.textContent)).toContain(squash('Lot #7 · 4 units · 13%'))

@@ -1,5 +1,5 @@
 /**
- * Section 22, acceptance criterion 3 and failure mode 4 ("Gradient sneaks in"):
+ * No gradients:
  * no file under `src/` other than `src/__tests__/` contains `gradient`
  * (design.md §1, §13). The scanner is tested on in-memory files first, so the
  * scan over `src/` cannot pass merely because it scans nothing.
@@ -51,7 +51,7 @@ describe('the gradient scanner', () => {
   })
 })
 
-describe('src/ (criterion 3)', () => {
+describe('src/', () => {
   const root = resolve(process.cwd(), 'src')
   const sources = listSources(root, root)
 
@@ -67,7 +67,7 @@ describe('src/ (criterion 3)', () => {
   })
 })
 
-describe('raw colours (conventions §4)', () => {
+describe('raw colours (design.md §2)', () => {
   const allowed = [
     'index.css',
     join('components', 'charts', 'chartSetup.ts'),

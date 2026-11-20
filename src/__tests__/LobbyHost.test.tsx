@@ -1,4 +1,4 @@
-/** Section 23 — LobbyHost (spec 23 §3.5). Acceptance criteria 4, 8; failure modes 1, 6. */
+/** LobbyHost (design.md §8.3). */
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -56,7 +56,7 @@ describe('LobbyHost', () => {
     expect(emit).toHaveBeenCalledWith('start_game', { room_id: 'K7M2QX', host_secret: 's3cret' })
   })
 
-  it('does not start without a secret, keeps the button disabled and says why (failure mode 6)', async () => {
+  it('does not start without a secret, keeps the button disabled and says why', async () => {
     const user = userEvent.setup()
     seed()
     render(<LobbyHost roomCode="K7M2QX" hostSecret={null} />)
@@ -67,7 +67,7 @@ describe('LobbyHost', () => {
     expect(emit).not.toHaveBeenCalled()
   })
 
-  it('stays disabled with two connected players when the server says canStart false (failure mode 1)', () => {
+  it('stays disabled with two connected players when the server says canStart false', () => {
     seed({ can_start: false, start_blocked_reason: 'Waiting for at least 2 players.' })
     render(<LobbyHost roomCode="K7M2QX" hostSecret="s3cret" />)
     expect(screen.getByRole('button', { name: 'Start game' })).toBeDisabled()

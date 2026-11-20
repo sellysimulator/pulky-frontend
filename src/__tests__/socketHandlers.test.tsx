@@ -131,7 +131,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('registration (criterion 3)', () => {
+describe('registration', () => {
   it('registers exactly one listener per spec 12.2 event on import', async () => {
     await load()
     for (const event of SERVER_EVENTS) {
@@ -146,7 +146,7 @@ describe('registration (criterion 3)', () => {
   })
 })
 
-describe('the socket (failure mode 9)', () => {
+describe('the socket', () => {
   it('is built with autoConnect false, the websocket+polling transports, reconnection and the /socket.io path', async () => {
     await load()
     expect(h.ioCalls).toHaveLength(1)
@@ -208,7 +208,7 @@ describe('the socket (failure mode 9)', () => {
   })
 })
 
-describe('re-asserting identity on connect (criterion 5)', () => {
+describe('re-asserting identity on connect', () => {
   it('a host with a stored secret emits join_waiting {room_id, host_secret}', async () => {
     const { useGameStore, storage } = await load()
     useGameStore.getState().setRoom('ABC234', true)
@@ -278,7 +278,7 @@ describe('re-asserting identity on connect (criterion 5)', () => {
   })
 })
 
-describe('connect_error (criterion 7)', () => {
+describe('connect_error', () => {
   const COPY = 'Could not reach the game server.'
 
   it('sets connectionError and raises exactly one error alert across repeated failures', async () => {
@@ -388,7 +388,7 @@ describe('error RATE_LIMITED (spec 0.6, 12.2)', () => {
   })
 })
 
-describe('credentials: where they are stored (criterion 4, failure modes 4 and 5)', () => {
+describe('credentials: where they are stored', () => {
   it('joined stores the session token in localStorage for that room only, and never in sessionStorage', async () => {
     const { useGameStore, storage } = await load()
     useGameStore.getState().setRoom('ABC234', false)
@@ -550,7 +550,7 @@ describe('every server event reaches the store', () => {
   })
 })
 
-describe('the app does not register handlers (criterion 3, failure mode 6)', () => {
+describe('the app does not register handlers', () => {
   async function renderApp(): Promise<void> {
     const { AuthProvider } = await import('../auth/AuthContext')
     const { BackendStatusProvider } = await import('../contexts/BackendStatusContext')

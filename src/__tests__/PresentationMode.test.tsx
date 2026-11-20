@@ -1,4 +1,4 @@
-/** Section 28 — PresentationMode (plan 28 §3.7, §4). Acceptance 7, 8; failure modes 1, 2, 3, 8. */
+/** PresentationMode (design.md §8.7). */
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -243,7 +243,7 @@ describe('PresentationMode peer totals', () => {
 })
 
 describe('PresentationMode submissions', () => {
-  it('shows one chip per pulquería with its name and state word (failure mode 3)', () => {
+  it('shows one chip per pulquería with its name and state word', () => {
     render(<PresentationMode data={data()} onExit={() => {}} />)
     expect(exactText('Don Agave submitted').length).toBeGreaterThan(0)
     expect(exactText('La Chula submitted').length).toBeGreaterThan(0)
@@ -252,7 +252,7 @@ describe('PresentationMode submissions', () => {
   })
 })
 
-describe('PresentationMode leaks nothing private (failure modes 1, 2, 3, 8)', () => {
+describe('PresentationMode leaks nothing private', () => {
   const PRIVATE = [
     '6,120.55',
     '6120.55',
@@ -273,7 +273,7 @@ describe('PresentationMode leaks nothing private (failure modes 1, 2, 3, 8)', ()
     'sold 10 to',
   ]
 
-  /** The §4 state: private values in the host view, the player records and the config. */
+  /** The worked-example state: private values in the host view, the player records and the config. */
   function seedPrivateState(): void {
     const players: Record<string, unknown> = {}
     for (const [a, name] of Object.entries(NAMES)) {
@@ -340,7 +340,7 @@ describe('PresentationMode leaks nothing private (failure modes 1, 2, 3, 8)', ()
     })
   }
 
-  it('renders none of the private values for the selector output of the §4 state', () => {
+  it('renders none of the private values for the selector output of the worked-example state', () => {
     seedPrivateState()
     const selected = selectPresentationData(useGameStore.getState())!
     render(<PresentationMode data={selected} onExit={() => {}} />)
@@ -374,7 +374,7 @@ describe('PresentationMode leaks nothing private (failure modes 1, 2, 3, 8)', ()
   })
 })
 
-describe('PresentationMode charts (plan 37 §3.2, acceptance 4)', () => {
+describe('PresentationMode charts', () => {
   const HISTORY = [
     {
       day: 1,

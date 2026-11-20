@@ -1,4 +1,4 @@
-/** Section 23 — ParticipantList (spec 23 §3.2). Acceptance criteria 2, 6, 8; failure modes 2, 3. */
+/** ParticipantList (design.md §8.3). */
 import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -46,7 +46,7 @@ describe('ParticipantList', () => {
     expect(screen.getByText('Share the room code or the invite link.')).toBeInTheDocument()
   })
 
-  it('orders by alias number, not by text or by count: P2 before P10 (failure mode 2)', () => {
+  it('orders by alias number, not by text or by count: P2 before P10', () => {
     render(<ParticipantList participants={[P('P10', 'Ten'), P('P2', 'Two'), P('P1', 'One')]} seatsTotal={12} />)
     const names = screen.getAllByRole('listitem').map((li) => li.textContent ?? '')
     const idx = (n: string) => names.findIndex((t) => t.includes(n))
@@ -54,7 +54,7 @@ describe('ParticipantList', () => {
     expect(idx('Two')).toBeLessThan(idx('Ten'))
   })
 
-  it('states connection in words on every row (failure mode 3)', () => {
+  it('states connection in words on every row', () => {
     render(<ParticipantList participants={[P('P1', 'Don Agave', true), P('P2', 'La Chula', false)]} seatsTotal={4} />)
     const lost = screen.getByText('La Chula').closest('li') as HTMLElement
     expect(lost.textContent).toContain('disconnected')

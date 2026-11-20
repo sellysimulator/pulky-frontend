@@ -1,7 +1,6 @@
 /**
- * Section 29 - ResultsPage (spec 13.8 behaviour; design.md 4.4, 8.8).
- * Acceptance criteria 2, 4, 7, 8 (page side), 10 (header); failure modes 3, 4, 6, 8.
- * Requests are observed through the axios adapter (section 21, 3.3a); the REST clients are not mocked.
+ * ResultsPage (spec 13.8 behaviour; design.md 4.4, 8.8).
+ * Requests are observed through the axios adapter; the REST clients are not mocked.
  */
 import { createElement, type ReactNode } from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
@@ -158,7 +157,7 @@ describe('page chrome', () => {
   })
 })
 
-describe('live path first (criterion 2, failure mode 8)', () => {
+describe('live path first', () => {
   it('uses the store\'s game_finished when it carries this page\'s game id, and requests no results', async () => {
     spy = mockHttp(() => ({ status: 200, data: renamedResponse() }))
     finishedInStore()
@@ -168,7 +167,7 @@ describe('live path first (criterion 2, failure mode 8)', () => {
     expect(spy.seen.map(urlPath)).toEqual([])
   })
 
-  it('failure mode 8: a game_finished for another game is not used, even under the same room code', async () => {
+  it('a game_finished for another game is not used, even under the same room code', async () => {
     spy = mockHttp(() => ({ status: 200, data: renamedResponse() }))
     finishedInStore({ finished: { ...makeFinished(), game_id: OTHER_GAME } as never, gamePublicId: OTHER_GAME })
     mount(PAGE)
@@ -196,7 +195,7 @@ describe('loading', () => {
   })
 })
 
-describe('404 handling (criterion 7, failure mode 6)', () => {
+describe('404 handling', () => {
   beforeEach(() => {
     vi.useFakeTimers()
   })
@@ -230,7 +229,7 @@ describe('404 handling (criterion 7, failure mode 6)', () => {
     mount(PAGE)
     await settle()
     await advance(3000)
-    // InlineAlert: warning is a status, danger would be an alert (section 22).
+    // InlineAlert: warning is a status, danger would be an alert (design.md §7.13).
     expect(screen.getByText(UNAVAILABLE).closest('[role="status"]')).not.toBeNull()
     expect(screen.getByText(UNAVAILABLE).closest('[role="alert"]')).toBeNull()
   })
@@ -267,15 +266,15 @@ describe('404 handling (criterion 7, failure mode 6)', () => {
   })
 })
 
-describe('the viewer (criterion 4, failure modes 3 and 4)', () => {
-  it('failure mode 3: with no host secret, profits show on the first render and there is no Reveal', () => {
+describe('the viewer', () => {
+  it('with no host secret, profits show on the first render and there is no Reveal', () => {
     finishedInStore()
     mount(PAGE)
     expect(onScreen(TOP_PROFIT).length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Reveal' })).not.toBeInTheDocument()
   })
 
-  it('failure mode 4: with the host secret for this game, no profit is on screen until Reveal is pressed', () => {
+  it('with the host secret for this game, no profit is on screen until Reveal is pressed', () => {
     setGameHostSecret(GAME_ID, 'sec-1')
     finishedInStore()
     mount(PAGE)
@@ -434,7 +433,7 @@ describe('the export, for every viewer (spec 13.8 block 6)', () => {
   })
 })
 
-describe('the same figures on both paths (criterion 2)', () => {
+describe('the same figures on both paths', () => {
   it('shows the same pulquería names and the same profits live and fetched', async () => {
     window.sessionStorage.clear()
     finishedInStore()

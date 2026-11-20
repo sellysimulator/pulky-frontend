@@ -1,6 +1,5 @@
 /**
- * Section 30 - ProfilePage, ProfileHeader, ProfileStats (plan 3.1, 3.2; design.md 8.9; spec 13.6 avatars).
- * Acceptance criteria 1, 2, 3, 5 (route side), 6; failure modes 1, 4, 5.
+ * ProfilePage, ProfileHeader, ProfileStats (design.md 8.9; spec 13.6 avatars).
  * Requests are observed through the axios adapter; the REST clients are not mocked.
  */
 import { createElement, type ReactNode } from 'react'
@@ -105,7 +104,7 @@ describe('the route descriptor', () => {
   })
 })
 
-describe('failure mode 1 / criterion 1: a guest', () => {
+describe('a guest', () => {
   it('sees the sign-in empty state on /profile and no user request is made', async () => {
     auth.mode = 'guest'
     serve()
@@ -226,14 +225,14 @@ describe('/profile/games/:gameId', () => {
     expect(screen.queryByText('Your games')).toBeNull()
   })
 
-  it('criterion 5: a 404 shows the warning', async () => {
+  it('a 404 shows the warning', async () => {
     serve({ game: { status: 404, data: { detail: 'Results not found.' } } })
     mount('/profile/games/nope')
     expect(await screen.findByText('That game is not in your profile.')).toBeInTheDocument()
   })
 })
 
-describe('avatar (criterion 6, failure mode 4)', () => {
+describe('avatar', () => {
   it('uses the photo with referrerPolicy no-referrer', async () => {
     serve()
     const { container } = mount()
@@ -263,7 +262,7 @@ describe('avatar (criterion 6, failure mode 4)', () => {
   })
 })
 
-describe('failure mode 5: null averages are not zero', () => {
+describe('null averages are not zero', () => {
   it('shows an em dash for a null average and never 0%', async () => {
     serve({ stats: { ...STATS, avg_waste_rate: null, avg_fill_rate: null, avg_market_share: null } })
     mount()

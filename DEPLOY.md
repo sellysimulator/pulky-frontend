@@ -7,6 +7,7 @@ Spec: `docs/spec/13-deploy.md` section 13.13 (the checklist lives there; this fi
 - Deploy outside class hours: a backend restart ends every running game.
 - Wire changes: the backend ships first, then the frontend, in the same window.
 - Never commit a secret. Every file imported from `src/` must be committed (`firebase.ts` included), or CI cannot build.
+- The workflows, `vite.config.ts`'s coverage thresholds and this file are pinned by `src/__tests__/deployFiles.test.ts`. Change the test together with the file it pins.
 
 ## One-time setup
 

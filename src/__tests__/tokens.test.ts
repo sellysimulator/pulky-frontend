@@ -1,5 +1,5 @@
 /**
- * Section 22, acceptance criterion 2: `src/index.css` is design.md §12.1 and
+ * `src/index.css` is design.md §12.1 and
  * `index.html` loads the fonts of design.md §12.2.
  *
  * The expected declarations are design.md §12.1's `@theme` block, one entry per

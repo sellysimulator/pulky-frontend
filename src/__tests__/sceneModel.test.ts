@@ -94,9 +94,9 @@ function clone(model: SceneModel): SceneModel {
 const F = (): SceneModel => buildSceneModel(baseProps())
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Acceptance 1: the modules import no three.js, @react-three/* or React.
+// The modules import no three.js, @react-three/* or React.
 // ---------------------------------------------------------------------------------------------------------------------
-describe('module purity of imports (acceptance 1)', () => {
+describe('module purity of imports', () => {
   const FORBIDDEN = ['react', 'react/jsx-runtime', 'react-dom', 'three', '@react-three/fiber', '@react-three/drei']
   afterAll(() => {
     for (const name of FORBIDDEN) vi.doUnmock(name)
@@ -161,7 +161,7 @@ function plain(id: string, y: number, height: number, extra: Partial<SceneSign> 
   }
 }
 
-describe('stackUp and stackDown (§3.2)', () => {
+describe('stackUp and stackDown', () => {
   it('stackUp: the last sign sits on baseY, each sign above is STACK_GAP higher; only y changes', () => {
     const a = plain('a', 0, 0.5, { position: [1, 9, 2] })
     const b = plain('b', 0, 0.3, { position: [3, 9, 4] })
@@ -198,9 +198,9 @@ describe('stackUp and stackDown (§3.2)', () => {
 })
 
 // ---------------------------------------------------------------------------------------------------------------------
-// The worked examples of §4 (acceptance 2)
+// The worked examples
 // ---------------------------------------------------------------------------------------------------------------------
-describe('buildSceneModel: worked example F (§4)', () => {
+describe('buildSceneModel: worked example F', () => {
   const m = F()
 
   it('vats', () => {
@@ -422,7 +422,7 @@ describe('buildSceneModel: worked example F (§4)', () => {
   })
 })
 
-describe('buildSceneModel: variants of F (§4)', () => {
+describe('buildSceneModel: variants of F', () => {
   it('8 lots: five vats, an overflow sign in the last slot', () => {
     const m = buildSceneModel(variant((p) => void (p.view.cellar = mixedCellar(8))))
     expect(m.vats).toHaveLength(5)
@@ -602,9 +602,9 @@ describe('buildSceneModel: variants of F (§4)', () => {
 })
 
 // ---------------------------------------------------------------------------------------------------------------------
-// §3.3 copy: the rest of the zones
+// Copy: the rest of the zones
 // ---------------------------------------------------------------------------------------------------------------------
-describe('copy and zones (§3.3)', () => {
+describe('copy and zones', () => {
   it('day stats rows: multiplier to 2 dp, demand rounded, brief rows left out when brief is null', () => {
     const m = buildSceneModel(
       variant((p) => {
@@ -743,9 +743,9 @@ describe('copy and zones (§3.3)', () => {
 })
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Failure modes 5 to 8 (display scaling, absence, risk, order)
+// Display scaling, absence, risk, order
 // ---------------------------------------------------------------------------------------------------------------------
-describe('failure mode 5: a capped figure shown as the real one', () => {
+describe('a capped figure shown as the real one', () => {
   it('12 lots give five vats and "+7 more lots"', () => {
     const m = buildSceneModel(variant((p) => void (p.view.cellar = mixedCellar(12))))
     expect(m.vats).toHaveLength(5)
@@ -793,7 +793,7 @@ describe('failure mode 5: a capped figure shown as the real one', () => {
   })
 })
 
-describe('failure mode 6: an absent thing is left out, not drawn', () => {
+describe('an absent thing is left out, not drawn', () => {
   it('peer market off: no Peer market row', () => {
     const m = buildSceneModel(variant((p) => void (p.config.peer_market.enabled = false)))
     expect(rowsOf(m, 'board-market-body').some((r) => r.includes('Peer market'))).toBe(false)
@@ -827,7 +827,7 @@ describe('failure mode 6: an absent thing is left out, not drawn', () => {
   })
 })
 
-describe('failure mode 7: risk and quality disagree', () => {
+describe('risk and quality disagree', () => {
   const lotSign = (quality: number): { rows: readonly string[]; risk: string } => {
     const m = buildSceneModel(variant((p) => void (p.view.cellar = [cellarLot('L1', 20, quality)])))
     return { rows: rowsOf(m, 'vat-L1'), risk: m.vats[0].risk }
@@ -877,7 +877,7 @@ describe('failure mode 7: risk and quality disagree', () => {
   })
 })
 
-describe('failure mode 8: wrong order', () => {
+describe('wrong order', () => {
   it('vats and their signs follow cellar order, however the quantities fall', () => {
     const m = buildSceneModel(
       variant((p) => {
@@ -935,9 +935,9 @@ describe('failure mode 8: wrong order', () => {
 })
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Failure mode 11 and acceptance 7: purity
+// Purity
 // ---------------------------------------------------------------------------------------------------------------------
-describe('failure mode 11: an impure model', () => {
+describe('an impure model', () => {
   it('equal props give deep-equal models (several variants)', () => {
     for (const { name, props } of sweepVariants().slice(0, 40)) {
       const again = sweepVariants().find((v) => v.name === name)
@@ -1000,7 +1000,7 @@ describe('failure mode 11: an impure model', () => {
 })
 
 // ---------------------------------------------------------------------------------------------------------------------
-// The sweep: §3.6 invariants (acceptance 6) and the structural acceptance criteria 4 and 5
+// The sweep: the scene invariants and the structural checks
 // ---------------------------------------------------------------------------------------------------------------------
 const OBJECT_TOP = (id: string): number | null => {
   if (id.startsWith('vat-') || id === 'cellar-overflow') return VAT.height
@@ -1186,7 +1186,7 @@ function sweepAll(check: (model: SceneModel) => string[]): string[] {
   return SWEEP.flatMap(({ name, model }) => check(model).map((v) => `${name}: ${v}`))
 }
 
-describe('the sweep covers what §6 asks for', () => {
+describe('the sweep covers the variants it needs', () => {
   it('has the variety it claims', () => {
     expect(SWEEP.length).toBeGreaterThan(100)
     const cellarSizes = new Set(SWEEP.map((s) => s.props.view.cellar.length))
@@ -1203,7 +1203,7 @@ describe('the sweep covers what §6 asks for', () => {
   })
 })
 
-describe('failure mode 1: overlapping signs', () => {
+describe('overlapping signs', () => {
   it('no two floating signs overlap anywhere in the sweep', () => {
     expect(sweepAll((m) => overlapViolations(m))).toEqual([])
   })
@@ -1227,7 +1227,7 @@ describe('failure mode 1: overlapping signs', () => {
   })
 })
 
-describe('failure mode 2: a sign through a wall', () => {
+describe('a sign through a wall', () => {
   it('every turning circle stays inside the walls', () => {
     expect(sweepAll(wallViolations)).toEqual([])
   })
@@ -1245,7 +1245,7 @@ describe('failure mode 2: a sign through a wall', () => {
   })
 })
 
-describe('failure mode 3: a sign inside its object', () => {
+describe('a sign inside its object', () => {
   it('every plate clears its object by 0.4 (a literal), the cellar title clears the vat signs, lost signs sit under main signs', () => {
     expect(sweepAll(clearanceViolations)).toEqual([])
   })
@@ -1273,7 +1273,7 @@ describe('failure mode 3: a sign inside its object', () => {
   })
 })
 
-describe('failure mode 4: a row that wraps', () => {
+describe('a row that wraps', () => {
   it('every row of every sign fits its maxWidth, at the extremes', () => {
     expect(sweepAll(rowViolations)).toEqual([])
   })
@@ -1298,7 +1298,7 @@ describe('failure mode 4: a row that wraps', () => {
   })
 })
 
-describe('mounted text fits its surface (invariant 5)', () => {
+describe('mounted text fits its surface', () => {
   it('boards and counter', () => {
     expect(sweepAll(mountedViolations)).toEqual([])
   })
@@ -1310,7 +1310,7 @@ describe('mounted text fits its surface (invariant 5)', () => {
   })
 })
 
-describe('objects stay apart and inside (invariant 6)', () => {
+describe('objects stay apart and inside', () => {
   it('vats, bin, trucks, agaves and trees', () => {
     expect(sweepAll((m) => objectViolations(m))).toEqual([])
   })
@@ -1321,7 +1321,7 @@ describe('objects stay apart and inside (invariant 6)', () => {
   })
 })
 
-describe('failure mode 9: stations unreachable or competing', () => {
+describe('stations unreachable or competing', () => {
   it('every stand-off is in bounds, 6 m apart, and clear of the spawn', () => {
     expect(sweepAll((m) => stationViolations(m))).toEqual([])
   })
@@ -1337,7 +1337,7 @@ describe('failure mode 9: stations unreachable or competing', () => {
   })
 })
 
-describe('failure mode 10: budget', () => {
+describe('budget', () => {
   it('signs and draw calls stay within the budget across the sweep', () => {
     expect(sweepAll((m) => budgetViolations(m))).toEqual([])
   })
@@ -1362,7 +1362,7 @@ describe('failure mode 10: budget', () => {
 })
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Acceptance 4 and 5 over the sweep
+// Structure over the sweep
 // ---------------------------------------------------------------------------------------------------------------------
 const RANK: [RegExp, number][] = [
   [/^counter-title$/, 0],
@@ -1409,8 +1409,8 @@ function expectedKind(id: string): { size: number; colour: string; floating: boo
   return { size: SIGN_SIZE.row, colour: 'ink', floating: true, maxWidth: SIGN_MAX_WIDTH.vat }
 }
 
-describe('structure of every model in the sweep (acceptance 3, 4, 5)', () => {
-  it('ids are unique and follow §3.4 order; a lost sign follows its main sign', () => {
+describe('structure of every model in the sweep', () => {
+  it('ids are unique and in their defined order; a lost sign follows its main sign', () => {
     const problems: string[] = []
     for (const { name, model } of SWEEP) {
       const list = ids(model)

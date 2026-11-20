@@ -1,7 +1,6 @@
 /**
  * Spec §13.6: the backend's hard limits are read from `GET /config/defaults` into the
- * store, never copied into the client. REST goes through the `http` instance's adapter
- * (section 21, 3.3a).
+ * store, never copied into the client. REST goes through the `http` instance's adapter.
  */
 import { render } from '@testing-library/react'
 import type { AxiosAdapter, InternalAxiosRequestConfig } from 'axios'

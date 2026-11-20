@@ -1,4 +1,4 @@
-/** Section 28 — EndEarlyControl (plan 28 §3.8). Acceptance 9; failure mode 5. */
+/** EndEarlyControl (spec §11.4). */
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -17,7 +17,7 @@ describe('EndEarlyControl', () => {
     expect(screen.queryByRole('button', { name: 'End game' })).toBeNull()
   })
 
-  it('failure mode 5: pressing End game early alone does not call onConfirm', () => {
+  it('pressing End game early alone does not call onConfirm', () => {
     const onConfirm = vi.fn()
     render(<EndEarlyControl onConfirm={onConfirm} />)
     fireEvent.click(trigger())
