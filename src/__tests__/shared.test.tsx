@@ -7,7 +7,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Plus } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BackendState } from '../contexts/BackendStatusContext'
 
@@ -1252,7 +1252,7 @@ describe('AppHeader', () => {
     expect(screen.getByText('Room KQ7M2P')).toBeInTheDocument()
   })
 
-  it('has an Account button that opens a menu with Profile and Sign out', async () => {
+  it('has an Account button that opens a menu with Profile and Sign out for a signed-in user', async () => {
     renderHeader()
     const account = screen.getByRole('button', { name: 'Account' })
     expect(account).toHaveAttribute('aria-expanded', 'false')
@@ -1260,7 +1260,8 @@ describe('AppHeader', () => {
     await userEvent.click(account)
     expect(screen.getByRole('button', { name: 'Account' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('Profile').closest('a')).toHaveAttribute('href', '/profile')
-    expect(screen.getByText('Sign out')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeInTheDocument()
+    expect(screen.queryByText('Sign in')).not.toBeInTheDocument()
   })
 
   it('Sign out calls signOut', async () => {
@@ -1270,15 +1271,33 @@ describe('AppHeader', () => {
     expect(h.auth.signOut).toHaveBeenCalledTimes(1)
   })
 
-  it('a guest sees the label Guest and the guest icon, and no Profile link', async () => {
+  it('a guest sees the label Guest and the guest icon, and a menu with Sign in to the welcome screen, no Profile and no Sign out', async () => {
     h.auth.mode = 'guest'
     h.auth.user = null
     const { container } = renderHeader()
     expect(screen.getByText('Guest')).toBeInTheDocument()
     expect(container.querySelector('svg.lucide-user-round')).not.toBeNull()
     await userEvent.click(screen.getByRole('button', { name: 'Account' }))
+    expect(screen.getByRole('menuitem', { name: 'Sign in' })).toHaveAttribute('href', '/')
     expect(screen.queryByText('Profile')).not.toBeInTheDocument()
-    expect(screen.getByText('Sign out')).toBeInTheDocument()
+    expect(screen.queryByText('Sign out')).not.toBeInTheDocument()
+  })
+
+  it('a guest following Sign in reaches the welcome screen, and signOut is never called', async () => {
+    h.auth.mode = 'guest'
+    h.auth.user = null
+    render(
+      <MemoryRouter initialEntries={['/home']}>
+        <Routes>
+          <Route path="/home" element={<AppHeader />} />
+          <Route path="/" element={<p>Welcome screen</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Account' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Sign in' }))
+    expect(screen.getByText('Welcome screen')).toBeInTheDocument()
+    expect(h.auth.signOut).not.toHaveBeenCalled()
   })
 
   it('a Google avatar sends no referrer and falls back to the initial when the image fails', () => {
