@@ -2,8 +2,8 @@
 
 React + Vite + TypeScript client for Pulky, the pulque supply game.
 
-The game, its architecture, its plumbing rules and its build order are specified in
-`../docs/spec/` (start at its `README.md`); the build plan is `../docs/plan/`.
+The game, its architecture and its plumbing rules are specified in `../docs/spec/` (start at
+its `README.md`); the visual system is `../docs/design.md`.
 
 ```bash
 nvm use            # Node 24.22.1 (.nvmrc)
@@ -49,6 +49,10 @@ npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build   # the
   A new figure is a new server field, never a client formula. Tests drive the form with a double of the server's answer
   (`src/__tests__/fixtures/fakeDecisionServer.ts`) and the config screen with the backend's recorded answers
   (`src/__tests__/fixtures/config_preview.json`, regenerated from the backend's `config_preview()` whenever a figure changes).
+- **Hand-mirrored wire constants.** `WEEKDAYS`, `INCOTERM_TIERS`, `INSURED_TIERS`, `PLAYER_CONFIG_KEYS` and `SECRET_CONFIG_KEYS`
+  (`src/types/game.ts`) and the room-code alphabet `CODE_ALPHABET` (`src/pages/HomePage.tsx`, the backend's
+  `ROOM_CODE_ALPHABET`, spec §11.3) are copied from the backend by hand: change them in both repos together. They are wire
+  contract, not game formulas, so D54 allows them.
 
 ## Charts
 
@@ -66,7 +70,7 @@ Every chart is a Chart.js chart inside a `ChartBox` (title, caption, a **Show ta
 chart uses `chartjs-chart-sankey`, pinned at exactly `0.19.1` (spec §13.1): read its diff before moving the pin, keep it in the
 `charts` chunk of `manualChunks`, and never use its default gradient colour mode.
 
-The rules are in `../docs/design.md` §3 and §9 and spec §13.7–§13.8; the build contracts are `../docs/plan/33`–`37`.
+The rules are in `../docs/design.md` §3, §7.18 and §9 and spec §13.1 and §13.7–§13.8.
 
 ## Third-party 3D assets
 

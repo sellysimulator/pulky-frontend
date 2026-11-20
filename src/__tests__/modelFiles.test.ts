@@ -3,7 +3,7 @@
  * Reads the real files: a changed byte, a missing credit or a stripped asset.extras fails here.
  */
 import { createHash } from 'node:crypto'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { FONT_CREDIT, MODEL_CREDITS, MODEL_LICENSE } from '../components/game/views/board3d/assetCredits'
@@ -129,14 +129,6 @@ describe('public/3dmodels (failure mode 12, acceptance 2)', () => {
       expect(readme).toContain(credit.authorUrl)
       expect(readme).toContain(credit.changes)
     })
-  })
-
-  it('is a byte copy of docs/plan/assets/3dmodels when the plan is beside the repo', () => {
-    const source = resolve(ROOT, '../docs/plan/assets/3dmodels')
-    if (!existsSync(source)) return
-    for (const file of readdirSync(source)) {
-      expect(readFileSync(resolve(MODELS, file)).equals(readFileSync(resolve(source, file)))).toBe(true)
-    }
   })
 
   it('credits the font in ATTRIBUTION.txt', () => {
