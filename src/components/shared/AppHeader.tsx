@@ -1,4 +1,4 @@
-import { CircleUser, LogOut, UserRound } from 'lucide-react'
+import { CircleUser, LogIn, LogOut, UserRound } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
@@ -85,29 +85,42 @@ export default function AppHeader({ context }: { context?: ReactNode }): ReactEl
             </button>
             {menuOpen ? (
               <div role="menu" className="absolute top-full right-0 z-40 mt-1 flex min-w-44 flex-col rounded-md border border-border bg-card p-1 shadow-raised">
+                {/* Only a signed-in user signs out; a guest leaves guest mode only by signing in (spec §13.6). */}
                 {mode === 'authenticated' ? (
+                  <>
+                    <Link
+                      role="menuitem"
+                      to="/profile"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex min-h-11 items-center gap-2 rounded-sm px-3 text-base hover:bg-inset"
+                    >
+                      <CircleUser size={18} aria-hidden="true" />
+                      <span>Profile</span>
+                    </Link>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setMenuOpen(false)
+                        void signOut()
+                      }}
+                      className="flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-3 text-left text-base hover:bg-inset"
+                    >
+                      <LogOut size={18} aria-hidden="true" />
+                      <span>Sign out</span>
+                    </button>
+                  </>
+                ) : (
                   <Link
                     role="menuitem"
-                    to="/profile"
+                    to="/"
                     onClick={() => setMenuOpen(false)}
                     className="flex min-h-11 items-center gap-2 rounded-sm px-3 text-base hover:bg-inset"
                   >
-                    <CircleUser size={18} aria-hidden="true" />
-                    <span>Profile</span>
+                    <LogIn size={18} aria-hidden="true" />
+                    <span>Sign in</span>
                   </Link>
-                ) : null}
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false)
-                    void signOut()
-                  }}
-                  className="flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-3 text-left text-base hover:bg-inset"
-                >
-                  <LogOut size={18} aria-hidden="true" />
-                  <span>Sign out</span>
-                </button>
+                )}
               </div>
             ) : null}
           </div>

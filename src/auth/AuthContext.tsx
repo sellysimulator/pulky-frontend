@@ -84,16 +84,16 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactElemen
     setConnectRequests((n) => n + 1)
   }, [])
 
+  // Only a signed-in user signs out; a guest leaves guest mode only by signing in (spec §13.6).
   // Nothing of this person stays behind in storage, the store or the socket (a shared classroom machine).
   const signOut = useCallback(async () => {
-    // Cleared first, so the reconnect's handshake already mints a fresh guest id.
+    // Without a Firebase user there is nothing to sign out of, and a guest's identity must survive.
+    if (auth.currentUser === null) return
+    // Cleared first, so the reconnect's handshake (through onAuthStateChanged) already mints a fresh guest id.
     clearPulkyStorage()
     useGameStore.getState().reset()
     setGuest(false)
-    const signedIn = auth.currentUser !== null
     await firebaseSignOut(auth)
-    // A Firebase sign-out reconnects through onAuthStateChanged; a guest's sign-out fires no such event.
-    if (!signedIn) setConnectRequests((n) => n + 1)
   }, [])
 
   const value = useMemo<AuthContextValue>(

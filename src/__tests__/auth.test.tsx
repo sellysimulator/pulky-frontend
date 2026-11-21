@@ -339,7 +339,8 @@ describe('signInWithGoogle', () => {
 describe('signOut', () => {
   it('signs out of Firebase', async () => {
     const { result } = mount()
-    act(() => h.state.authCb?.(user()))
+    h.state.currentUser = user()
+    act(() => h.state.authCb?.(h.state.currentUser))
     await act(async () => {
       await result.current.signOut()
     })
@@ -359,7 +360,8 @@ describe('signOut', () => {
     useGameStore.getState().addAlert({ kind: 'error', message: 'x' })
 
     const { result } = await mountAwake()
-    act(() => h.state.authCb?.(null))
+    h.state.currentUser = user()
+    act(() => h.state.authCb?.(h.state.currentUser))
     await act(async () => {
       await result.current.signOut()
     })
@@ -376,15 +378,35 @@ describe('signOut', () => {
     sessionStorage.removeItem('other.session')
   })
 
-  it('a guest sign-out (no Firebase event follows) reconnects the socket as a new guest', async () => {
+  it('without a signed-in user it does nothing: a guest keeps their identity, mode and socket', async () => {
     const { result } = await mountAwake()
     act(() => h.state.authCb?.(null))
     act(() => result.current.continueAsGuest())
+    localStorage.setItem('pulky.guest_id', 'guest_00000000-0000-0000-0000-000000000000')
+    localStorage.setItem('pulky.session_token.ABC234', 'tok')
+    useGameStore.getState().setRoom('ABC234', false)
     h.lifecycle.length = 0
     await act(async () => {
       await result.current.signOut()
     })
-    expect(result.current.mode).toBeNull()
-    expect(h.lifecycle).toEqual(['disconnect', 'connect'])
+    expect(h.state.signOutCalls).toHaveLength(0)
+    expect(result.current.mode).toBe('guest')
+    expect(getGuestMode()).toBe(true)
+    expect(localStorage.getItem('pulky.guest_id')).toBe('guest_00000000-0000-0000-0000-000000000000')
+    expect(localStorage.getItem('pulky.session_token.ABC234')).toBe('tok')
+    expect(useGameStore.getState().roomCode).toBe('ABC234')
+    expect(h.lifecycle).toEqual([])
+  })
+
+  it('a guest who signs in is authenticated and keeps the guest id and guest mode', async () => {
+    const { result } = await mountAwake()
+    act(() => h.state.authCb?.(null))
+    act(() => result.current.continueAsGuest())
+    localStorage.setItem('pulky.guest_id', 'guest_00000000-0000-0000-0000-000000000000')
+    h.state.currentUser = user()
+    act(() => h.state.authCb?.(h.state.currentUser))
+    expect(result.current.mode).toBe('authenticated')
+    expect(getGuestMode()).toBe(true)
+    expect(localStorage.getItem('pulky.guest_id')).toBe('guest_00000000-0000-0000-0000-000000000000')
   })
 })
