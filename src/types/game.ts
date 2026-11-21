@@ -646,7 +646,6 @@ export interface GameStats {
 export interface ResultsResponse {
   game_id: string
   room_code: string
-  host_display_name: string
   duration_days: number
   days_played: number
   ended_early: boolean
@@ -674,6 +673,15 @@ export interface MyGameRow {
   display_name: string
   rank: number
   total_profit: number
+}
+
+/** `GET /users/me/hosted-games` (spec §13.4): a game the user hosted signed in. */
+export interface HostedGameRow {
+  game_id: string
+  room_code: string
+  finished_at: string
+  player_count: number
+  ended_early: boolean
 }
 
 export interface UserMe {

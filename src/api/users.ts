@@ -1,5 +1,5 @@
 import http from './http'
-import type { MyGameResponse, MyGameRow, UserMe, UserStats } from '../types/game'
+import type { HostedGameRow, MyGameResponse, MyGameRow, UserMe, UserStats } from '../types/game'
 
 export async function upsertUser(displayName?: string): Promise<UserMe> {
   const body = displayName ? { display_name: displayName } : {}
@@ -19,6 +19,12 @@ export async function getMyStats(): Promise<UserStats> {
 
 export async function getMyGames(): Promise<MyGameRow[]> {
   const res = await http.get<{ games: MyGameRow[] }>('/users/me/games')
+  return res.data.games
+}
+
+/** The games the user hosted signed in (spec §13.4); never part of the played games or stats. */
+export async function getMyHostedGames(): Promise<HostedGameRow[]> {
+  const res = await http.get<{ games: HostedGameRow[] }>('/users/me/hosted-games')
   return res.data.games
 }
 

@@ -10,36 +10,36 @@ import ResultsSummary from '../results/ResultsSummary'
 import { resultsViewFromResponse } from '../results/resultsView'
 
 type Outcome =
-  | { gameId: string; kind: 'ok'; response: MyGameResponse }
-  | { gameId: string; kind: 'missing' }
-  | { gameId: string; kind: 'error'; message: string }
+  | { publicId: string; kind: 'ok'; response: MyGameResponse }
+  | { publicId: string; kind: 'missing' }
+  | { publicId: string; kind: 'error'; message: string }
 
 /** One played game, rendered by the game summary (ResultsView, spec §13.8) from the same response. */
-export default function GameDetail({ gameId }: { gameId: string }): ReactElement {
+export default function GameDetail({ publicId }: { publicId: string }): ReactElement {
   const [outcome, setOutcome] = useState<Outcome | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    getMyGame(gameId).then(
+    getMyGame(publicId).then(
       (response) => {
-        if (!cancelled) setOutcome({ gameId, kind: 'ok', response })
+        if (!cancelled) setOutcome({ publicId, kind: 'ok', response })
       },
       (err: unknown) => {
         if (cancelled) return
         const status = (err as { response?: { status?: number } } | null)?.response?.status
         setOutcome(
           status === 404
-            ? { gameId, kind: 'missing' }
-            : { gameId, kind: 'error', message: errorMessage(err, 'Could not load your profile.') },
+            ? { publicId, kind: 'missing' }
+            : { publicId, kind: 'error', message: errorMessage(err, 'Could not load your profile.') },
         )
       },
     )
     return () => {
       cancelled = true
     }
-  }, [gameId])
+  }, [publicId])
 
-  const current = outcome !== null && outcome.gameId === gameId ? outcome : null
+  const current = outcome !== null && outcome.publicId === publicId ? outcome : null
   const response = current?.kind === 'ok' ? current.response : null
   const view = useMemo(() => (response ? resultsViewFromResponse(response) : null), [response])
 

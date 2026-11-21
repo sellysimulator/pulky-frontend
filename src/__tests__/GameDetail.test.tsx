@@ -51,13 +51,13 @@ afterEach(() => {
 const GAME_ID = '9f2c1a'
 const myGame = (alias = 'P1') => ({ ...makeResponse(), my_alias: alias })
 
-function mount(gameId = GAME_ID) {
+function mount(publicId = GAME_ID) {
   const router = createMemoryRouter(
     [
       { path: '/profile', element: <p>profile list</p> },
-      { path: '*', element: <GameDetail gameId={gameId} /> },
+      { path: '*', element: <GameDetail publicId={publicId} /> },
     ],
-    { initialEntries: [`/profile/games/${gameId}`] },
+    { initialEntries: [`/profile/games/${publicId}`] },
   )
   return render(<RouterProvider router={router} />)
 }

@@ -2,18 +2,10 @@ import { CalendarDays } from 'lucide-react'
 import type { ReactElement } from 'react'
 import { Link } from 'react-router-dom'
 import type { MyGameRow } from '../../types/game'
-import { formatMoney } from '../../utils/format'
+import { formatDate, formatMoney } from '../../utils/format'
 import Badge from '../shared/Badge'
 import DataTable from '../shared/DataTable'
 import EmptyState from '../shared/EmptyState'
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-/** `d MMM yyyy` of an ISO 8601 UTC instant, read in UTC so every browser shows the same day. */
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`
-}
 
 /** The games the user played, newest first (design.md §8.9). */
 export default function GamesTable({ games }: { games: MyGameRow[] }): ReactElement {

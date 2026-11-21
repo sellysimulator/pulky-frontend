@@ -13,7 +13,7 @@ import { useGameStore } from '../store/gameStore'
 import { getGameHostSecret } from '../utils/storage'
 
 // eslint-disable-next-line react-refresh/only-export-components
-export const route: PageRoute[] = [{ path: '/results/:gameId', guard: 'public' }]
+export const route: PageRoute[] = [{ path: '/results/:publicId', guard: 'public' }]
 
 /** A 404 means persistence is still running: retry after 1 s, then after 2 s (spec §13.8). */
 const RETRY_DELAYS_MS = [1000, 2000]
@@ -29,7 +29,8 @@ function isNotFound(err: unknown): boolean {
 }
 
 export default function ResultsPage(): ReactElement {
-  const { gameId = '' } = useParams()
+  // The stored game's public id: the only key to a finished game's results (spec §13.4, §13.8).
+  const { publicId = '' } = useParams()
 
   const finished = useGameStore((s) => s.finished)
   const storeRoom = useGameStore((s) => s.roomCode)
@@ -50,23 +51,23 @@ export default function ResultsPage(): ReactElement {
 
   const liveView = useMemo(
     () =>
-      finished !== null && finished.game_id === gameId
+      finished !== null && finished.game_id === publicId
         ? resultsViewFromLive(finished, {
             roomCode: storeRoom ?? '',
             durationDays: durationDays ?? finished.days_played,
           })
         : null,
-    [finished, gameId, storeRoom, durationDays],
+    [finished, publicId, storeRoom, durationDays],
   )
 
-  const key = gameId
+  const key = publicId
   const [outcome, setOutcome] = useState<Outcome | null>(null)
 
   useEffect(() => {
     if (liveView !== null) return
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | undefined
-    const load = () => getResultsById(gameId)
+    const load = () => getResultsById(publicId)
 
     const attempt = async (n: number): Promise<void> => {
       try {
@@ -91,7 +92,7 @@ export default function ResultsPage(): ReactElement {
       cancelled = true
       if (timer !== undefined) clearTimeout(timer)
     }
-  }, [liveView, gameId, key])
+  }, [liveView, publicId, key])
 
   const current = outcome !== null && outcome.key === key ? outcome : null
   const view = liveView ?? (current?.kind === 'ok' ? current.view : null)

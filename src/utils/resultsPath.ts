@@ -1,4 +1,7 @@
-/** The "See the results" link (spec §13.8): by game id only, never by room code. */
-export function resultsPath(gameId: string): string {
-  return `/results/${gameId}`
+/**
+ * The results link (spec §13.8): the stored game's public id only, never a room code or an
+ * internal id, and it never expires.
+ */
+export function resultsPath(publicId: string): string {
+  return `/results/${publicId}`
 }

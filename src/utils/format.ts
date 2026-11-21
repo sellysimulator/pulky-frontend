@@ -23,6 +23,14 @@ const WEEKDAY_LONG: Record<Weekday, string> = {
   sun: 'Sunday',
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** `d MMM yyyy` of an ISO 8601 UTC instant, read in UTC so every browser shows the same day. */
+export function formatDate(iso: string): string {
+  const d = new Date(iso)
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`
+}
+
 function groupedAbs(value: number, decimals: number): string {
   return Math.abs(value).toLocaleString('en-US', {
     minimumFractionDigits: decimals,

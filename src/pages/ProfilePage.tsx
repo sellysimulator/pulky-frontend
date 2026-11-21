@@ -1,11 +1,13 @@
 import { CircleUser } from 'lucide-react'
 import { useEffect, useState, type ReactElement } from 'react'
 import { useParams } from 'react-router-dom'
+import { auth } from '../../firebase'
 import { useAuth } from '../auth/AuthContext'
 import { errorMessage } from '../api/http'
-import { getMe, getMyGames, getMyStats } from '../api/users'
+import { getMe, getMyGames, getMyHostedGames, getMyStats } from '../api/users'
 import GameDetail from '../components/profile/GameDetail'
 import GamesTable from '../components/profile/GamesTable'
+import HostedGamesTable from '../components/profile/HostedGamesTable'
 import ProfileHeader from '../components/profile/ProfileHeader'
 import ProfileStats from '../components/profile/ProfileStats'
 import { InlineAlert } from '../components/shared/AlertContainer'
@@ -14,12 +16,12 @@ import Button from '../components/shared/Button'
 import EmptyState from '../components/shared/EmptyState'
 import LoadingSpinner from '../components/shared/LoadingSpinner'
 import type { PageRoute } from '../routes/registry'
-import type { MyGameRow, UserMe, UserStats } from '../types/game'
+import type { HostedGameRow, MyGameRow, UserMe, UserStats } from '../types/game'
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const route: PageRoute[] = [
   { path: '/profile', guard: 'auth+backend' },
-  { path: '/profile/games/:gameId', guard: 'auth+backend' },
+  { path: '/profile/games/:publicId', guard: 'auth+backend' },
 ]
 
 type Loaded =
@@ -55,9 +57,39 @@ function ProfileOverview(): ReactElement {
   )
 }
 
+type HostedLoaded = { kind: 'ok'; games: HostedGameRow[] } | { kind: 'error' }
+
+/**
+ * Games you hosted: their own request, loading and error, so a failure here (an older backend, a
+ * transient error) leaves the profile, its played games and its stats on screen (spec §13.4).
+ */
+function ProfileHostedGames(): ReactElement {
+  const [loaded, setLoaded] = useState<HostedLoaded | null>(null)
+
+  // State starts fresh because the parent keys this on the uid; no sync setState here.
+  useEffect(() => {
+    let cancelled = false
+    getMyHostedGames().then(
+      (games) => {
+        if (!cancelled) setLoaded({ kind: 'ok', games })
+      },
+      () => {
+        if (!cancelled) setLoaded({ kind: 'error' })
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (loaded === null) return <LoadingSpinner label="Loading the games you hosted" />
+  if (loaded.kind === 'error') return <InlineAlert tone="danger">Could not load the games you hosted.</InlineAlert>
+  return <HostedGamesTable games={loaded.games} />
+}
+
 export default function ProfilePage(): ReactElement {
   const { mode, signInWithGoogle } = useAuth()
-  const { gameId } = useParams()
+  const { publicId } = useParams()
 
   let body: ReactElement
   if (mode === 'guest') {
@@ -73,10 +105,17 @@ export default function ProfilePage(): ReactElement {
         }
       />
     )
-  } else if (gameId !== undefined) {
-    body = <GameDetail gameId={gameId} />
+  } else if (publicId !== undefined) {
+    body = <GameDetail publicId={publicId} />
   } else {
-    body = <ProfileOverview />
+    // Keyed on Firebase's uid, read here so it never enters the auth context: another signed-in
+    // user remounts the hosted list with fresh state (an auth change re-renders this page).
+    body = (
+      <>
+        <ProfileOverview />
+        <ProfileHostedGames key={`hosted-${auth.currentUser?.uid ?? ''}`} />
+      </>
+    )
   }
 
   return (

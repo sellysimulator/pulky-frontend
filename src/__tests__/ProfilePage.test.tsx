@@ -37,7 +37,7 @@ vi.mock('../auth/AuthContext', () => ({
 
 import ProfilePage, { route } from '../pages/ProfilePage'
 import { INITIAL_STATE, useGameStore } from '../store/gameStore'
-import type { MyGameRow, UserMe, UserStats } from '../types/game'
+import type { HostedGameRow, MyGameRow, UserMe, UserStats } from '../types/game'
 import { formatMoney } from '../utils/format'
 import { makeResponse } from './fixtures/results'
 import { mockHttp, urlPath, type HttpSpy } from './fixtures/resultsHelpers'
@@ -63,8 +63,13 @@ const GAMES: MyGameRow[] = [
   },
 ]
 
+const HOSTED: HostedGameRow[] = [
+  { game_id: 'hosted-old', room_code: 'HST111', finished_at: '2026-08-03T09:00:00Z', player_count: 5, ended_early: false },
+  { game_id: 'hosted-new', room_code: 'HST222', finished_at: '2026-10-20T16:00:00Z', player_count: 6, ended_early: true },
+]
+
 let spy: HttpSpy | null = null
-interface Data { me?: UserMe; stats?: UserStats; games?: MyGameRow[]; fail?: { path: string; status: number; data?: unknown }; game?: { status: number; data?: unknown } }
+interface Data { me?: UserMe; stats?: UserStats; games?: MyGameRow[]; hosted?: HostedGameRow[]; fail?: { path: string; status: number; data?: unknown }; game?: { status: number; data?: unknown } }
 
 function serve(d: Data = {}) {
   spy = mockHttp((cfg) => {
@@ -73,6 +78,7 @@ function serve(d: Data = {}) {
     if (p === 'users/me') return { status: 200, data: d.me ?? ME }
     if (p === 'users/me/stats') return { status: 200, data: d.stats ?? STATS }
     if (p === 'users/me/games') return { status: 200, data: { games: d.games ?? GAMES } }
+    if (p === 'users/me/hosted-games') return { status: 200, data: { games: d.hosted ?? HOSTED } }
     if (p.startsWith('users/me/games/')) return d.game ?? { status: 200, data: { ...makeResponse(), my_alias: 'P1' } }
     return { status: 404, data: { detail: 'unexpected ' + p } }
   })
@@ -99,7 +105,7 @@ describe('the route descriptor', () => {
   it('registers both profile paths behind auth and backend', () => {
     expect(route).toEqual([
       { path: '/profile', guard: 'auth+backend' },
-      { path: '/profile/games/:gameId', guard: 'auth+backend' },
+      { path: '/profile/games/:publicId', guard: 'auth+backend' },
     ])
   })
 })
@@ -130,12 +136,12 @@ describe('a guest', () => {
 })
 
 describe('/profile', () => {
-  it('shows a spinner, then calls the three user routes', async () => {
+  it('shows a spinner, then calls the four user routes', async () => {
     serve()
     mount()
     expect(screen.getByText('Loading your profile')).toBeInTheDocument()
     await screen.findByText('Ana Perez')
-    expect(spy!.seen.map(urlPath).sort()).toEqual(['users/me', 'users/me/games', 'users/me/stats'])
+    expect(spy!.seen.map(urlPath).sort()).toEqual(['users/me', 'users/me/games', 'users/me/hosted-games', 'users/me/stats'])
     expect(screen.queryByText('Loading your profile')).toBeNull()
   })
 
@@ -216,7 +222,91 @@ describe('/profile', () => {
   })
 })
 
-describe('/profile/games/:gameId', () => {
+describe('games you hosted', () => {
+  it('lists the hosted games newest first, each opening its open results page', async () => {
+    serve()
+    mount()
+    const table = await screen.findByRole('table', { name: 'Games you hosted' })
+    const rows = within(table).getAllByRole('row').slice(1)
+    expect(rows).toHaveLength(2)
+    expect(within(rows[0]).getByText('20 Oct 2026')).toBeInTheDocument()
+    expect(within(rows[0]).getByText('HST222')).toBeInTheDocument()
+    expect(within(rows[0]).getByText('6')).toBeInTheDocument()
+    expect(within(rows[0]).getByText('Ended early')).toBeInTheDocument()
+    expect(within(rows[0]).getByRole('link', { name: 'Open' })).toHaveAttribute('href', '/results/hosted-new')
+    expect(within(rows[1]).getByText('3 Aug 2026')).toBeInTheDocument()
+    expect(within(rows[1]).queryByText('Ended early')).toBeNull()
+    expect(within(rows[1]).getByRole('link', { name: 'Open' })).toHaveAttribute('href', '/results/hosted-old')
+  })
+
+  it('is a section of its own after the played games, which never list a hosted game', async () => {
+    serve()
+    mount()
+    const hosted = await screen.findByRole('table', { name: 'Games you hosted' })
+    const played = screen.getByRole('table', { name: 'Your games' })
+    expect(played.compareDocumentPosition(hosted) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(played).queryByText('HST222')).toBeNull()
+    expect(within(played).queryByText('HST111')).toBeNull()
+    expect(within(hosted).queryByText('NEW222')).toBeNull()
+    expect(within(played).getAllByRole('row').slice(1)).toHaveLength(GAMES.length)
+    // the stat tiles stay the played games' own
+    expect(tile('Games played')).toHaveTextContent(String(STATS.games_played))
+  })
+
+  it('shows its own empty state beside a played table', async () => {
+    serve({ hosted: [] })
+    mount()
+    await screen.findByText('No hosted games yet')
+    expect(screen.getByText('Finished games you host signed in appear here.')).toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: 'Games you hosted' })).toBeNull()
+    expect(screen.getByRole('table', { name: 'Your games' })).toBeInTheDocument()
+  })
+
+  it('a failing hosted request leaves the profile, played games and stats, with its own error', async () => {
+    serve({ fail: { path: 'users/me/hosted-games', status: 500, data: { detail: 'Database is down.' } } })
+    mount()
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Could not load the games you hosted.')
+    expect(alert).not.toHaveTextContent('Could not load your profile.')
+    expect(await screen.findByText('Ana Perez')).toBeInTheDocument()
+    expect(await screen.findByRole('table', { name: 'Your games' })).toBeInTheDocument()
+    expect(tile('Games played')).toHaveTextContent(String(STATS.games_played))
+    expect(screen.queryByRole('table', { name: 'Games you hosted' })).toBeNull()
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+  })
+
+  it('a 404 from an older backend fails only the hosted section', async () => {
+    serve({ fail: { path: 'users/me/hosted-games', status: 404, data: { detail: 'Not Found' } } })
+    mount()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load the games you hosted.')
+    expect(await screen.findByRole('table', { name: 'Your games' })).toBeInTheDocument()
+  })
+
+  it('still loads when the rest of the profile fails', async () => {
+    serve({ fail: { path: 'users/me/stats', status: 500 } })
+    mount()
+    expect(await screen.findByRole('table', { name: 'Games you hosted' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not load your profile.')
+  })
+
+  it('shows its own spinner until its answer arrives', async () => {
+    serve()
+    mount()
+    expect(screen.getByText('Loading the games you hosted')).toBeInTheDocument()
+    await screen.findByRole('table', { name: 'Games you hosted' })
+    expect(screen.queryByText('Loading the games you hosted')).toBeNull()
+  })
+
+  it('shows the played empty state beside a hosted table', async () => {
+    serve({ games: [] })
+    mount()
+    await screen.findByText('No games yet')
+    expect(screen.getByRole('table', { name: 'Games you hosted' })).toBeInTheDocument()
+    expect(screen.queryByText('No hosted games yet')).toBeNull()
+  })
+})
+
+describe('/profile/games/:publicId', () => {
   it('renders the game detail, not the list', async () => {
     serve()
     mount('/profile/games/9f2c1a')
