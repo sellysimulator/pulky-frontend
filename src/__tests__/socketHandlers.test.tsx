@@ -369,8 +369,23 @@ describe('a refused handshake (spec 0.6 socket cap)', () => {
     fire('connect_error', new Error(message))
   }
 
+  beforeEach(() => {
+    // A guest identity, so the retry has something to connect with
+    localStorage.setItem('pulky.guest_id', 'guest_00000000-0000-4000-8000-000000000000')
+  })
+
   afterEach(() => {
     vi.useRealTimers()
+    localStorage.removeItem('pulky.guest_id')
+  })
+
+  it('a retry that comes due after sign-out left no identity does not connect', async () => {
+    await load()
+    vi.useFakeTimers()
+    localStorage.removeItem('pulky.guest_id')
+    refuse()
+    vi.advanceTimersByTime(120_000)
+    expect(h.lifecycle).not.toContain('connect')
   })
 
   it('a refusal at the cap says so once and retries with a doubling backoff capped at 30 s', async () => {

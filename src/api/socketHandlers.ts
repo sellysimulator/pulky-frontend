@@ -14,6 +14,7 @@ import {
   getDisplayName,
   getHostSecret,
   getSessionToken,
+  hasGuestId,
   markGamePlayed,
   setGameHostSecret,
   setHostSecret,
@@ -96,6 +97,8 @@ function retryAfterCap(): void {
   capRetries += 1
   capRetryTimer = setTimeout(() => {
     capRetryTimer = null
+    // A sign-out while this timer waited leaves no identity: the server would refuse it.
+    if (auth.currentUser === null && !hasGuestId()) return
     if (!socket.active) socket.connect()
   }, delay)
 }
