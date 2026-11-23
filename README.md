@@ -26,6 +26,14 @@ npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build   # the
   says `can_start`. Its refusals come back as `join_error {message, room_code}`: one for a game of the batch shows on
   that card ("Game N (CODE): …", `claimJoinErrors` in `src/api/joinErrorRouting.ts`) until the game shows started, and a status
   line reads "Started X of Y games." from the next summary.
+- **Games you hosted** (spec §13.4, §13.5): the profile loads `getMyHostedGames` (`GET /users/me/hosted-games`, `src/api/users.ts`)
+  in its own request, with its own loading and error ("Could not load the games you hosted."), so a failure there leaves the
+  rest of the profile on screen. It is its own table (`HostedGamesTable`), each entry opening `/results/:publicId`. It is
+  the host record's only use: the played table and the stats stay played-only, and nothing else (export, claim, results,
+  host screens) reads it. The results payload carries no host name.
+- **Results by public id only**: every way to a finished game's results (the end screens' **See the results**, the profile's
+  games at `/profile/games/:publicId`, the hosted list) uses the stored game's public id (`resultsPath`); never a room code
+  or a row id, and the link never expires. `ResultsPage` needs nothing else: session storage only decides the host's UI.
 - **Hidden defaults** (spec §9.3): a host config holds null for each risk whose field has `hidden_default`; the form shows
   **Default (hidden)**, and the calculator and help examples say **Hidden until the game ends** where they would need it. The
   results' `config` reveals the values; **Play again** copies the host's config from the store, never that one.

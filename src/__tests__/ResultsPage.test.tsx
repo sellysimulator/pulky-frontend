@@ -134,8 +134,8 @@ const flush = () =>
   })
 
 describe('the route descriptor', () => {
-  it('registers the results path, by game id only, as public', () => {
-    expect(route).toEqual([{ path: '/results/:gameId', guard: 'public' }])
+  it('registers the results path, by public id only, as public', () => {
+    expect(route).toEqual([{ path: '/results/:publicId', guard: 'public' }])
   })
 })
 
@@ -174,6 +174,15 @@ describe('live path first', () => {
     await screen.findAllByText(OTHER_NAME)
     expect(requestsFor(BY_ID)).toHaveLength(1)
     expect(screen.queryByText(NAMES.P2)).not.toBeInTheDocument()
+  })
+
+  it('a fresh browser with no store, room or storage loads the results by the public id alone', async () => {
+    spy = mockHttp(() => ({ status: 200, data: renamedResponse() }))
+    sessionStorage.clear()
+    localStorage.clear()
+    mount(PAGE)
+    await screen.findAllByText(OTHER_NAME)
+    expect(spy.seen.map(urlPath)).toEqual([BY_ID])
   })
 
   it('fetches by id when the store holds no finished game', async () => {

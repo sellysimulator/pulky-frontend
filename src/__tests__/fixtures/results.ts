@@ -353,7 +353,6 @@ export function makeResponse(mutate?: (s: StatsBundle) => void): Record<string, 
   return {
     game_id: GAME_ID,
     room_code: ROOM,
-    host_display_name: 'Ana',
     duration_days: DAYS,
     days_played: DAYS,
     ended_early: false,
