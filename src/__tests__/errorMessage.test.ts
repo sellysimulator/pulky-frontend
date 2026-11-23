@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../firebase', () => ({ auth: { currentUser: null }, googleProvider: {}, app: {} }))
 
-import { errorMessage } from '../api/http'
+import { errorMessage, isRateLimited, retryAfterMs } from '../api/http'
 
 const wire = (detail: unknown) => ({ response: { data: { detail } } })
 
@@ -119,5 +119,35 @@ describe('errorMessage: the abuse limits (spec 0.6, 13.4)', () => {
     expect(errorMessage(refused(503, 'Sign-in is not available right now.'), 'x')).toBe(
       'Sign-in is not available right now.',
     )
+  })
+})
+
+describe('retryAfterMs (spec 0.6: a 429 the screen waits out)', () => {
+  const limited = (retryAfter?: unknown) => ({
+    response: { status: 429, headers: retryAfter === undefined ? {} : { 'retry-after': retryAfter } },
+  })
+
+  it('waits the Retry-After seconds, held between 1 s and a minute', () => {
+    expect(retryAfterMs(limited('3'))).toBe(3000)
+    expect(retryAfterMs(limited(7))).toBe(7000)
+    expect(retryAfterMs(limited('3600'))).toBe(60_000)
+  })
+
+  it('waits 5 s when the header is missing or unreadable', () => {
+    expect(retryAfterMs(limited())).toBe(5000)
+    expect(retryAfterMs(limited('0'))).toBe(5000)
+    expect(retryAfterMs(limited('Wed, 21 Oct 2026 07:28:00 GMT'))).toBe(5000)
+    expect(retryAfterMs(new Error('network'))).toBe(5000)
+  })
+
+  it('reads an AxiosHeaders-style get()', () => {
+    const headers = { get: (name: string) => (name === 'retry-after' ? '2' : undefined) }
+    expect(retryAfterMs({ response: { status: 429, headers } })).toBe(2000)
+  })
+
+  it('isRateLimited is true for a 429 only', () => {
+    expect(isRateLimited(limited('3'))).toBe(true)
+    expect(isRateLimited({ response: { status: 503 } })).toBe(false)
+    expect(isRateLimited(new Error('x'))).toBe(false)
   })
 })

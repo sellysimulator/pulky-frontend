@@ -23,11 +23,13 @@ vi.mock('../api/rooms', async (importOriginal) => ({
 }))
 
 import { getConfigDefaults, previewConfig, validateConfig } from '../api/config'
+import { RATE_LIMITED_RETRYING_MESSAGE } from '../api/friendlyErrors'
 import { errorMessage } from '../api/http'
 import { getRoomConfig } from '../api/rooms'
 import { socket } from '../api/socket'
 import ConfigPanel from '../components/config/ConfigPanel'
 import ShownToPlayersBadge from '../components/config/ShownToPlayersBadge'
+import { PREVIEW_BUSY, PREVIEW_UNAVAILABLE } from '../components/config/configPreview'
 import { DOCS } from '../components/config/docs/entries'
 import { INITIAL_STATE, useGameStore } from '../store/gameStore'
 import type { ConfigDefaultsResponse, GameConfig, ServerError } from '../types/game'
@@ -688,6 +690,39 @@ describe('insurance issues and validate-request failure', () => {
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent(errorMessage(err, 'Could not check the settings.'))
     expect(configUpdateCalls()).toHaveLength(0)
+  })
+
+  it('a rate-limited validate (429) shows no error, keeps the edit unsent and sends it after Retry-After', async () => {
+    vi.mocked(validateConfig).mockRejectedValueOnce({ response: { status: 429, headers: { 'retry-after': '3' } } })
+    await mount()
+    const before = vi.mocked(validateConfig).mock.calls.length
+    edit('stock.max_days', 5)
+    await advance(400)
+    await advance(0)
+    expect(vi.mocked(validateConfig).mock.calls.length).toBe(before + 1)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('status')).toHaveTextContent(RATE_LIMITED_RETRYING_MESSAGE)
+    expect(configUpdateCalls()).toHaveLength(0)
+    await advance(2999)
+    expect(vi.mocked(validateConfig).mock.calls.length).toBe(before + 1)
+    await advance(1)
+    await advance(0)
+    expect(vi.mocked(validateConfig).mock.calls.length).toBe(before + 2)
+    expect(configUpdateCalls()).toHaveLength(1)
+    expect(screen.queryByText(RATE_LIMITED_RETRYING_MESSAGE)).toBeNull()
+  })
+
+  it('a rate-limited preview (429) says it is retrying, not to fix the settings, and asks again after Retry-After', async () => {
+    vi.mocked(previewConfig).mockRejectedValueOnce({ response: { status: 429, headers: { 'retry-after': '2' } } })
+    await mount()
+    await previewed()
+    expect(screen.getAllByText(PREVIEW_BUSY).length).toBeGreaterThan(0)
+    expect(screen.queryByText(PREVIEW_UNAVAILABLE)).toBeNull()
+    const before = vi.mocked(previewConfig).mock.calls.length
+    await advance(2000)
+    await advance(0)
+    expect(vi.mocked(previewConfig).mock.calls.length).toBe(before + 1)
+    expect(screen.queryByText(PREVIEW_BUSY)).toBeNull()
   })
 
   it('each section with a preview has a Preview heading', async () => {

@@ -17,6 +17,8 @@ export const SERVER_BUSY_MESSAGE = 'The server is busy right now — please try 
 export const TOO_MANY_ROOMS_MESSAGE =
   'Too many games are running right now — please try again in a few minutes.'
 export const TOO_MANY_CONNECTIONS_MESSAGE = 'Too many connections from your network. Retrying…'
+/** A 429 the screen waits out and then asks again for (`retryAfterMs`): neutral, not an error. */
+export const RATE_LIMITED_RETRYING_MESSAGE = 'Too many requests from your network. Retrying…'
 
 /**
  * The handshake's refusal at the per-IP socket cap, exactly as the server sends it

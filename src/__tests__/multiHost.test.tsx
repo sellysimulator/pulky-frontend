@@ -40,6 +40,7 @@ vi.mock('../api/rooms', async (importOriginal) => ({
 
 import { getConfigDefaults, previewConfig, validateConfig } from '../api/config'
 import { createRoomBatch, getRoomsSummary } from '../api/rooms'
+import { RATE_LIMITED_RETRYING_MESSAGE } from '../api/friendlyErrors'
 import { socket } from '../api/socket'
 import '../api/socketHandlers'
 import { DOCS } from '../components/config/docs/entries'
@@ -235,6 +236,22 @@ describe('MultiHostSetup', () => {
     await user.type(days, '3')
     expect(await screen.findByText('Must be between 7 and 60.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Create 3 games' })).toBeDisabled()
+  })
+
+  it('a rate-limited check (429) holds Create with a retrying notice, then asks again by itself', async () => {
+    vi.mocked(validateConfig).mockRejectedValueOnce({ response: { status: 429, headers: { 'retry-after': '1' } } })
+    const user = userEvent.setup()
+    renderAt('/multihost/new')
+    const days = await screen.findByLabelText(DOCS.duration_days.label)
+    await user.clear(days)
+    await user.type(days, '9')
+    expect(await screen.findByText(RATE_LIMITED_RETRYING_MESSAGE)).toBeInTheDocument()
+    expect(screen.queryByText(/Please wait/)).toBeNull()
+    const create = `Create ${SERVER_LIMITS.MIN_BATCH_ROOMS} games`
+    expect(screen.getByRole('button', { name: create })).toBeDisabled()
+    await waitFor(() => expect(screen.getByRole('button', { name: create })).toBeEnabled(), { timeout: 3000 })
+    expect(validateConfig).toHaveBeenCalledTimes(2)
+    expect(screen.queryByText(RATE_LIMITED_RETRYING_MESSAGE)).toBeNull()
   })
 
   it('shows the server refusal and stores nothing', async () => {

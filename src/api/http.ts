@@ -31,6 +31,25 @@ function header(headers: ErrorResponse['headers'], name: string): unknown {
   return typeof headers.get === 'function' ? headers.get(name) : headers[name]
 }
 
+/** True for a refusal by the backend's rate limit (HTTP 429). */
+export function isRateLimited(err: unknown): boolean {
+  return (err as { response?: ErrorResponse } | null | undefined)?.response?.status === 429
+}
+
+/**
+ * How long to wait before asking again after a 429 (spec §0.6): its `Retry-After` in seconds,
+ * held between 1 s and a minute, or `fallbackMs` when the header is missing or unreadable (the
+ * browser hides it unless CORS exposes it). For a request the screen waits on, so a rate limit
+ * delays it instead of leaving the screen stuck.
+ */
+export function retryAfterMs(err: unknown, fallbackMs = 5000): number {
+  const raw = header((err as { response?: ErrorResponse } | null | undefined)?.response?.headers, 'retry-after')
+  const text = typeof raw === 'number' ? String(raw) : typeof raw === 'string' ? raw.trim() : ''
+  const seconds = /^\d+$/.test(text) ? Number(text) : 0
+  if (seconds <= 0) return fallbackMs
+  return Math.min(60_000, Math.max(1000, seconds * 1000))
+}
+
 /**
  * Spec §13.6: every API error renders as a string, never an object. The abuse limits'
  * refusals (spec §0.6: 429, 413, 503) read in the player's words, not the server's.

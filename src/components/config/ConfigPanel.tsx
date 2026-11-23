@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { getConfigDefaults, validateConfig } from '../../api/config'
 import { updateConfig } from '../../api/games'
-import { errorMessage } from '../../api/http'
+import { RATE_LIMITED_RETRYING_MESSAGE } from '../../api/friendlyErrors'
+import { errorMessage, isRateLimited, retryAfterMs } from '../../api/http'
 import { getRoomConfig } from '../../api/rooms'
 import { useGameStore } from '../../store/gameStore'
 import type { ConfigDefaultsResponse, FieldIssue, GameConfig, ServerError } from '../../types/game'
@@ -30,6 +31,8 @@ export default function ConfigPanel({ roomCode, hostSecret, locked }: ConfigPane
   const [defaults, setDefaults] = useState<ConfigDefaultsResponse | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [checkError, setCheckError] = useState<string | null>(null)
+  // A check the rate limit refused (429) keeps the edit unsent and asks again after its Retry-After.
+  const [busy, setBusy] = useState(false)
   const [draft, setDraft] = useState<GameConfig | null>(null)
   const [unsent, setUnsent] = useState(false)
   const [seenStore, setSeenStore] = useState<GameConfig | null>(null)
@@ -111,10 +114,22 @@ export default function ConfigPanel({ roomCode, hostSecret, locked }: ConfigPane
     try {
       result = await validateConfig(sent)
     } catch (err) {
-      if (token === runRef.current) setCheckError(errorMessage(err, 'Could not check the settings.'))
+      if (token !== runRef.current) return
+      if (isRateLimited(err)) {
+        setCheckError(null)
+        setBusy(true)
+        timerRef.current = setTimeout(() => {
+          timerRef.current = null
+          void validateAndSend()
+        }, retryAfterMs(err))
+        return
+      }
+      setBusy(false)
+      setCheckError(errorMessage(err, 'Could not check the settings.'))
       return
     }
     if (token !== runRef.current) return
+    setBusy(false)
     setCheckError(null)
     setErrors(result.errors)
     setWarnings(result.warnings)
@@ -184,6 +199,7 @@ export default function ConfigPanel({ roomCode, hostSecret, locked }: ConfigPane
       notices={
         <>
           {failure !== null ? <InlineAlert tone="danger">{failure}</InlineAlert> : null}
+          {busy ? <InlineAlert tone="info">{RATE_LIMITED_RETRYING_MESSAGE}</InlineAlert> : null}
           {checkError !== null ? <InlineAlert tone="danger">{checkError}</InlineAlert> : null}
         </>
       }

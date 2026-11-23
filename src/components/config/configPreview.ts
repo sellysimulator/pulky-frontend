@@ -5,6 +5,8 @@
  */
 import { createContext, useContext, useEffect, useState } from 'react'
 import { previewConfig } from '../../api/config'
+import { RATE_LIMITED_RETRYING_MESSAGE } from '../../api/friendlyErrors'
+import { isRateLimited, retryAfterMs } from '../../api/http'
 import type { ConfigPreview, GameConfig } from '../../types/game'
 
 /** How long the panel waits after the last edit before it asks the server. */
@@ -17,6 +19,8 @@ export interface ConfigPreviewState {
   latest: ConfigPreview | null
   /** True from an edit until the server has answered for that draft. */
   pending: boolean
+  /** True while the rate limit (429) refused the draft's request and it waits to ask again. */
+  busy?: boolean
 }
 
 const IDLE: ConfigPreviewState = { preview: null, latest: null, pending: false }
@@ -32,26 +36,39 @@ interface Answer {
   preview: ConfigPreview | null
 }
 
-/** Asks the server for the draft's figures, `CONFIG_PREVIEW_DEBOUNCE_MS` after the last edit; an older answer is dropped. */
+/**
+ * Asks the server for the draft's figures, `CONFIG_PREVIEW_DEBOUNCE_MS` after the last edit; an older answer is
+ * dropped. A request the rate limit refused (429) is no answer: the draft stays pending and is asked again after
+ * the 429's `Retry-After`.
+ */
 export function useConfigPreviewRequest(draft: GameConfig | null): ConfigPreviewState {
   const key = draft === null ? null : JSON.stringify(draft)
   const [answer, setAnswer] = useState<Answer | null>(null)
   const [latest, setLatest] = useState<ConfigPreview | null>(null)
+  const [busyKey, setBusyKey] = useState<string | null>(null)
 
   useEffect(() => {
     if (key === null) return
     let cancelled = false
-    const timer = setTimeout(() => {
+    let timer: ReturnType<typeof setTimeout>
+    const attempt = (): void => {
       previewConfig(JSON.parse(key) as GameConfig)
         .then((res) => {
           if (cancelled) return
           setAnswer({ key, preview: res.preview })
           if (res.preview !== null) setLatest(res.preview)
         })
-        .catch(() => {
-          if (!cancelled) setAnswer({ key, preview: null })
+        .catch((err: unknown) => {
+          if (cancelled) return
+          if (isRateLimited(err)) {
+            setBusyKey(key)
+            timer = setTimeout(attempt, retryAfterMs(err))
+            return
+          }
+          setAnswer({ key, preview: null })
         })
-    }, CONFIG_PREVIEW_DEBOUNCE_MS)
+    }
+    timer = setTimeout(attempt, CONFIG_PREVIEW_DEBOUNCE_MS)
     return () => {
       cancelled = true
       clearTimeout(timer)
@@ -59,7 +76,8 @@ export function useConfigPreviewRequest(draft: GameConfig | null): ConfigPreview
   }, [key])
 
   const current = answer !== null && answer.key === key
-  return { preview: current ? answer.preview : null, latest, pending: key !== null && !current }
+  const pending = key !== null && !current
+  return { preview: current ? answer.preview : null, latest, pending, busy: pending && busyKey === key }
 }
 
 /** Spec §13.10: shown in place of a figure while the server works it out. */
@@ -67,7 +85,11 @@ export const PREVIEW_LOADING = 'Working out the figures…'
 /** Spec §13.10: shown in place of a figure while the draft has an error the server refuses. */
 export const PREVIEW_UNAVAILABLE = 'Fix the settings marked in red to see the figures.'
 
-/** The copy for a preview that has no figures yet: loading, or the draft has an error. */
+/** Spec §13.10: shown in place of a figure while a rate-limited request waits to ask again. */
+export const PREVIEW_BUSY = RATE_LIMITED_RETRYING_MESSAGE
+
+/** The copy for a preview that has no figures yet: waiting out a rate limit, loading, or the draft has an error. */
 export function previewGap(state: ConfigPreviewState): string {
+  if (state.busy === true) return PREVIEW_BUSY
   return state.pending ? PREVIEW_LOADING : PREVIEW_UNAVAILABLE
 }
