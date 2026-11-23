@@ -280,6 +280,13 @@ describe('socket connect waits for the awake backend', () => {
     expect(mainSource.indexOf('<BackendStatusProvider>')).toBeLessThan(mainSource.indexOf('<AuthProvider>'))
     expect(mainSource.indexOf('</AuthProvider>')).toBeLessThan(mainSource.indexOf('</BackendStatusProvider>'))
   })
+
+  it('main.tsx reloads once on a stale chunk (vite:preloadError) before it renders', () => {
+    const listener = mainSource.indexOf("window.addEventListener('vite:preloadError'")
+    expect(listener).toBeGreaterThan(-1)
+    expect(listener).toBeLessThan(mainSource.indexOf('createRoot('))
+    expect(mainSource).toContain('claimPreloadReload()')
+  })
 })
 
 describe('signInWithGoogle', () => {
