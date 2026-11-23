@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { joinWaiting } from '../api/games'
+import { enterRoom, joinWaiting } from '../api/games'
 import ConfigPanel from '../components/config/ConfigPanel'
 import HostConsole from '../components/host/HostConsole'
 import PresentationMode from '../components/host/PresentationMode'
@@ -33,13 +33,12 @@ export default function HostRoom(): ReactElement {
   const publicHistory = useGameStore((s) => s.publicHistory)
   const marketHistory = useGameStore((s) => s.marketHistory)
   const brief = useGameStore((s) => s.brief)
-  const setRoom = useGameStore((s) => s.setRoom)
   const [presenting, setPresenting] = useState(false)
 
   useEffect(() => {
-    setRoom(code, true)
+    if (enterRoom(code, true)) return // reconnecting: the `connect` handler claims it
     joinWaiting(code, getHostSecret(code))
-  }, [code, setRoom])
+  }, [code])
 
   // The store is read at call time; the subscriptions above are what re-run these memos.
   const histories = useMemo(

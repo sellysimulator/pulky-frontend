@@ -1,8 +1,25 @@
 import { socket } from './socket'
+import { useGameStore } from '../store/gameStore'
 import type { Decision, DecisionDraft, DecisionPreviewAnswer } from '../types/game'
 
 function withoutNulls(fields: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== null && v !== undefined))
+}
+
+/**
+ * Points this tab at `roomCode` (`setRoom`). Moving from another room (play again, another
+ * code), the socket is still in the old room's channel: a finished or running game cannot be
+ * left. Its later events carry that room's higher `seq`, and the store, started over for the
+ * new room, would apply them and then drop the new room's (spec §12 seq gate). So the socket
+ * reconnects, which takes it out of every channel, and the `connect` handler joins the room
+ * the store now holds. Returns true when it reconnected: the caller then sends no join itself.
+ */
+export function enterRoom(roomCode: string, isHost: boolean): boolean {
+  const previous = useGameStore.getState().roomCode
+  useGameStore.getState().setRoom(roomCode, isHost)
+  if (previous === null || previous === roomCode || !socket.active) return false
+  socket.disconnect().connect()
+  return true
 }
 
 export function joinWaiting(roomCode: string, hostSecret: string | null): void {

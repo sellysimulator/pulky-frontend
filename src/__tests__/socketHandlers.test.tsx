@@ -284,6 +284,53 @@ describe('re-asserting identity on connect', () => {
   })
 })
 
+describe('moving this tab to another room (spec 12 seq gate)', () => {
+  const lobby = (seq: number) => ({
+    seq,
+    state: 'configuring',
+    participants: [{ alias: 'P1', display_name: 'Ana', connected: true }],
+    seats_total: 4,
+    config_locked: false,
+    can_start: false,
+    start_blocked_reason: null,
+  })
+
+  it('reconnects, so the old room stops reaching the store, and joins only the new room', async () => {
+    const { useGameStore, storage } = await load()
+    const { enterRoom } = await import('../api/games')
+    storage.setSessionToken('AAA222', 'tok-a')
+    storage.setSessionToken('BBB333', 'tok-b')
+    expect(enterRoom('AAA222', false)).toBe(false) // the first room: nothing to leave
+    fire('connect')
+    fire('host_disconnected', { seq: 40 }) // the old room is far along
+    expect(useGameStore.getState().lastSeq).toBe(40)
+    h.emitted.length = 0
+
+    expect(enterRoom('BBB333', false)).toBe(true)
+    // Out of the old room's channel: the server drops this socket from it on the disconnect.
+    expect(h.lifecycle).toEqual(['disconnect', 'connect'])
+    expect(h.emitted).toEqual([])
+    fire('disconnect', 'io client disconnect')
+    fire('connect')
+    expect(emittedEvents()).toEqual([['join', { room_id: 'BBB333', session_token: 'tok-b' }]])
+    // The new room's first events are applied, not dropped behind the old room's seq.
+    fire('lobby_update', lobby(1))
+    expect(useGameStore.getState().lastSeq).toBe(1)
+    expect(useGameStore.getState().roomState).toBe('configuring')
+  })
+
+  it('the same room, or a socket that is not connecting, does not reconnect', async () => {
+    const { useGameStore } = await load()
+    const { enterRoom } = await import('../api/games')
+    expect(enterRoom('AAA222', true)).toBe(false)
+    expect(enterRoom('AAA222', false)).toBe(false)
+    h.fake.active = false
+    expect(enterRoom('BBB333', false)).toBe(false)
+    expect(h.lifecycle).toEqual([])
+    expect(useGameStore.getState().roomCode).toBe('BBB333')
+  })
+})
+
 describe('connect_error', () => {
   const COPY = 'Could not reach the game server.'
 

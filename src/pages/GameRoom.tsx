@@ -1,7 +1,7 @@
 import type { ComponentType, ReactElement } from 'react'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { join, submitDay } from '../api/games'
+import { enterRoom, join, submitDay } from '../api/games'
 import Board2D, { type BoardViewProps } from '../components/game/views/Board2D'
 import GameOverPanel from '../components/game/GameOverPanel'
 import BoardViewToggle from '../components/game/views/BoardViewToggle'
@@ -44,7 +44,6 @@ export default function GameRoom(): ReactElement {
   const ownHistory = useGameStore((s) => s.ownHistory)
   const publicHistory = useGameStore((s) => s.publicHistory)
   const gamePublicId = useGameStore((s) => s.gamePublicId)
-  const setRoom = useGameStore((s) => s.setRoom)
 
   const [choice, setChoice] = useState<BoardView>(() => resolveBoardView(getBoardView()))
   const [fellBack, setFellBack] = useState(false)
@@ -57,10 +56,10 @@ export default function GameRoom(): ReactElement {
   }
 
   useEffect(() => {
-    setRoom(code, false)
+    if (enterRoom(code, false)) return // reconnecting: the `connect` handler joins
     const token = getSessionToken(code)
     if (token !== null) join(code, getDisplayName(), token)
-  }, [code, setRoom])
+  }, [code])
 
   // Server state belongs to the room this page is for; anything else is a leftover from another room.
   const current = storeRoom === code
