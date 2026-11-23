@@ -2,7 +2,7 @@
 
 The three models below are licensed CC-BY-4.0 (https://creativecommons.org/licenses/by/4.0/).
 Each .glb carries the same record in its own glTF `asset.extras`; never run a file through a
-tool that strips it. Every other object in the 3D pulquería is drawn from code and is Pulky's own.
+tool that strips it. Every other object in the 3D pulquería is drawn from code and is the Pulque Game's own.
 
 truck.glb
   title: Low Poly Truck

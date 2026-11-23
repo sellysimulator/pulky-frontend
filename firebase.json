@@ -68,7 +68,7 @@
   "auth": {
     "providers": {
       "googleSignIn": {
-        "oAuthBrandDisplayName": "Pulky",
+        "oAuthBrandDisplayName": "Pulque Game",
         "supportEmail": "sellysimulator@gmail.com"
       }
     }

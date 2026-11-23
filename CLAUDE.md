@@ -43,6 +43,17 @@ npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build
   handlers (`src/api/socketHandlers.ts`) and the REST loaders. Components write only two UI
   slices, `alerts` (`addAlert`/`dismissAlert`) and `selectedDay` (`selectDay`); `reset()` is
   called by sign-out and the multi-game dashboard only (spec §13.6 "Store and handlers").
+- **The socket never gives up and never turns a signed-in user into a guest** (spec §13.6,
+  §11.3): `src/api/socket.ts` has no `reconnectionAttempts` and `reconnectionDelayMax: 10_000`;
+  a failed `getIdToken()` sends `{ idToken: null, guestId: null }` (the server refuses it), and
+  `socketHandlers.ts` retries `socket.connect()` every 5 s while still signed in. A drop sets
+  the store's `reconnecting`: the play and host screens show `ReconnectingNotice` and **Submit
+  day** is disabled (a buffered `submit_day` would be replayed before the rejoin and refused).
+- `src/main.tsx` reloads the tab once on `vite:preloadError` (a chunk gone after a deploy;
+  `claimPreloadReload` in `utils/storage.ts`). `firebase.json` caches `/assets/**` immutably and
+  revalidates `index.html` and every route (spec §13.13); never add X-Frame-Options or a CSP there.
+- The game's display name is **Pulque Game** (title, header, welcome screen, manuals, Google
+  sign-in brand); code identifiers, keys, repos and the Firebase site keep "Pulky".
 - **Copy**: copy that states a rule (messages, window copy, reasons, recap and debrief lines)
   comes from the spec word for word; never invent copy that states a rule. Incidental UI
   copy (labels, headings, helper text, empty states) lives in the code and needs no spec

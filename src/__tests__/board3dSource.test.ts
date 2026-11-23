@@ -174,6 +174,11 @@ describe('firebase.json', () => {
     expect(text).not.toContain('X-Frame-Options')
     expect(text).not.toContain('Content-Security-Policy')
   })
+
+  it('names the Google sign-in brand after the game', () => {
+    const firebase = JSON.parse(readFileSync(resolve(ROOT, 'firebase.json'), 'utf8'))
+    expect(firebase.auth.providers.googleSignIn.oAuthBrandDisplayName).toBe('Pulque Game')
+  })
 })
 
 describe('package.json', () => {

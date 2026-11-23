@@ -209,6 +209,6 @@ describe('index.html (design.md §12.2)', () => {
     expect(hrefs).toContain('https://securetoken.googleapis.com')
     expect(hrefs).toContain('https://identitytoolkit.googleapis.com')
     expect(doc.head.querySelector('meta[name="description"]')).toBeTruthy()
-    expect(doc.title).toBe('Pulky — The Pulque Game')
+    expect(doc.title).toBe('Pulque Game')
   })
 })

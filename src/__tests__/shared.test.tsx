@@ -1248,7 +1248,7 @@ describe('AppHeader', () => {
 
   it('shows the brand and the route context', () => {
     renderHeader(<span>Room KQ7M2P</span>)
-    expect(screen.getByText('Pulky')).toBeInTheDocument()
+    expect(screen.getByText('Pulque Game')).toBeInTheDocument()
     expect(screen.getByText('Room KQ7M2P')).toBeInTheDocument()
   })
 

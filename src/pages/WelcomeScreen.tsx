@@ -54,7 +54,7 @@ export default function WelcomeScreen(): ReactElement {
     <main className="grid min-h-dvh place-items-center bg-canvas px-4">
       <div className="flex w-full max-w-md flex-col gap-6 rounded-lg border border-border bg-card p-8 text-center shadow-card">
         <BrandMark className="mx-auto size-16" />
-        <h1 className="text-3xl">Pulky</h1>
+        <h1 className="text-3xl">Pulque Game</h1>
         <p className="text-ink-muted">Run a pulquería: buy, ship and sell pulque before it spoils.</p>
         <div className="flex flex-col gap-3">
           <Button variant="primary" size="lg" className="w-full" loading={signingIn} onClick={() => void google()}>
