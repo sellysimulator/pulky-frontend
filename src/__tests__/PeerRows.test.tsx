@@ -17,9 +17,12 @@ import { serveDecisionPreviews } from './fixtures/fakeDecisionServer'
 import { formatQualityGuide, QUALITY_GUIDE_NOTE } from '../utils/format'
 import type { Decision, PlayerView, PublicConfig, QualityGuideRow } from '../types/game'
 import { seedServerLimits } from './fixtures/serverConfig'
+import { useGameStore } from '../store/gameStore'
 
 // Spec §13.6: the form's upper bounds are the server's, loaded once the backend is awake.
 beforeEach(seedServerLimits)
+// Submit day waits for a connected socket (spec §13.6); these tests are about the form.
+beforeEach(() => useGameStore.setState({ connected: true }))
 
 type Props = React.ComponentProps<typeof DecisionForm>
 

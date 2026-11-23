@@ -3,7 +3,7 @@
  */
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Spec §12.4: the card's figures for the draft are the server's answer to preview_decision; a double stands in.
 const server = vi.hoisted(() => ({ preview: vi.fn() }))
@@ -16,6 +16,10 @@ import DecisionForm from '../components/game/DecisionForm'
 import { serveDecisionPreviews } from './fixtures/fakeDecisionServer'
 import InTransit from '../components/game/InTransit'
 import type { Decision, IncotermTierPlan, PlayerView, PublicConfig, QualityGuideRow } from '../types/game'
+import { useGameStore } from '../store/gameStore'
+
+// Submit day waits for a connected socket (spec §13.6); these tests are about the form.
+beforeEach(() => useGameStore.setState({ connected: true }))
 
 type Props = React.ComponentProps<typeof DecisionForm>
 

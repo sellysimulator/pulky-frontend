@@ -25,6 +25,7 @@ import type {
   QualityGuideRow,
   Yesterday,
 } from '../types/game'
+import { useGameStore } from '../store/gameStore'
 
 export const NAMES: Record<string, string> = { P1: 'Don Agave', P2: 'La Chula', P3: 'El Tinacal', P4: 'Los Magueyes' }
 
@@ -378,6 +379,7 @@ describe('six wrappers', () => {
   })
 
   it('feeds the decision form onSubmit and the locked footer', () => {
+    useGameStore.setState({ connected: true })
     const { props } = mount('decision', { initialDecision: makeDecision(5) })
     fireEvent.click(screen.getByRole('button', { name: 'Submit day' }))
     expect(props.onSubmit).toHaveBeenCalledTimes(1)

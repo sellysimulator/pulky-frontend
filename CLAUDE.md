@@ -47,8 +47,10 @@ npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build
   §11.3): `src/api/socket.ts` has no `reconnectionAttempts` and `reconnectionDelayMax: 10_000`;
   a failed `getIdToken()` sends `{ idToken: null, guestId: null }` (the server refuses it), and
   `socketHandlers.ts` retries `socket.connect()` every 5 s while still signed in. A drop sets
-  the store's `reconnecting`: the play and host screens show `ReconnectingNotice` and **Submit
-  day** is disabled (a buffered `submit_day` would be replayed before the rejoin and refused).
+  the store's `reconnecting`: the play and host screens show `ReconnectingNotice`. **Submit
+  day** is disabled whenever the store's `connected` is false (a buffered `submit_day` would be
+  replayed before the rejoin and refused), our own `disconnect().connect()` included, which is
+  not `reconnecting`; never gate it on `reconnecting`.
 - `src/main.tsx` reloads the tab once on `vite:preloadError` (a chunk gone after a deploy;
   `claimPreloadReload` in `utils/storage.ts`). `firebase.json` caches `/assets/**` immutably and
   revalidates `index.html` and every route (spec §13.13); never add X-Frame-Options or a CSP there.

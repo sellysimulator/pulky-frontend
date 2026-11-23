@@ -411,6 +411,7 @@ function seedRunning(over: Parameters<typeof makeView>[0] = {}, state: Partial<t
     participants: PARTICIPANTS,
     config: makeConfig(true),
     playerView: makeView({ prefill_decision: makeDecision(5), ...over }),
+    connected: true,
     ...state,
   })
 }
@@ -539,12 +540,12 @@ describe('GameRoom states (spec 13.7, 3.8)', () => {
   })
 
   it('a dropped socket shows Reconnecting… and Submit day waits; nothing is sent', () => {
-    seedRunning({}, { reconnecting: true })
+    seedRunning({}, { reconnecting: true, connected: false })
     mount()
     expect(screen.getByText('Connection lost. Reconnecting…')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Submit day' }))
     expect(emit.mock.calls.find((c: unknown[]) => c[0] === 'submit_day')).toBeUndefined()
-    act(() => useGameStore.setState({ reconnecting: false }))
+    act(() => useGameStore.setState({ reconnecting: false, connected: true }))
     expect(screen.queryByText('Connection lost. Reconnecting…')).toBeNull()
     expect(screen.getByRole('button', { name: 'Submit day' })).toBeEnabled()
   })

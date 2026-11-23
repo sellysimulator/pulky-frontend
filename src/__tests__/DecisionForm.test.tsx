@@ -214,6 +214,8 @@ const MSG_QTY = 'Orders must be whole numbers from 0 to 9,999.'
 
 // Spec §13.6: the form's upper bounds are the server's, loaded once the backend is awake.
 beforeEach(seedServerLimits)
+// Submit day waits for a connected socket (spec §13.6); these tests are about the form.
+beforeEach(() => useGameStore.setState({ connected: true }))
 
 function RICH_VIEW(): PlayerView {
   return makeView({ cash: 1e9 })
@@ -573,19 +575,27 @@ describe('outlay line and bar', () => {
   })
 })
 
-describe('Submit day while the socket reconnects (spec 13.6)', () => {
-  afterEach(() => useGameStore.setState({ reconnecting: false }))
+describe('Submit day while the socket is not connected (spec 13.6)', () => {
+  afterEach(() => useGameStore.setState({ connected: true, reconnecting: false }))
 
-  it('is disabled while reconnecting, so no submit is buffered and lost, and enabled once back', () => {
-    useGameStore.setState({ reconnecting: true })
+  it('is disabled while the socket is down, so no submit is buffered and lost, and enabled once connected', () => {
+    useGameStore.setState({ connected: false, reconnecting: true })
     const { onSubmit } = renderForm()
     expect(submitBtn()).toBeDisabled()
     fireEvent.click(submitBtn())
     expect(onSubmit).not.toHaveBeenCalled()
-    act(() => useGameStore.setState({ reconnecting: false }))
+    act(() => useGameStore.setState({ connected: true, reconnecting: false }))
     expect(submitBtn()).toBeEnabled()
     fireEvent.click(submitBtn())
     expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  it('is disabled during the app\'s own disconnect().connect() too, which is not "reconnecting"', () => {
+    useGameStore.setState({ connected: false, reconnecting: false })
+    const { onSubmit } = renderForm()
+    expect(submitBtn()).toBeDisabled()
+    fireEvent.click(submitBtn())
+    expect(onSubmit).not.toHaveBeenCalled()
   })
 })
 

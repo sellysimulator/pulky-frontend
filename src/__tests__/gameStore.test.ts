@@ -126,6 +126,7 @@ describe('INITIAL_STATE and reset', () => {
     selectedDay: null,
     connectionError: null,
     reconnecting: false,
+    connected: false,
     lastError: null,
     limits: null,
   }
@@ -171,6 +172,16 @@ describe('INITIAL_STATE and reset', () => {
     S().reset()
     expect(data()).toEqual({ ...EXPECTED, reconnecting: true })
     S().setReconnecting(false)
+  })
+
+  it('reset() and a new room keep the socket\'s connected state (spec §13.6)', () => {
+    S().setConnected(true)
+    S().setRoom('ABC234', true)
+    S().setRoom('XYZ789', false)
+    expect(S().connected).toBe(true)
+    S().reset()
+    expect(data()).toEqual({ ...EXPECTED, connected: true })
+    S().setConnected(false)
   })
 })
 

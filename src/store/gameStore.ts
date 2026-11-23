@@ -83,10 +83,16 @@ export interface GameState {
   connectionError: string | null
   /**
    * The socket dropped after having connected and has not reconnected yet: the screens show
-   * "Reconnecting…" and Submit day waits (socket.io would replay a buffered submit before the
-   * rejoin, and the server would refuse it). Socket-layer state, written only by socketHandlers.
+   * "Reconnecting…". Socket-layer state, written only by socketHandlers.
    */
   reconnecting: boolean
+  /**
+   * True only between a `connect` and the next `disconnect`. Submit day waits for it (socket.io
+   * would replay a submit buffered while down before the rejoin, and the server would refuse
+   * it), including after the app's own `disconnect().connect()`, which is not "reconnecting".
+   * Socket-layer state, written only by socketHandlers.
+   */
+  connected: boolean
   lastError: ServerError | null
   /** The backend's hard limits (spec §9.2), loaded once per page by `loadLimits`; null until then. */
   limits: Limits | null
@@ -121,6 +127,7 @@ export interface GameActions {
   setLimits(limits: Limits): void
   setConnectionError(message: string | null): void
   setReconnecting(reconnecting: boolean): void
+  setConnected(connected: boolean): void
   addAlert(a: Omit<Alert, 'id'>): string
   dismissAlert(id: string): void
   selectDay(day: number | null): void
@@ -160,6 +167,7 @@ export const INITIAL_STATE: GameState = {
   selectedDay: null,
   connectionError: null,
   reconnecting: false,
+  connected: false,
   lastError: null,
   limits: null,
 }
@@ -202,12 +210,12 @@ export const useGameStore = create<GameState & GameActions>()((set, get) => {
 
     // The limits belong to the server, not to a room: leaving a room keeps them.
     setRoom: (roomCode, isHost) => {
-      if (get().roomCode !== roomCode) set({ ...INITIAL_STATE, roomCode, isHost, limits: get().limits, reconnecting: get().reconnecting })
+      if (get().roomCode !== roomCode) set({ ...INITIAL_STATE, roomCode, isHost, limits: get().limits, reconnecting: get().reconnecting, connected: get().connected })
       else set({ isHost })
     },
 
     // The socket outlives a room and a reset (sign-out, the dashboard): its state is kept, like the limits.
-    reset: () => set({ ...INITIAL_STATE, limits: get().limits, reconnecting: get().reconnecting }),
+    reset: () => set({ ...INITIAL_STATE, limits: get().limits, reconnecting: get().reconnecting, connected: get().connected }),
 
     applyJoined: (p) => set({ myAlias: p.alias, joinError: null }),
 
@@ -358,6 +366,7 @@ export const useGameStore = create<GameState & GameActions>()((set, get) => {
     setConnectionError: (message) => set({ connectionError: message }),
 
     setReconnecting: (reconnecting) => set({ reconnecting }),
+    setConnected: (connected) => set({ connected }),
 
     addAlert: (a) => {
       const id = uuidv4()

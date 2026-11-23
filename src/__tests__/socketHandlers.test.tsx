@@ -469,6 +469,18 @@ describe('reconnecting (spec 13.6)', () => {
     fire('disconnect', 'io client disconnect')
     expect(useGameStore.getState().reconnecting).toBe(false)
   })
+
+  it('connected is true only from a connect to the next disconnect, our own included', async () => {
+    const { useGameStore } = await load()
+    expect(useGameStore.getState().connected).toBe(false)
+    fire('connect')
+    expect(useGameStore.getState().connected).toBe(true)
+    fire('disconnect', 'io client disconnect')
+    expect(useGameStore.getState().connected).toBe(false)
+    fire('connect')
+    fire('disconnect', 'transport close')
+    expect(useGameStore.getState().connected).toBe(false)
+  })
 })
 
 describe('error RATE_LIMITED (spec 0.6, 12.2)', () => {
