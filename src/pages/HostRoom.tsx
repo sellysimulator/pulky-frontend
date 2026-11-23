@@ -10,6 +10,7 @@ import ManualLink, { HOST_MANUAL_PATH } from '../components/manual/ManualLink'
 import AppHeader from '../components/shared/AppHeader'
 import { InlineAlert } from '../components/shared/AlertContainer'
 import LoadingSpinner from '../components/shared/LoadingSpinner'
+import ReconnectingNotice from '../components/shared/ReconnectingNotice'
 import type { PageRoute } from '../routes/registry'
 import { useGameStore } from '../store/gameStore'
 import { getHostSecret } from '../utils/storage'
@@ -109,6 +110,7 @@ export default function HostRoom(): ReactElement {
   return (
     <>
       <AppHeader context={context} />
+      <ReconnectingNotice />
       <main id="main" className={['mx-auto w-full px-4 py-6 md:px-6', wide].join(' ')}>
         {body}
       </main>

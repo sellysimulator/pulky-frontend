@@ -5,7 +5,7 @@
  */
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Spec §12.4: every figure on the form is the server's answer to preview_decision; a double stands in for it.
 const server = vi.hoisted(() => ({ preview: vi.fn() }))
@@ -570,6 +570,22 @@ describe('outlay line and bar', () => {
     setField(buyQuality(), 90)
     await eventually('Today: $910.00 of $6,120.00')
     expect(server.preview.mock.lastCall?.[1]).toMatchObject({ peer_buy: { max_price: 16, min_quality: 90 } })
+  })
+})
+
+describe('Submit day while the socket reconnects (spec 13.6)', () => {
+  afterEach(() => useGameStore.setState({ reconnecting: false }))
+
+  it('is disabled while reconnecting, so no submit is buffered and lost, and enabled once back', () => {
+    useGameStore.setState({ reconnecting: true })
+    const { onSubmit } = renderForm()
+    expect(submitBtn()).toBeDisabled()
+    fireEvent.click(submitBtn())
+    expect(onSubmit).not.toHaveBeenCalled()
+    act(() => useGameStore.setState({ reconnecting: false }))
+    expect(submitBtn()).toBeEnabled()
+    fireEvent.click(submitBtn())
+    expect(onSubmit).toHaveBeenCalledTimes(1)
   })
 })
 

@@ -95,6 +95,8 @@ type DecisionFormBodyProps = Omit<DecisionFormProps, 'view' | 'initialDecision'>
 
 function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, lockedFooter }: DecisionFormBodyProps): ReactElement {
   const roomCode = useGameStore((s) => s.roomCode)
+  // A submit sent while the socket is down would be replayed before the rejoin and refused (spec §13.6).
+  const reconnecting = useGameStore((s) => s.reconnecting)
   const [state, setState] = useState<FormState>(() => initialState(initialDecision, view, config))
   const patch = (changes: Partial<FormState>): void => setState((s) => ({ ...s, ...changes }))
   const [touched, setTouched] = useState<ReadonlySet<FieldKey>>(() => new Set())
@@ -144,7 +146,7 @@ function DecisionFormBody({ view, config, initialDecision, locked, onSubmit, loc
   const formValid = !spotError && !futuresError && !buyPriceError && !buyQualityError && !sellPriceError && !sellQualityError && !sellUnitsError
 
   const over = preview?.affordable === false
-  const canSubmit = !locked && !over
+  const canSubmit = !locked && !over && !reconnecting
 
   const handleSubmit = (): void => {
     if (!canSubmit) return

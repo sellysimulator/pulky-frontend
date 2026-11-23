@@ -262,6 +262,17 @@ describe('HostRoom mount', () => {
   })
 })
 
+describe('HostRoom while the socket reconnects (spec 13.6)', () => {
+  it('shows Reconnecting… over the screen until the socket is back', () => {
+    mount()
+    expect(screen.queryByText('Connection lost. Reconnecting…')).toBeNull()
+    act(() => useGameStore.setState({ reconnecting: true }))
+    expect(screen.getByText('Connection lost. Reconnecting…')).toBeInTheDocument()
+    act(() => useGameStore.setState({ reconnecting: false }))
+    expect(screen.queryByText('Connection lost. Reconnecting…')).toBeNull()
+  })
+})
+
 describe('HostRoom states', () => {
   it('before the claim and without an error: an Opening the room spinner', () => {
     mount()

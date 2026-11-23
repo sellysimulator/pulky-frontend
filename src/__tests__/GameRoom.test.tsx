@@ -538,6 +538,17 @@ describe('GameRoom states (spec 13.7, 3.8)', () => {
     expect(link).toHaveAttribute('target', '_blank')
   })
 
+  it('a dropped socket shows Reconnecting… and Submit day waits; nothing is sent', () => {
+    seedRunning({}, { reconnecting: true })
+    mount()
+    expect(screen.getByText('Connection lost. Reconnecting…')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit day' }))
+    expect(emit.mock.calls.find((c: unknown[]) => c[0] === 'submit_day')).toBeUndefined()
+    act(() => useGameStore.setState({ reconnecting: false }))
+    expect(screen.queryByText('Connection lost. Reconnecting…')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Submit day' })).toBeEnabled()
+  })
+
   it('submitting sends submit_day for the room with the decision', () => {
     seedRunning()
     mount()

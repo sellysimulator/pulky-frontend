@@ -14,6 +14,7 @@ import AppHeader from '../components/shared/AppHeader'
 import { PulqueriaChip } from '../components/shared/Badge'
 import ErrorBoundary from '../components/shared/ErrorBoundary'
 import LoadingSpinner from '../components/shared/LoadingSpinner'
+import ReconnectingNotice from '../components/shared/ReconnectingNotice'
 import type { PageRoute } from '../routes/registry'
 import { useGameStore } from '../store/gameStore'
 import type { Decision, PublicConfig } from '../types/game'
@@ -127,6 +128,7 @@ export default function GameRoom(): ReactElement {
   return (
     <>
       <AppHeader context={context} />
+      <ReconnectingNotice />
       <main id="main" className="mx-auto w-full max-w-player px-4 py-6 md:px-6">
         {body}
       </main>

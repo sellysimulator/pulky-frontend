@@ -7,12 +7,14 @@ const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? ''
 /**
  * Spec §13.6 handshake [HARD-WON]: `autoConnect: false`, so AuthContext connects
  * once auth has resolved. The `auth` callback runs on every (re)connect and so
- * sends a fresh ID token each time.
+ * sends a fresh ID token each time. Reconnection never gives up (no attempt cap; the
+ * default is unlimited), waiting at most 10 s between attempts.
  */
 export const socket = io(SOCKET_URL, {
   transports: ['websocket', 'polling'],
   autoConnect: false,
   reconnection: true,
+  reconnectionDelayMax: 10_000,
   path: '/socket.io',
   auth: (cb) => {
     const user = auth.currentUser

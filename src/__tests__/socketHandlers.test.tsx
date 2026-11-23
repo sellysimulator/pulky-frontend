@@ -158,6 +158,13 @@ describe('the socket', () => {
     expect(typeof opts.auth).toBe('function')
   })
 
+  it('never gives up reconnecting and waits at most 10 s between attempts', async () => {
+    await load()
+    const { opts } = h.ioCalls[0]
+    expect(opts).not.toHaveProperty('reconnectionAttempts')
+    expect(opts.reconnectionDelayMax).toBe(10_000)
+  })
+
   it('does not connect by itself: importing the socket, the handlers, the games module and the store never calls connect', async () => {
     await load()
     await import('../api/games')
@@ -373,6 +380,27 @@ describe('a refused handshake (spec 0.6 socket cap)', () => {
     vi.advanceTimersByTime(120_000)
     expect(h.lifecycle).not.toContain('connect')
     expect(useGameStore.getState().connectionError).toBe('Could not reach the game server.')
+  })
+})
+
+describe('reconnecting (spec 13.6)', () => {
+  it('a drop after connecting marks the socket reconnecting until it connects again', async () => {
+    const { useGameStore } = await load()
+    expect(useGameStore.getState().reconnecting).toBe(false)
+    fire('connect')
+    fire('disconnect', 'transport close')
+    expect(useGameStore.getState().reconnecting).toBe(true)
+    fire('disconnect', 'ping timeout')
+    expect(useGameStore.getState().reconnecting).toBe(true)
+    fire('connect')
+    expect(useGameStore.getState().reconnecting).toBe(false)
+  })
+
+  it('our own disconnect (sign-out) is not a drop', async () => {
+    const { useGameStore } = await load()
+    fire('connect')
+    fire('disconnect', 'io client disconnect')
+    expect(useGameStore.getState().reconnecting).toBe(false)
   })
 })
 

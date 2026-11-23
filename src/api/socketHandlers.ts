@@ -86,6 +86,7 @@ function retryAfterCap(): void {
 
 socket.on('connect', () => {
   const { roomCode, isHost } = store()
+  store().setReconnecting(false)
   capRetries = 0
   if (capRetryTimer !== null) clearTimeout(capRetryTimer)
   capRetryTimer = null
@@ -108,6 +109,12 @@ socket.on('connect_error', (err: Error) => {
     return
   }
   showConnectionError(CONNECT_ERROR_MESSAGE)
+})
+
+// A drop after having connected: socket.io-client reconnects by itself (no attempt cap) and the
+// screens say so meanwhile. Only our own `socket.disconnect()` (sign-out, the dashboard) is not one.
+socket.on('disconnect', (reason: string) => {
+  store().setReconnecting(reason !== 'io client disconnect')
 })
 
 socket.on('joined', (p: JoinedPayload) => {

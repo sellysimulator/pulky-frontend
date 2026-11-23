@@ -81,6 +81,12 @@ export interface GameState {
   /** The day chosen under Your profit per day; board UI state, written only by the board through selectDay. */
   selectedDay: number | null
   connectionError: string | null
+  /**
+   * The socket dropped after having connected and has not reconnected yet: the screens show
+   * "Reconnecting…" and Submit day waits (socket.io would replay a buffered submit before the
+   * rejoin, and the server would refuse it). Socket-layer state, written only by socketHandlers.
+   */
+  reconnecting: boolean
   lastError: ServerError | null
   /** The backend's hard limits (spec §9.2), loaded once per page by `loadLimits`; null until then. */
   limits: Limits | null
@@ -114,6 +120,7 @@ export interface GameActions {
   setConfig(config: GameConfig | PublicConfig): void
   setLimits(limits: Limits): void
   setConnectionError(message: string | null): void
+  setReconnecting(reconnecting: boolean): void
   addAlert(a: Omit<Alert, 'id'>): string
   dismissAlert(id: string): void
   selectDay(day: number | null): void
@@ -152,6 +159,7 @@ export const INITIAL_STATE: GameState = {
   alerts: [],
   selectedDay: null,
   connectionError: null,
+  reconnecting: false,
   lastError: null,
   limits: null,
 }
@@ -194,11 +202,12 @@ export const useGameStore = create<GameState & GameActions>()((set, get) => {
 
     // The limits belong to the server, not to a room: leaving a room keeps them.
     setRoom: (roomCode, isHost) => {
-      if (get().roomCode !== roomCode) set({ ...INITIAL_STATE, roomCode, isHost, limits: get().limits })
+      if (get().roomCode !== roomCode) set({ ...INITIAL_STATE, roomCode, isHost, limits: get().limits, reconnecting: get().reconnecting })
       else set({ isHost })
     },
 
-    reset: () => set({ ...INITIAL_STATE, limits: get().limits }),
+    // The socket outlives a room and a reset (sign-out, the dashboard): its state is kept, like the limits.
+    reset: () => set({ ...INITIAL_STATE, limits: get().limits, reconnecting: get().reconnecting }),
 
     applyJoined: (p) => set({ myAlias: p.alias, joinError: null }),
 
@@ -347,6 +356,8 @@ export const useGameStore = create<GameState & GameActions>()((set, get) => {
     setLimits: (limits) => set({ limits }),
 
     setConnectionError: (message) => set({ connectionError: message }),
+
+    setReconnecting: (reconnecting) => set({ reconnecting }),
 
     addAlert: (a) => {
       const id = uuidv4()
