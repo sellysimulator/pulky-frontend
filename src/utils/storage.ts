@@ -139,6 +139,11 @@ export function getGuestId(): string | null {
   return readLocal(GUEST_ID_KEY)
 }
 
+/** True once this browser has a guest identity: stored, or kept in memory when storage is unavailable. */
+export function hasGuestId(): boolean {
+  return unsavedGuestId !== null || getGuestId() !== null
+}
+
 export function getOrCreateGuestId(): string {
   const stored = getGuestId()
   if (stored !== null && GUEST_ID_RE.test(stored)) return stored

@@ -43,6 +43,8 @@ import type {
 } from '../types/game'
 
 const CONNECT_ERROR_MESSAGE = 'Could not reach the game server.'
+/** A signed-in handshake the server refused (its token could not be read): retried every 5 s. */
+const SIGNED_IN_RETRY_MESSAGE = 'Could not reach the game server. Retrying…'
 
 /** The results page and export find this game by id; the room code is reissued later. */
 function rememberFinishedGame(gameId: string): void {
@@ -125,10 +127,14 @@ socket.on('connect_error', (err: Error) => {
     retryAfterCap()
     return
   }
-  showConnectionError(CONNECT_ERROR_MESSAGE)
   // Any other refusal is retried only while signed in: the token may be readable again
   // (spec §11.3). A guest's refusal is not retried.
-  if (!socket.active && auth.currentUser !== null) retryWhileSignedIn()
+  if (!socket.active && auth.currentUser !== null) {
+    showConnectionError(SIGNED_IN_RETRY_MESSAGE)
+    retryWhileSignedIn()
+    return
+  }
+  showConnectionError(CONNECT_ERROR_MESSAGE)
 })
 
 // A drop after having connected: socket.io-client reconnects by itself (no attempt cap) and the

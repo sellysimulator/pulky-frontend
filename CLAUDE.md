@@ -46,7 +46,10 @@ npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build
 - **The socket never gives up and never turns a signed-in user into a guest** (spec §13.6,
   §11.3): `src/api/socket.ts` has no `reconnectionAttempts` and `reconnectionDelayMax: 10_000`;
   a failed `getIdToken()` sends `{ idToken: null, guestId: null }` (the server refuses it), and
-  `socketHandlers.ts` retries `socket.connect()` every 5 s while still signed in. A drop sets
+  `socketHandlers.ts` shows "Could not reach the game server. Retrying…" and retries
+  `socket.connect()` every 5 s while still signed in. With no Firebase user and no guest id
+  (first visit, after sign-out) `AuthContext` only calls `socket.disconnect()`; never connect
+  then. A drop sets
   the store's `reconnecting`: the play and host screens show `ReconnectingNotice`. **Submit
   day** is disabled whenever the store's `connected` is false (a buffered `submit_day` would be
   replayed before the rejoin and refused), our own `disconnect().connect()` included, which is

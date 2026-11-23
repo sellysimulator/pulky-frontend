@@ -425,7 +425,8 @@ describe('a refused handshake (spec 0.6 socket cap)', () => {
     h.state.currentUser = { getIdToken: async () => 'tok' }
     const connects = () => h.lifecycle.filter((e) => e === 'connect').length
     refuse(AUTH_REFUSAL)
-    expect(useGameStore.getState().connectionError).toBe('Could not reach the game server.')
+    expect(useGameStore.getState().connectionError).toBe('Could not reach the game server. Retrying…')
+    expect(useGameStore.getState().alerts[0].message).not.toMatch(/sign/i)
     vi.advanceTimersByTime(4999)
     expect(connects()).toBe(0)
     vi.advanceTimersByTime(1)
