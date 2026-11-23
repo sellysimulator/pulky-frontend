@@ -201,7 +201,7 @@ describe('the socket', () => {
     expect(second.guestId).toBe(first.guestId)
   })
 
-  it('the auth callback falls back to the guest id when the token cannot be read', async () => {
+  it('the auth callback never falls back to the guest id when signed in and the token cannot be read', async () => {
     await load()
     h.state.currentUser = {
       getIdToken: async () => {
@@ -209,9 +209,8 @@ describe('the socket', () => {
       },
     }
     const auth = h.ioCalls[0].opts.auth as (cb: (d: unknown) => void) => void
-    const sent = (await new Promise<unknown>((resolve) => auth(resolve))) as { idToken: unknown; guestId: string }
-    expect(sent.idToken).toBeNull()
-    expect(sent.guestId).toMatch(/^guest_[0-9a-f-]{36}$/)
+    const sent = await new Promise<unknown>((resolve) => auth(resolve))
+    expect(sent).toEqual({ idToken: null, guestId: null })
   })
 })
 
@@ -370,6 +369,27 @@ describe('a refused handshake (spec 0.6 socket cap)', () => {
     vi.advanceTimersByTime(120_000)
     expect(h.lifecycle).not.toContain('connect')
     expect(useGameStore.getState().connectionError).toBe('Could not reach the game server.')
+    expect(useGameStore.getState().alerts).toHaveLength(1)
+  })
+
+  it('a refusal while signed in says so and retries every 5 s while still signed in', async () => {
+    const { useGameStore } = await load()
+    vi.useFakeTimers()
+    h.state.currentUser = { getIdToken: async () => 'tok' }
+    const connects = () => h.lifecycle.filter((e) => e === 'connect').length
+    refuse(AUTH_REFUSAL)
+    expect(useGameStore.getState().connectionError).toBe('Could not reach the game server.')
+    vi.advanceTimersByTime(4999)
+    expect(connects()).toBe(0)
+    vi.advanceTimersByTime(1)
+    expect(connects()).toBe(1)
+    refuse(AUTH_REFUSAL)
+    vi.advanceTimersByTime(5000)
+    expect(connects()).toBe(2)
+    refuse(AUTH_REFUSAL)
+    h.state.currentUser = null // signed out meanwhile: no more retries
+    vi.advanceTimersByTime(60_000)
+    expect(connects()).toBe(2)
     expect(useGameStore.getState().alerts).toHaveLength(1)
   })
 

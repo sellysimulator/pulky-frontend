@@ -3,6 +3,7 @@
  * effect. `main.tsx` imports this before React renders; no component calls
  * `socket.on` (a handler registered in a component runs twice under StrictMode).
  */
+import { auth } from '../../firebase'
 import { socket } from './socket'
 import { SOCKET_CAP_REFUSAL, TOO_MANY_CONNECTIONS_MESSAGE } from './friendlyErrors'
 import { join, joinWaiting } from './games'
@@ -58,6 +59,19 @@ const store = () => useGameStore.getState()
 const CAP_RETRY_FIRST_MS = 2000
 const CAP_RETRY_MAX_MS = 30_000
 
+/** After the server refused a signed-in handshake (spec §11.3), try again every 5 s while still signed in. */
+const SIGNED_IN_RETRY_MS = 5000
+
+let signedInRetryTimer: ReturnType<typeof setTimeout> | null = null
+
+function retryWhileSignedIn(): void {
+  if (signedInRetryTimer !== null) return
+  signedInRetryTimer = setTimeout(() => {
+    signedInRetryTimer = null
+    if (auth.currentUser !== null && !socket.active) socket.connect()
+  }, SIGNED_IN_RETRY_MS)
+}
+
 let capRetries = 0
 let capRetryTimer: ReturnType<typeof setTimeout> | null = null
 let capAlertId: string | null = null
@@ -90,6 +104,8 @@ socket.on('connect', () => {
   capRetries = 0
   if (capRetryTimer !== null) clearTimeout(capRetryTimer)
   capRetryTimer = null
+  if (signedInRetryTimer !== null) clearTimeout(signedInRetryTimer)
+  signedInRetryTimer = null
   if (capAlertId !== null) store().dismissAlert(capAlertId)
   capAlertId = null
   store().setConnectionError(null)
@@ -103,12 +119,15 @@ socket.on('connect', () => {
 })
 
 socket.on('connect_error', (err: Error) => {
-  // The cap names itself; any other refusal (a token that fails verification) is not retried.
+  // The cap names itself and is retried on a backoff.
   if (err?.message === SOCKET_CAP_REFUSAL && !socket.active) {
     retryAfterCap()
     return
   }
   showConnectionError(CONNECT_ERROR_MESSAGE)
+  // Any other refusal is retried only while signed in: the token may be readable again
+  // (spec §11.3). A guest's refusal is not retried.
+  if (!socket.active && auth.currentUser !== null) retryWhileSignedIn()
 })
 
 // A drop after having connected: socket.io-client reconnects by itself (no attempt cap) and the
