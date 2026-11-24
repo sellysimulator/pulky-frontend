@@ -295,7 +295,7 @@ describe('registerCharts (design.md §9.1)', () => {
     expect(d.scales.category.grid.display).toBe(false)
     expect(d.scales.linear.beginAtZero).toBe(true)
     expect(d.elements.line).toMatchObject({ borderWidth: 2.5, tension: 0, borderCapStyle: 'round', borderJoinStyle: 'round' })
-    expect(d.elements.point).toMatchObject({ radius: 4, hoverRadius: 5, hitRadius: 8 })
+    expect(d.elements.point).toMatchObject({ radius: 4, hoverRadius: 5, hitRadius: 12 })
     expect(d.elements.bar).toMatchObject({ borderRadius: 4, borderSkipped: 'start' })
     expect(d.datasets.bar.maxBarThickness).toBe(32)
     expect(d.elements.arc).toMatchObject({ borderWidth: 2 })

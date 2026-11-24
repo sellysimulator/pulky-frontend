@@ -559,7 +559,7 @@ export function registerCharts(): void {
     borderCapStyle: 'round',
     borderJoinStyle: 'round',
   })
-  d.set('elements.point', { radius: 4, hoverRadius: 5, hitRadius: 8 })
+  d.set('elements.point', { radius: 4, hoverRadius: 5, hitRadius: 12 })
   d.set('elements.bar', { borderRadius: 4, borderSkipped: 'start' })
   d.set('elements.arc', { borderColor: CHART_COLORS['card'], borderWidth: 2 })
   d.set('datasets.bar', { maxBarThickness: 32 })
