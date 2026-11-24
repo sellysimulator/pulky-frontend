@@ -25,4 +25,6 @@ coverage
 *.sw?
 
 .env
+.env.*
+!.env.example
 .firebase/
