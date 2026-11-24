@@ -13,7 +13,6 @@ import SectionCard from '../components/shared/SectionCard'
 import type { PageRoute } from '../routes/registry'
 import { getSessionToken, setHostSecret } from '../utils/storage'
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const route: PageRoute = { path: '/home', guard: 'auth+backend' }
 
 /** Spec §11.3: the 6-character room code alphabet. */

@@ -21,7 +21,6 @@ import type { PageRoute } from '../routes/registry'
 import { useGameStore } from '../store/gameStore'
 import { clearHostBatch, getHostBatch } from '../utils/storage'
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const route: PageRoute = { path: '/multihost', guard: 'auth+backend' }
 
 /** How long after "Start all" the dashboard asks for fresh status, so the server has

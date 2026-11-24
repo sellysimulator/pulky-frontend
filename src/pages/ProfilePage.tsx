@@ -18,7 +18,6 @@ import LoadingSpinner from '../components/shared/LoadingSpinner'
 import type { PageRoute } from '../routes/registry'
 import type { HostedGameRow, MyGameRow, UserMe, UserStats } from '../types/game'
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const route: PageRoute[] = [
   { path: '/profile', guard: 'auth+backend' },
   { path: '/profile/games/:publicId', guard: 'auth+backend' },

@@ -20,13 +20,11 @@ import { useGameStore } from '../store/gameStore'
 import type { Decision, PublicConfig } from '../types/game'
 import { getBoardView, getDisplayName, getSessionToken, setBoardView } from '../utils/storage'
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const route: PageRoute = { path: '/game/:roomCode', guard: 'auth+backend' }
 
 const Board3D = lazy(() => import('../components/game/views/Board3D'))
 
 /** The two board views, one props contract (spec §13.11.1); the 3D chunk is fetched only when it is shown. */
-// eslint-disable-next-line react-refresh/only-export-components
 export const BOARD_VIEWS: Record<BoardView, ComponentType<BoardViewProps>> = { '2D': Board2D, '3D': Board3D }
 
 export default function GameRoom(): ReactElement {

@@ -8,7 +8,6 @@ import BrandMark from '../components/shared/BrandMark'
 import Button from '../components/shared/Button'
 import type { PageRoute } from '../routes/registry'
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const route: PageRoute = { path: '/', guard: 'public' }
 
 /** Where the visitor was headed before the guard sent them here, else /home (spec §13.6). */

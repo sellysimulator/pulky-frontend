@@ -10,7 +10,6 @@ import type { PageRoute } from '../routes/registry'
 import { INCOTERM_TIERS } from '../types/game'
 import { INCOTERM_TIER_MEANINGS, RISK_LABELS } from '../utils/format'
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const route: PageRoute = { path: PLAYER_MANUAL_PATH, guard: 'public' }
 
 /**
