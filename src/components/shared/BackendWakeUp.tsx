@@ -20,7 +20,7 @@ function problemFor(status: BackendState, httpStatus: number | null): Problem | 
         tone: 'warning',
         icon: WifiOff,
         title: 'You are offline',
-        body: 'Pulky needs an internet connection. It reconnects by itself once you are back online.',
+        body: 'The Pulque Game needs an internet connection. It reconnects by itself once you are back online.',
       }
     case 'unreachable':
       return {

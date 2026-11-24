@@ -77,7 +77,7 @@ import { AuthProvider, useAuth } from '../auth/AuthContext'
 import { BackendStatusProvider } from '../contexts/BackendStatusContext'
 import mainSource from '../main.tsx?raw'
 import { useGameStore, INITIAL_STATE } from '../store/gameStore'
-import { getGuestMode } from '../utils/storage'
+import { getGuestId, getGuestMode, getOrCreateGuestId } from '../utils/storage'
 
 const originalAdapter = http.defaults.adapter
 let requests: InternalAxiosRequestConfig[] = []
@@ -170,12 +170,20 @@ describe('AuthProvider state', () => {
     expect(h.lifecycle).not.toContain('connect')
   })
 
-  it('resolves signed out: not loading, mode null, and reconnects the socket', async () => {
+  it('resolves signed out with no guest id: not loading, mode null, and the socket stays down (no identity to send)', async () => {
     const { result } = await mountAwake()
     act(() => h.state.authCb?.(null))
     expect(result.current.loading).toBe(false)
     expect(result.current.mode).toBeNull()
     expect(result.current.user).toBeNull()
+    expect(h.lifecycle).toEqual(['disconnect'])
+    expect(getGuestId()).toBeNull() // no guest minted behind the person's back
+  })
+
+  it('resolves signed out with a stored guest id: reconnects the socket as that guest', async () => {
+    getOrCreateGuestId()
+    await mountAwake()
+    act(() => h.state.authCb?.(null))
     expect(h.lifecycle).toEqual(['disconnect', 'connect'])
   })
 
@@ -192,13 +200,14 @@ describe('AuthProvider state', () => {
     expect(h.lifecycle).toEqual(['disconnect', 'connect'])
   })
 
-  it('calls socket.disconnect().connect() on every later resolution too (identity changed)', async () => {
+  it('reconnects on every later resolution too (identity changed), and only disconnects once no identity is left', async () => {
     const { result } = await mountAwake()
-    act(() => h.state.authCb?.(null))
     act(() => h.state.authCb?.(user()))
+    expect(h.lifecycle).toEqual(['disconnect', 'connect'])
+    act(() => h.state.authCb?.(user({ uid: 'another' })))
     expect(h.lifecycle).toEqual(['disconnect', 'connect', 'disconnect', 'connect'])
-    act(() => h.state.authCb?.(null))
-    expect(h.lifecycle).toEqual(['disconnect', 'connect', 'disconnect', 'connect', 'disconnect', 'connect'])
+    act(() => h.state.authCb?.(null)) // signed out, no guest id: nothing to connect as
+    expect(h.lifecycle).toEqual(['disconnect', 'connect', 'disconnect', 'connect', 'disconnect'])
     expect(result.current.mode).toBeNull()
   })
 
@@ -224,6 +233,7 @@ describe('continueAsGuest', () => {
     expect(result.current.mode).toBe('guest')
     expect(result.current.user).toBeNull()
     expect(getGuestMode()).toBe(true)
+    expect(getGuestId()).not.toBeNull()
     expect(h.lifecycle).toEqual(['disconnect', 'connect'])
   })
 })
@@ -267,11 +277,11 @@ describe('socket connect waits for the awake backend', () => {
     const { result, rerender } = await mountAwake()
     expect(h.lifecycle).toEqual([])
     act(() => h.state.authCb?.(null))
-    expect(h.lifecycle).toEqual(['disconnect', 'connect'])
+    expect(h.lifecycle).toEqual(['disconnect'])
     act(() => result.current.continueAsGuest())
-    expect(h.lifecycle).toEqual(['disconnect', 'connect', 'disconnect', 'connect'])
+    expect(h.lifecycle).toEqual(['disconnect', 'disconnect', 'connect'])
     rerender()
-    expect(h.lifecycle).toHaveLength(4)
+    expect(h.lifecycle).toHaveLength(3)
   })
 
   it('main.tsx renders BackendStatusProvider outside AuthProvider, after the socketHandlers import', () => {
@@ -279,6 +289,13 @@ describe('socket connect waits for the awake backend', () => {
     expect(mainSource.indexOf('<BackendStatusProvider>')).toBeGreaterThan(-1)
     expect(mainSource.indexOf('<BackendStatusProvider>')).toBeLessThan(mainSource.indexOf('<AuthProvider>'))
     expect(mainSource.indexOf('</AuthProvider>')).toBeLessThan(mainSource.indexOf('</BackendStatusProvider>'))
+  })
+
+  it('main.tsx reloads once on a stale chunk (vite:preloadError) before it renders', () => {
+    const listener = mainSource.indexOf("window.addEventListener('vite:preloadError'")
+    expect(listener).toBeGreaterThan(-1)
+    expect(listener).toBeLessThan(mainSource.indexOf('createRoot('))
+    expect(mainSource).toContain('claimPreloadReload()')
   })
 })
 
@@ -337,6 +354,21 @@ describe('signInWithGoogle', () => {
 })
 
 describe('signOut', () => {
+  it('leaves the socket down afterwards: the guest id is gone and nobody chose to be a guest', async () => {
+    getOrCreateGuestId() // a guest who later signed in
+    const { result } = await mountAwake()
+    h.state.currentUser = user()
+    act(() => h.state.authCb?.(h.state.currentUser))
+    h.lifecycle.length = 0
+    await act(async () => {
+      await result.current.signOut()
+    })
+    h.state.currentUser = null
+    act(() => h.state.authCb?.(null))
+    expect(getGuestId()).toBeNull()
+    expect(h.lifecycle).toEqual(['disconnect'])
+  })
+
   it('signs out of Firebase', async () => {
     const { result } = mount()
     h.state.currentUser = user()

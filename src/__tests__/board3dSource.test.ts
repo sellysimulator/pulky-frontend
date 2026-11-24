@@ -147,12 +147,37 @@ describe('the build configuration', () => {
 })
 
 describe('firebase.json', () => {
-  it('serves /3dmodels/** with a one-year immutable cache', () => {
+  const IMMUTABLE = { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }
+  const NO_CACHE = { key: 'Cache-Control', value: 'no-cache' }
+
+  it('serves /3dmodels/** and the hashed /assets/** with a one-year immutable cache, and revalidates the page', () => {
     const hosting = JSON.parse(readFileSync(resolve(ROOT, 'firebase.json'), 'utf8')).hosting
     expect(hosting.headers).toEqual([
-      { source: '/3dmodels/**', headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }] },
+      { source: '/3dmodels/**', headers: [IMMUTABLE] },
+      { source: '/assets/**', headers: [IMMUTABLE] },
+      // index.html and every extensionless route (the SPA rewrite) are revalidated, so a deploy is seen at once
+      { source: '/index.html', headers: [NO_CACHE] },
+      { regex: '^/[^.]*$', headers: [NO_CACHE] },
+      {
+        source: '**',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        ],
+      },
     ])
     expect(hosting.rewrites).toEqual([{ source: '**', destination: '/index.html' }])
+  })
+
+  it('sets no X-Frame-Options or CSP: Firebase Auth\'s handler iframe shares the site', () => {
+    const text = readFileSync(resolve(ROOT, 'firebase.json'), 'utf8')
+    expect(text).not.toContain('X-Frame-Options')
+    expect(text).not.toContain('Content-Security-Policy')
+  })
+
+  it('names the Google sign-in brand after the game', () => {
+    const firebase = JSON.parse(readFileSync(resolve(ROOT, 'firebase.json'), 'utf8'))
+    expect(firebase.auth.providers.googleSignIn.oAuthBrandDisplayName).toBe('Pulque Game')
   })
 })
 

@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactElement,
   type ReactNode,
@@ -21,7 +22,7 @@ import { socket } from '../api/socket'
 import { upsertUser } from '../api/users'
 import { useBackendStatus } from '../contexts/BackendStatusContext'
 import { useGameStore } from '../store/gameStore'
-import { clearPulkyStorage, getGuestMode, setGuestMode } from '../utils/storage'
+import { clearPulkyStorage, getGuestMode, getOrCreateGuestId, hasGuestId, setGuestMode } from '../utils/storage'
 
 interface AuthUser {
   displayName: string | null
@@ -51,14 +52,24 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactElemen
   const awake = useBackendStatus().status === 'awake'
   // Bumped by each identity change; the effect below connects once the backend is awake.
   const [connectRequests, setConnectRequests] = useState(0)
+  // Whether the last auth resolution had a Firebase user, read by the connect effect.
+  const signedIn = useRef(false)
 
   // A handshake sent to a sleeping server fails, so an earlier request waits for the first `awake`.
+  // With no Firebase user and no guest id there is no identity to send (first visit, after sign-out):
+  // the socket stays down until the person signs in or continues as a guest (spec §11.3).
   useEffect(() => {
-    if (awake && connectRequests > 0) socket.disconnect().connect()
+    if (!awake || connectRequests === 0) return
+    if (!signedIn.current && !hasGuestId()) {
+      socket.disconnect()
+      return
+    }
+    socket.disconnect().connect()
   }, [awake, connectRequests])
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      signedIn.current = firebaseUser !== null
       setUser(firebaseUser ? toAuthUser(firebaseUser) : null)
       setLoading(false)
       setConnectRequests((n) => n + 1)
@@ -80,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactElemen
 
   const continueAsGuest = useCallback(() => {
     setGuestMode(true)
+    getOrCreateGuestId() // the identity the connect below sends
     setGuest(true)
     setConnectRequests((n) => n + 1)
   }, [])
@@ -89,7 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactElemen
   const signOut = useCallback(async () => {
     // Without a Firebase user there is nothing to sign out of, and a guest's identity must survive.
     if (auth.currentUser === null) return
-    // Cleared first, so the reconnect's handshake (through onAuthStateChanged) already mints a fresh guest id.
+    // Cleared first, so the guest id goes too: the socket then stays down until the next person
+    // signs in or continues as a guest, who gets a fresh guest id.
     clearPulkyStorage()
     useGameStore.getState().reset()
     setGuest(false)

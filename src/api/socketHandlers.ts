@@ -3,6 +3,7 @@
  * effect. `main.tsx` imports this before React renders; no component calls
  * `socket.on` (a handler registered in a component runs twice under StrictMode).
  */
+import { auth } from '../../firebase'
 import { socket } from './socket'
 import { SOCKET_CAP_REFUSAL, TOO_MANY_CONNECTIONS_MESSAGE } from './friendlyErrors'
 import { join, joinWaiting } from './games'
@@ -13,6 +14,7 @@ import {
   getDisplayName,
   getHostSecret,
   getSessionToken,
+  hasGuestId,
   markGamePlayed,
   setGameHostSecret,
   setHostSecret,
@@ -42,6 +44,8 @@ import type {
 } from '../types/game'
 
 const CONNECT_ERROR_MESSAGE = 'Could not reach the game server.'
+/** A signed-in handshake the server refused (its token could not be read): retried every 5 s. */
+const SIGNED_IN_RETRY_MESSAGE = 'Could not reach the game server. Retrying…'
 
 /** The results page and export find this game by id; the room code is reissued later. */
 function rememberFinishedGame(gameId: string): void {
@@ -57,6 +61,19 @@ const store = () => useGameStore.getState()
 /** Backoff after a refusal at the per-IP socket cap (spec §0.6): 2 s, doubling, at most 30 s. */
 const CAP_RETRY_FIRST_MS = 2000
 const CAP_RETRY_MAX_MS = 30_000
+
+/** After the server refused a signed-in handshake (spec §11.3), try again every 5 s while still signed in. */
+const SIGNED_IN_RETRY_MS = 5000
+
+let signedInRetryTimer: ReturnType<typeof setTimeout> | null = null
+
+function retryWhileSignedIn(): void {
+  if (signedInRetryTimer !== null) return
+  signedInRetryTimer = setTimeout(() => {
+    signedInRetryTimer = null
+    if (auth.currentUser !== null && !socket.active) socket.connect()
+  }, SIGNED_IN_RETRY_MS)
+}
 
 let capRetries = 0
 let capRetryTimer: ReturnType<typeof setTimeout> | null = null
@@ -80,15 +97,21 @@ function retryAfterCap(): void {
   capRetries += 1
   capRetryTimer = setTimeout(() => {
     capRetryTimer = null
+    // A sign-out while this timer waited leaves no identity: the server would refuse it.
+    if (auth.currentUser === null && !hasGuestId()) return
     if (!socket.active) socket.connect()
   }, delay)
 }
 
 socket.on('connect', () => {
   const { roomCode, isHost } = store()
+  store().setReconnecting(false)
+  store().setConnected(true)
   capRetries = 0
   if (capRetryTimer !== null) clearTimeout(capRetryTimer)
   capRetryTimer = null
+  if (signedInRetryTimer !== null) clearTimeout(signedInRetryTimer)
+  signedInRetryTimer = null
   if (capAlertId !== null) store().dismissAlert(capAlertId)
   capAlertId = null
   store().setConnectionError(null)
@@ -102,12 +125,26 @@ socket.on('connect', () => {
 })
 
 socket.on('connect_error', (err: Error) => {
-  // The cap names itself; any other refusal (a token that fails verification) is not retried.
+  // The cap names itself and is retried on a backoff.
   if (err?.message === SOCKET_CAP_REFUSAL && !socket.active) {
     retryAfterCap()
     return
   }
+  // Any other refusal is retried only while signed in: the token may be readable again
+  // (spec §11.3). A guest's refusal is not retried.
+  if (!socket.active && auth.currentUser !== null) {
+    showConnectionError(SIGNED_IN_RETRY_MESSAGE)
+    retryWhileSignedIn()
+    return
+  }
   showConnectionError(CONNECT_ERROR_MESSAGE)
+})
+
+// A drop after having connected: socket.io-client reconnects by itself (no attempt cap) and the
+// screens say so meanwhile. Only our own `socket.disconnect()` (sign-out, the dashboard) is not one.
+socket.on('disconnect', (reason: string) => {
+  store().setConnected(false)
+  store().setReconnecting(reason !== 'io client disconnect')
 })
 
 socket.on('joined', (p: JoinedPayload) => {

@@ -158,6 +158,13 @@ describe('the socket', () => {
     expect(typeof opts.auth).toBe('function')
   })
 
+  it('never gives up reconnecting and waits at most 10 s between attempts', async () => {
+    await load()
+    const { opts } = h.ioCalls[0]
+    expect(opts).not.toHaveProperty('reconnectionAttempts')
+    expect(opts.reconnectionDelayMax).toBe(10_000)
+  })
+
   it('does not connect by itself: importing the socket, the handlers, the games module and the store never calls connect', async () => {
     await load()
     await import('../api/games')
@@ -194,7 +201,7 @@ describe('the socket', () => {
     expect(second.guestId).toBe(first.guestId)
   })
 
-  it('the auth callback falls back to the guest id when the token cannot be read', async () => {
+  it('the auth callback never falls back to the guest id when signed in and the token cannot be read', async () => {
     await load()
     h.state.currentUser = {
       getIdToken: async () => {
@@ -202,9 +209,8 @@ describe('the socket', () => {
       },
     }
     const auth = h.ioCalls[0].opts.auth as (cb: (d: unknown) => void) => void
-    const sent = (await new Promise<unknown>((resolve) => auth(resolve))) as { idToken: unknown; guestId: string }
-    expect(sent.idToken).toBeNull()
-    expect(sent.guestId).toMatch(/^guest_[0-9a-f-]{36}$/)
+    const sent = await new Promise<unknown>((resolve) => auth(resolve))
+    expect(sent).toEqual({ idToken: null, guestId: null })
   })
 })
 
@@ -278,6 +284,53 @@ describe('re-asserting identity on connect', () => {
   })
 })
 
+describe('moving this tab to another room (spec 12 seq gate)', () => {
+  const lobby = (seq: number) => ({
+    seq,
+    state: 'configuring',
+    participants: [{ alias: 'P1', display_name: 'Ana', connected: true }],
+    seats_total: 4,
+    config_locked: false,
+    can_start: false,
+    start_blocked_reason: null,
+  })
+
+  it('reconnects, so the old room stops reaching the store, and joins only the new room', async () => {
+    const { useGameStore, storage } = await load()
+    const { enterRoom } = await import('../api/games')
+    storage.setSessionToken('AAA222', 'tok-a')
+    storage.setSessionToken('BBB333', 'tok-b')
+    expect(enterRoom('AAA222', false)).toBe(false) // the first room: nothing to leave
+    fire('connect')
+    fire('host_disconnected', { seq: 40 }) // the old room is far along
+    expect(useGameStore.getState().lastSeq).toBe(40)
+    h.emitted.length = 0
+
+    expect(enterRoom('BBB333', false)).toBe(true)
+    // Out of the old room's channel: the server drops this socket from it on the disconnect.
+    expect(h.lifecycle).toEqual(['disconnect', 'connect'])
+    expect(h.emitted).toEqual([])
+    fire('disconnect', 'io client disconnect')
+    fire('connect')
+    expect(emittedEvents()).toEqual([['join', { room_id: 'BBB333', session_token: 'tok-b' }]])
+    // The new room's first events are applied, not dropped behind the old room's seq.
+    fire('lobby_update', lobby(1))
+    expect(useGameStore.getState().lastSeq).toBe(1)
+    expect(useGameStore.getState().roomState).toBe('configuring')
+  })
+
+  it('the same room, or a socket that is not connecting, does not reconnect', async () => {
+    const { useGameStore } = await load()
+    const { enterRoom } = await import('../api/games')
+    expect(enterRoom('AAA222', true)).toBe(false)
+    expect(enterRoom('AAA222', false)).toBe(false)
+    h.fake.active = false
+    expect(enterRoom('BBB333', false)).toBe(false)
+    expect(h.lifecycle).toEqual([])
+    expect(useGameStore.getState().roomCode).toBe('BBB333')
+  })
+})
+
 describe('connect_error', () => {
   const COPY = 'Could not reach the game server.'
 
@@ -316,8 +369,23 @@ describe('a refused handshake (spec 0.6 socket cap)', () => {
     fire('connect_error', new Error(message))
   }
 
+  beforeEach(() => {
+    // A guest identity, so the retry has something to connect with
+    localStorage.setItem('pulky.guest_id', 'guest_00000000-0000-4000-8000-000000000000')
+  })
+
   afterEach(() => {
     vi.useRealTimers()
+    localStorage.removeItem('pulky.guest_id')
+  })
+
+  it('a retry that comes due after sign-out left no identity does not connect', async () => {
+    await load()
+    vi.useFakeTimers()
+    localStorage.removeItem('pulky.guest_id')
+    refuse()
+    vi.advanceTimersByTime(120_000)
+    expect(h.lifecycle).not.toContain('connect')
   })
 
   it('a refusal at the cap says so once and retries with a doubling backoff capped at 30 s', async () => {
@@ -366,6 +434,28 @@ describe('a refused handshake (spec 0.6 socket cap)', () => {
     expect(useGameStore.getState().alerts).toHaveLength(1)
   })
 
+  it('a refusal while signed in says so and retries every 5 s while still signed in', async () => {
+    const { useGameStore } = await load()
+    vi.useFakeTimers()
+    h.state.currentUser = { getIdToken: async () => 'tok' }
+    const connects = () => h.lifecycle.filter((e) => e === 'connect').length
+    refuse(AUTH_REFUSAL)
+    expect(useGameStore.getState().connectionError).toBe('Could not reach the game server. Retrying…')
+    expect(useGameStore.getState().alerts[0].message).not.toMatch(/sign/i)
+    vi.advanceTimersByTime(4999)
+    expect(connects()).toBe(0)
+    vi.advanceTimersByTime(1)
+    expect(connects()).toBe(1)
+    refuse(AUTH_REFUSAL)
+    vi.advanceTimersByTime(5000)
+    expect(connects()).toBe(2)
+    refuse(AUTH_REFUSAL)
+    h.state.currentUser = null // signed out meanwhile: no more retries
+    vi.advanceTimersByTime(60_000)
+    expect(connects()).toBe(2)
+    expect(useGameStore.getState().alerts).toHaveLength(1)
+  })
+
   it('a transport failure is left to socket.io-client: no retry of its own', async () => {
     const { useGameStore } = await load()
     vi.useFakeTimers()
@@ -373,6 +463,39 @@ describe('a refused handshake (spec 0.6 socket cap)', () => {
     vi.advanceTimersByTime(120_000)
     expect(h.lifecycle).not.toContain('connect')
     expect(useGameStore.getState().connectionError).toBe('Could not reach the game server.')
+  })
+})
+
+describe('reconnecting (spec 13.6)', () => {
+  it('a drop after connecting marks the socket reconnecting until it connects again', async () => {
+    const { useGameStore } = await load()
+    expect(useGameStore.getState().reconnecting).toBe(false)
+    fire('connect')
+    fire('disconnect', 'transport close')
+    expect(useGameStore.getState().reconnecting).toBe(true)
+    fire('disconnect', 'ping timeout')
+    expect(useGameStore.getState().reconnecting).toBe(true)
+    fire('connect')
+    expect(useGameStore.getState().reconnecting).toBe(false)
+  })
+
+  it('our own disconnect (sign-out) is not a drop', async () => {
+    const { useGameStore } = await load()
+    fire('connect')
+    fire('disconnect', 'io client disconnect')
+    expect(useGameStore.getState().reconnecting).toBe(false)
+  })
+
+  it('connected is true only from a connect to the next disconnect, our own included', async () => {
+    const { useGameStore } = await load()
+    expect(useGameStore.getState().connected).toBe(false)
+    fire('connect')
+    expect(useGameStore.getState().connected).toBe(true)
+    fire('disconnect', 'io client disconnect')
+    expect(useGameStore.getState().connected).toBe(false)
+    fire('connect')
+    fire('disconnect', 'transport close')
+    expect(useGameStore.getState().connected).toBe(false)
   })
 })
 

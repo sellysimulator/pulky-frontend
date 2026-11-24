@@ -3,6 +3,7 @@ import { join, relative, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   GUEST_ID_KEY,
+  claimPreloadReload,
   clearHostSecret,
   clearSessionToken,
   getDisplayName,
@@ -224,6 +225,16 @@ describe('display name (spec 3.4)', () => {
   })
 })
 
+describe('a stale chunk after a deploy reloads the tab once', () => {
+  it('claims the reload the first time in the tab session only, under the shared key', () => {
+    expect(claimPreloadReload()).toBe(true)
+    expect(window.sessionStorage.getItem('vite_preload_reloaded')).toBe('1')
+    expect(claimPreloadReload()).toBe(false)
+    clearPulkyStorage() // sign-out keeps it: no reload loop across a sign-out
+    expect(claimPreloadReload()).toBe(false)
+  })
+})
+
 describe('ui flags', () => {
   it('default to false and round-trip', () => {
     expect(getUiFlag('details_open')).toBe(false)
@@ -296,6 +307,7 @@ describe('a throwing storage (private mode)', () => {
     expect(getHostSecret('ABC234')).toBeNull()
     expect(getDisplayName()).toBeNull()
     expect(getUiFlag('details_open')).toBe(false)
+    expect(claimPreloadReload()).toBe(false) // never a reload loop
     expect(hasExported('9f2c1a', 'csv')).toBe(false)
     expect(() => markExported('9f2c1a', 'csv')).not.toThrow()
     expect(() => setGuestMode(true)).not.toThrow()

@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 
 /**
  * The jarrito: a clay pulque jug on an agave tile (design.md §2.7). Decorative,
- * because the "Pulky" wordmark always sits beside it. `public/favicon.svg`
+ * because the "Pulque Game" wordmark always sits beside it. `public/favicon.svg`
  * draws the same shapes in hex.
  */
 export default function BrandMark({ className = '' }: { className?: string }): ReactElement {

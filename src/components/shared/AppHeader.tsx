@@ -67,7 +67,7 @@ export default function AppHeader({ context }: { context?: ReactNode }): ReactEl
       <div className="mx-auto flex h-full max-w-console items-center gap-4 px-4 md:px-6">
         <Link to="/home" className="flex items-center gap-2">
           <BrandMark className="size-7" />
-          <span className="font-display text-xl font-bold">Pulky</span>
+          <span className="font-display text-xl font-bold">Pulque Game</span>
         </Link>
         <div className="ml-auto flex items-center gap-3">
           {context}

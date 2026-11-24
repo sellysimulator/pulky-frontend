@@ -1,7 +1,8 @@
 import { Layers } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent, type ReactElement } from 'react'
 import { getConfigDefaults, useLimits, validateConfig } from '../../api/config'
-import { errorMessage } from '../../api/http'
+import { RATE_LIMITED_RETRYING_MESSAGE } from '../../api/friendlyErrors'
+import { errorMessage, isRateLimited, retryAfterMs } from '../../api/http'
 import type { ConfigDefaultsResponse, FieldIssue, GameConfig } from '../../types/game'
 import { InlineAlert } from '../shared/AlertContainer'
 import Button from '../shared/Button'
@@ -37,6 +38,8 @@ export default function BatchConfigForm({ submitting, onCreate }: BatchConfigFor
   const [defaults, setDefaults] = useState<ConfigDefaultsResponse | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [checkError, setCheckError] = useState<string | null>(null)
+  // A check the rate limit refused (429) waits for its Retry-After and asks again.
+  const [busy, setBusy] = useState(false)
   const [draft, setDraft] = useState<GameConfig | null>(null)
   const [errors, setErrors] = useState<FieldIssue[]>([])
   const [warnings, setWarnings] = useState<FieldIssue[]>([])
@@ -87,10 +90,21 @@ export default function BatchConfigForm({ submitting, onCreate }: BatchConfigFor
       setErrors(result.errors)
       setWarnings(result.warnings)
     } catch (err) {
-      if (token === runRef.current) setCheckError(errorMessage(err, 'Could not check the settings.'))
-    } finally {
-      if (token === runRef.current) setChecking(false)
+      if (token !== runRef.current) return
+      if (isRateLimited(err)) {
+        // Not a problem with the settings: still checking, so Create waits and comes back by itself.
+        setCheckError(null)
+        setBusy(true)
+        timerRef.current = setTimeout(() => {
+          timerRef.current = null
+          void check()
+        }, retryAfterMs(err))
+        return
+      }
+      setCheckError(errorMessage(err, 'Could not check the settings.'))
     }
+    setBusy(false)
+    setChecking(false)
   }
 
   const commit = (next: GameConfig, touched: string[], immediate = false): void => {
@@ -195,7 +209,12 @@ export default function BatchConfigForm({ submitting, onCreate }: BatchConfigFor
         onEdit={onEdit}
         onPatch={onPatch}
         onReset={reset}
-        notices={checkError !== null ? <InlineAlert tone="danger">{checkError}</InlineAlert> : null}
+        notices={
+          <>
+            {busy ? <InlineAlert tone="info">{RATE_LIMITED_RETRYING_MESSAGE}</InlineAlert> : null}
+            {checkError !== null ? <InlineAlert tone="danger">{checkError}</InlineAlert> : null}
+          </>
+        }
       />
     </div>
   )

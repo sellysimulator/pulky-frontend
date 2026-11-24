@@ -65,7 +65,7 @@ describe('the route descriptor', () => {
 describe('copy', () => {
   it('shows the wordmark, the tagline and both sign-in buttons', () => {
     renderAt()
-    expect(screen.getByText('Pulky')).toBeInTheDocument()
+    expect(screen.getByText('Pulque Game')).toBeInTheDocument()
     expect(screen.getByText(TAGLINE)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Play as guest' })).toBeInTheDocument()

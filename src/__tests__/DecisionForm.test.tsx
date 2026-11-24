@@ -5,7 +5,7 @@
  */
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Spec §12.4: every figure on the form is the server's answer to preview_decision; a double stands in for it.
 const server = vi.hoisted(() => ({ preview: vi.fn() }))
@@ -214,6 +214,8 @@ const MSG_QTY = 'Orders must be whole numbers from 0 to 9,999.'
 
 // Spec §13.6: the form's upper bounds are the server's, loaded once the backend is awake.
 beforeEach(seedServerLimits)
+// Submit day waits for a connected socket (spec §13.6); these tests are about the form.
+beforeEach(() => useGameStore.setState({ connected: true }))
 
 function RICH_VIEW(): PlayerView {
   return makeView({ cash: 1e9 })
@@ -570,6 +572,30 @@ describe('outlay line and bar', () => {
     setField(buyQuality(), 90)
     await eventually('Today: $910.00 of $6,120.00')
     expect(server.preview.mock.lastCall?.[1]).toMatchObject({ peer_buy: { max_price: 16, min_quality: 90 } })
+  })
+})
+
+describe('Submit day while the socket is not connected (spec 13.6)', () => {
+  afterEach(() => useGameStore.setState({ connected: true, reconnecting: false }))
+
+  it('is disabled while the socket is down, so no submit is buffered and lost, and enabled once connected', () => {
+    useGameStore.setState({ connected: false, reconnecting: true })
+    const { onSubmit } = renderForm()
+    expect(submitBtn()).toBeDisabled()
+    fireEvent.click(submitBtn())
+    expect(onSubmit).not.toHaveBeenCalled()
+    act(() => useGameStore.setState({ connected: true, reconnecting: false }))
+    expect(submitBtn()).toBeEnabled()
+    fireEvent.click(submitBtn())
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  it('is disabled during the app\'s own disconnect().connect() too, which is not "reconnecting"', () => {
+    useGameStore.setState({ connected: false, reconnecting: false })
+    const { onSubmit } = renderForm()
+    expect(submitBtn()).toBeDisabled()
+    fireEvent.click(submitBtn())
+    expect(onSubmit).not.toHaveBeenCalled()
   })
 })
 

@@ -22,7 +22,7 @@ export default function ManualLayout({ title, audience, otherManual, children }:
         <nav aria-label="Manuals" className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <Link to="/" className="flex items-center gap-2 font-semibold text-ink hover:text-accent-hover">
             <BrandMark className="size-6" />
-            <span className="font-display text-base font-bold">Pulky</span>
+            <span className="font-display text-base font-bold">Pulque Game</span>
           </Link>
           <Link to={otherManual.to} className="font-semibold text-accent underline-offset-2 hover:text-accent-hover hover:underline">
             {otherManual.label}

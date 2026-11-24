@@ -61,6 +61,24 @@ function removeSession(key: string): void {
   }
 }
 
+/** The same key in every Novus game; not `pulky.*`, so sign-out leaves it alone. */
+const PRELOAD_RELOADED_KEY = 'vite_preload_reloaded'
+
+/**
+ * A stale chunk after a deploy reloads the tab once (`main.tsx`, `vite:preloadError`): true the
+ * first time in this tab's session, and recorded; false once it has reloaded, or when session
+ * storage is unavailable (no reload loop).
+ */
+export function claimPreloadReload(): boolean {
+  try {
+    if (sessionStorage.getItem(PRELOAD_RELOADED_KEY)) return false
+    sessionStorage.setItem(PRELOAD_RELOADED_KEY, '1')
+    return true
+  } catch {
+    return false
+  }
+}
+
 function sessionTokenKey(roomCode: string): string {
   return `pulky.session_token.${roomCode.toUpperCase()}`
 }
@@ -119,6 +137,11 @@ export function clearPulkyStorage(): void {
 
 export function getGuestId(): string | null {
   return readLocal(GUEST_ID_KEY)
+}
+
+/** True once this browser has a guest identity: stored, or kept in memory when storage is unavailable. */
+export function hasGuestId(): boolean {
+  return unsavedGuestId !== null || getGuestId() !== null
 }
 
 export function getOrCreateGuestId(): string {

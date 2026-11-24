@@ -360,8 +360,11 @@ export function before(a: HTMLElement, b: HTMLElement): boolean {
  * Board2D: section order, the seam (props only), locked and game-over states.
  */
 
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { INITIAL_STATE, useGameStore } from '../store/gameStore'
+
+// Submit day waits for a connected socket (spec §13.6); these tests are about the form.
+beforeEach(() => useGameStore.setState({ connected: true }))
 
 describe('Board2D order (spec 13.7, D38)', () => {
   it('renders day stats, yesterday, the decision, cellar, market and details top to bottom', () => {

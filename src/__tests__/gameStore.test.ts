@@ -125,6 +125,8 @@ describe('INITIAL_STATE and reset', () => {
     alerts: [],
     selectedDay: null,
     connectionError: null,
+    reconnecting: false,
+    connected: false,
     lastError: null,
     limits: null,
   }
@@ -160,6 +162,26 @@ describe('INITIAL_STATE and reset', () => {
     expect(S().limits).toEqual(limits)
     S().reset()
     expect(data()).toEqual({ ...EXPECTED, limits })
+  })
+
+  it('reset() and a new room keep the socket\'s reconnecting state: the socket outlives a room (spec §13.6)', () => {
+    S().setReconnecting(true)
+    S().setRoom('ABC234', true)
+    S().setRoom('XYZ789', false)
+    expect(S().reconnecting).toBe(true)
+    S().reset()
+    expect(data()).toEqual({ ...EXPECTED, reconnecting: true })
+    S().setReconnecting(false)
+  })
+
+  it('reset() and a new room keep the socket\'s connected state (spec §13.6)', () => {
+    S().setConnected(true)
+    S().setRoom('ABC234', true)
+    S().setRoom('XYZ789', false)
+    expect(S().connected).toBe(true)
+    S().reset()
+    expect(data()).toEqual({ ...EXPECTED, connected: true })
+    S().setConnected(false)
   })
 })
 
