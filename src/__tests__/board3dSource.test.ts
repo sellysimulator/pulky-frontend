@@ -124,16 +124,20 @@ describe('the build configuration', () => {
     expect(config).toContain('chunkSizeWarningLimit: 1200')
   })
 
-  it('pins the preload helper before every other rule, and the three rules before forms', () => {
+  it('pins the preload helper before every other rule, and both three rules before react and vendor', () => {
     const helper = config.indexOf("id.includes('vite/preload-helper')")
     const firebase = config.indexOf("return 'firebase'")
     const three = config.indexOf("return 'three'")
-    const forms = config.indexOf("return 'forms'")
+    const lastThree = config.lastIndexOf("return 'three'")
+    const react = config.indexOf("return 'react'")
+    const vendor = config.lastIndexOf("return 'vendor'")
     const socket = config.indexOf("return 'socket'")
     expect(helper).toBeGreaterThan(0)
     expect(helper).toBeLessThan(firebase)
     expect(socket).toBeLessThan(three)
-    expect(three).toBeLessThan(forms)
+    expect(three).toBeLessThan(lastThree)
+    expect(lastThree).toBeLessThan(react)
+    expect(react).toBeLessThan(vendor)
   })
 
   it('excludes the render modules from coverage', () => {

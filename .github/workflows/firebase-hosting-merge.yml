@@ -1,5 +1,5 @@
 # Deploys the live site (pulkysim.web.app) on every push to main.
-# Gates first, then a build that refuses to run without the backend URLs
+# Gates first (the coverage thresholds of vite.config.ts too), then a build that refuses to run without the backend URLs
 # (docs/spec/13-deploy.md §13.13).
 
 name: Deploy to Firebase Hosting on merge
@@ -15,10 +15,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
+          cache: npm
       - run: npm ci
       - run: npx tsc -b
       - run: npx eslint .
-      - run: npx vitest run
+      - run: npm test -- --coverage
       - run: npm run build
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}

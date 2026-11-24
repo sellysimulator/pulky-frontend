@@ -53,7 +53,6 @@ import {
   join,
   joinWaiting,
   leave,
-  requestState,
   startGame,
   submitDay,
   updateConfig,
@@ -335,13 +334,9 @@ describe('games.ts emits the spec 12.1 events', () => {
     expect(Object.values(payload)).not.toContain(null)
   })
 
-  it('leave, request_state, start_game, end_game_early, config_update', () => {
+  it('leave, start_game, end_game_early, config_update', () => {
     leave('ABC234')
     expect(last().event).toBe('leave')
-    expect(last().args).toEqual([{ room_id: 'ABC234' }])
-
-    requestState('ABC234')
-    expect(last().event).toBe('request_state')
     expect(last().args).toEqual([{ room_id: 'ABC234' }])
 
     startGame('ABC234', 'sekrit')
@@ -364,8 +359,7 @@ describe('games.ts emits the spec 12.1 events', () => {
     updateConfig('ABC234', 's', {})
     startGame('ABC234', 's')
     endGameEarly('ABC234', 's')
-    requestState('ABC234')
-    expect(h.emitted).toHaveLength(7)
+    expect(h.emitted).toHaveLength(6)
     for (const e of h.emitted) expect(e.args).toHaveLength(1)
   })
 

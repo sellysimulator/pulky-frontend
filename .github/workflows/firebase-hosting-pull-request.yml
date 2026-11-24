@@ -1,31 +1,39 @@
-# Builds every pull request through the same gates and deploys it to a
-# preview channel (docs/spec/13-deploy.md §13.13).
+# Runs the gates (the coverage thresholds of vite.config.ts too) on every pull
+# request, forks included, and on every push to a branch other than main, then
+# deploys a preview channel for a pull request from this repository
+# (docs/spec/13-deploy.md §13.13). Any other run gets no secret and deploys
+# nothing, so its build runs without the backend URLs.
 
 name: Deploy to Firebase Hosting on PR
-on: pull_request
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
 permissions:
   checks: write
   contents: read
   pull-requests: write
 jobs:
   build_and_preview:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
+          cache: npm
       - run: npm ci
       - run: npx tsc -b
       - run: npx eslint .
-      - run: npx vitest run
+      - run: npm test -- --coverage
       - run: npm run build
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
           VITE_SOCKET_URL: ${{ vars.VITE_SOCKET_URL }}
-          REQUIRE_BACKEND_ENV: '1'
+          REQUIRE_BACKEND_ENV: ${{ github.event.pull_request.head.repo.full_name == github.repository && '1' || '' }}
       - uses: FirebaseExtended/action-hosting-deploy@v0
+        if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PULKY_DA26C }}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { useShallow } from 'zustand/react/shallow'
 import { enterRoom, joinWaiting } from '../api/games'
 import ConfigPanel from '../components/config/ConfigPanel'
 import HostConsole from '../components/host/HostConsole'
@@ -15,7 +16,6 @@ import type { PageRoute } from '../routes/registry'
 import { useGameStore } from '../store/gameStore'
 import { getHostSecret } from '../utils/storage'
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const route: PageRoute = { path: '/host/:roomCode', guard: 'auth+backend' }
 
 export default function HostRoom(): ReactElement {
@@ -29,9 +29,8 @@ export default function HostRoom(): ReactElement {
   const hostView = useGameStore((s) => s.hostView)
   const configLocked = useGameStore((s) => s.configLocked)
   const gamePublicId = useGameStore((s) => s.gamePublicId)
-  const hostHistories = useGameStore((s) => s.hostHistories)
+  const histories = useGameStore(useShallow(selectHostHistories))
   const publicHistory = useGameStore((s) => s.publicHistory)
-  const marketHistory = useGameStore((s) => s.marketHistory)
   const brief = useGameStore((s) => s.brief)
   const [presenting, setPresenting] = useState(false)
 
@@ -40,22 +39,15 @@ export default function HostRoom(): ReactElement {
     joinWaiting(code, getHostSecret(code))
   }, [code])
 
-  // The store is read at call time; the subscriptions above are what re-run these memos.
-  const histories = useMemo(
-    () => selectHostHistories(useGameStore.getState()),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [hostHistories, publicHistory, marketHistory],
-  )
-
   const current = storeRoom === code
   const hostSecret = getHostSecret(code)
   const claimed = current && hostClaimed
   const failure = current ? joinError : null
   const state = current ? roomState : null
 
+  // A memo, not `useShallow`: the copy nests new objects on every call, so a store selector would never settle.
   const presentation = useMemo(
-    () => (presenting && current && hostView !== null ? selectPresentationData(useGameStore.getState()) : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => (presenting && current ? selectPresentationData({ hostView, brief, publicHistory }) : null),
     [presenting, current, hostView, brief, publicHistory],
   )
 

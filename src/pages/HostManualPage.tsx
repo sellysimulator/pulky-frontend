@@ -13,7 +13,6 @@ import BrandMark from '../components/shared/BrandMark'
 import type { PageRoute } from '../routes/registry'
 import { PLAYER_CONFIG_KEYS, SECRET_CONFIG_KEYS } from '../types/game'
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const route: PageRoute = { path: HOST_MANUAL_PATH, guard: 'public' }
 
 /** `random_seed` has no control and so no help entry. */

@@ -9,7 +9,6 @@ import { InlineAlert } from '../components/shared/AlertContainer'
 import type { PageRoute } from '../routes/registry'
 import { setHostBatch, setHostSecret } from '../utils/storage'
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const route: PageRoute = { path: '/multihost/new', guard: 'auth+backend' }
 
 /**

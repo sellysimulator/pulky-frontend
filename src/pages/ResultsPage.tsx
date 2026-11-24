@@ -12,7 +12,6 @@ import type { PageRoute } from '../routes/registry'
 import { useGameStore } from '../store/gameStore'
 import { getGameHostSecret } from '../utils/storage'
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const route: PageRoute[] = [{ path: '/results/:publicId', guard: 'public' }]
 
 /** A 404 means persistence is still running: retry after 1 s, then after 2 s (spec §13.8). */

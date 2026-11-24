@@ -58,10 +58,6 @@ export function endGameEarly(roomCode: string, hostSecret: string): void {
   socket.emit('end_game_early', { room_id: roomCode, host_secret: hostSecret })
 }
 
-export function requestState(roomCode: string): void {
-  socket.emit('request_state', { room_id: roomCode })
-}
-
 /** How long a decision preview may take before the form gives up on it. */
 export const PREVIEW_TIMEOUT_MS = 5000
 

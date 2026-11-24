@@ -136,7 +136,6 @@ export default defineConfig(({ mode }) => {
               return 'three'
             if (/[\\/]node_modules[\\/](three-stdlib|three-mesh-bvh|camera-controls|maath|meshline|potpack|@monogrid[\\/]gainmap-js|@mediapipe[\\/]tasks-vision|detect-gpu|stats-gl|stats\.js|hls\.js|tunnel-rat|@use-gesture[\\/]core|@use-gesture[\\/]react|react-use-measure|@babel[\\/]runtime)[\\/]/.test(id))
               return 'three'
-            if (/[\\/]node_modules[\\/](react-hook-form|@hookform|zod)[\\/]/.test(id)) return 'forms'
             if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id))
               return 'react'
             return 'vendor'

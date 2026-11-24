@@ -21,7 +21,7 @@ It renders what the backend (`../Pulky_Backend`) sends; the backend owns the gam
 ```bash
 npm ci
 npm run dev        # proxies /api and /socket.io to localhost:8080
-npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build
+npx tsc -b && npx eslint . && npm test -- --coverage && npm run build   # npm run test:watch watches
 ```
 
 ## Rules not to break
