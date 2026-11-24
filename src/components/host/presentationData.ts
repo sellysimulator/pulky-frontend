@@ -88,7 +88,9 @@ function submittedRows(hostView: HostView): PresentationData['submitted'] {
 }
 
 /** Null before the start. Names every field it copies; nothing else of the host view crosses (spec §9.3, §11.1). */
-export function selectPresentationData(state: GameState): PresentationData | null {
+export function selectPresentationData(
+  state: Pick<GameState, 'hostView' | 'brief' | 'publicHistory'>,
+): PresentationData | null {
   const hostView = state.hostView
   const brief = state.brief ?? hostView?.brief ?? null
   if (hostView === null || brief === null) return null
