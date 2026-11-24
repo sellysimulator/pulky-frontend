@@ -21,17 +21,30 @@ const read = (path: string): string => readFileSync(path, 'utf8')
 
 // --------------------------------------------------------------- workflows
 
-function checkWorkflow(text: string, kind: 'merge' | 'pull_request'): string[] {
+/** True only for a pull request from this repository: not for a fork, nor for a push. */
+const SAME_REPOSITORY = 'github.event.pull_request.head.repo.full_name == github.repository'
+const BUILD_GUARD = {
+  merge: "REQUIRE_BACKEND_ENV: '1'",
+  pull_request: `REQUIRE_BACKEND_ENV: \${{ ${SAME_REPOSITORY} && '1' || '' }}`,
+} as const
+
+/** Both workflows gate every run, coverage included; only a run of this repository builds with the guard and deploys. */
+function checkWorkflow(source: string, kind: 'merge' | 'pull_request'): string[] {
   const problems: string[] = []
+  const text = source
+    .split('\n')
+    .filter((l) => !l.trim().startsWith('#'))
+    .join('\n')
   const ordered = [
-    'actions/setup-node',
+    'actions/checkout@v4',
+    'actions/setup-node@v4',
     "node-version-file: '.nvmrc'",
     '- run: npm ci',
     '- run: npx tsc -b',
     '- run: npx eslint .',
-    '- run: npx vitest run',
+    '- run: npm test -- --coverage',
     '- run: npm run build',
-    "REQUIRE_BACKEND_ENV: '1'",
+    BUILD_GUARD[kind],
     'FirebaseExtended/action-hosting-deploy@v0',
     'projectId: pulky-da26c',
   ]
@@ -46,7 +59,7 @@ function checkWorkflow(text: string, kind: 'merge' | 'pull_request'): string[] {
   const deploy = text.indexOf('FirebaseExtended/action-hosting-deploy@v0')
   const buildBlock = build >= 0 && deploy > build ? text.slice(build, deploy) : ''
   for (const needle of [
-    "REQUIRE_BACKEND_ENV: '1'",
+    BUILD_GUARD[kind],
     'VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}',
     'VITE_SOCKET_URL: ${{ vars.VITE_SOCKET_URL }}',
   ]) {
@@ -56,16 +69,22 @@ function checkWorkflow(text: string, kind: 'merge' | 'pull_request'): string[] {
   if (!text.includes('firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PULKY_DA26C }}'))
     problems.push('deploy lacks the Pulky service-account secret')
 
+  const triggers = /^on:(.*(?:\n[ \t]+.*)*)/m.exec(text)?.[1].replace(/\s+/g, ' ').trim() ?? ''
+  const conditions = [...text.matchAll(/^\s*-?\s*if:\s*(.*)$/gm)].map((m) => m[1].trim())
   if (kind === 'merge') {
     if (!/^\s*channelId:\s*live\s*$/m.test(text)) problems.push('merge must deploy to the live channel')
-    if (!/branches:\s*\n\s*-\s*main\b/.test(text)) problems.push('merge must run on pushes to main')
+    if (triggers !== 'push: branches: - main') problems.push('merge must run on pushes to main, and only those')
+    if (conditions.length > 0) problems.push('no job or step may be skipped')
   } else {
     if (/channelId:\s*live/.test(text)) problems.push('pull request must use a preview channel')
-    if (!/^on:\s*pull_request\s*$/m.test(text)) problems.push('must run on pull_request')
+    if (triggers !== 'pull_request: push: branches-ignore: - main')
+      problems.push('must run on every pull request and on every push but to main')
+    const guard = `- uses: FirebaseExtended/action-hosting-deploy@v0\n        if: \${{ ${SAME_REPOSITORY} }}\n`
+    if (conditions.length !== 1 || !text.includes(guard))
+      problems.push('only the deploy step is conditional, on a pull request from this repository')
   }
 
-  const lines = text.split('\n').filter((l) => !l.trim().startsWith('#'))
-  for (const line of lines) {
+  for (const line of text.split('\n')) {
     if (/^\s*-?\s*run:.*(echo|printenv|set -x)/.test(line)) problems.push(`prints environment: ${line.trim()}`)
     if (/run:.*secrets\./.test(line)) problems.push(`secret used in a command: ${line.trim()}`)
   }
@@ -97,60 +116,34 @@ describe('hosting workflows', () => {
   it('the checker rejects a build without the guard flag or without a gate', () => {
     const text = read(MERGE)
     expect(checkWorkflow(text.replace("REQUIRE_BACKEND_ENV: '1'", ''), 'merge')).not.toEqual([])
-    expect(checkWorkflow(text.replace('- run: npx vitest run', ''), 'merge')).not.toEqual([])
+    expect(checkWorkflow(text.replace('- run: npx eslint .', ''), 'merge')).not.toEqual([])
+    expect(checkWorkflow(text.replace('npm test -- --coverage', 'npm test'), 'merge')).not.toEqual([])
     expect(checkWorkflow(text.replace("node-version-file: '.nvmrc'", ''), 'merge')).not.toEqual([])
     expect(checkWorkflow(text.replace('projectId: pulky-da26c', 'projectId: other'), 'merge')).not.toEqual([])
+    expect(checkWorkflow(text.replace('- main', "- '**'"), 'merge')).not.toEqual([])
+  })
+
+  it('the checker rejects a pull-request workflow that misses a gate or an event, or deploys what it must not', () => {
+    const text = read(PULL_REQUEST)
+    expect(checkWorkflow(text.replace('npm test -- --coverage', 'npm test'), 'pull_request')).not.toEqual([])
+    expect(checkWorkflow(text.replace('- run: npx eslint .\n', ''), 'pull_request')).not.toEqual([])
+    expect(checkWorkflow(text.replace('- run: npm run build', '- run: npx vite'), 'pull_request')).not.toEqual([])
+    expect(checkWorkflow(text.replace(/^ {2}pull_request:\n/m, ''), 'pull_request')).not.toEqual([])
+    expect(checkWorkflow(text.replace('pull_request:', 'pull_request_target:'), 'pull_request')).not.toEqual([])
+    expect(checkWorkflow(text.replace('branches-ignore', 'branches'), 'pull_request')).not.toEqual([])
+    const deployGuard = `        if: \${{ ${SAME_REPOSITORY} }}\n`
+    expect(checkWorkflow(text.replace(deployGuard, ''), 'pull_request')).not.toEqual([])
+    // A condition on the whole job would skip the gates of a fork's pull request.
+    const job = '  build_and_preview:\n'
+    expect(checkWorkflow(text.replace(job, job + deployGuard.replace('        ', '    ')), 'pull_request')).not.toEqual([])
+    expect(checkWorkflow(text.replace(BUILD_GUARD.pull_request, BUILD_GUARD.merge), 'pull_request')).not.toEqual([])
   })
 })
 
-// ------------------------------------------------------- CI and coverage
+// -------------------------------------------------------------- coverage
 
-const CI = join(WORKFLOWS, 'ci.yml')
 const VITE_CONFIG = join(ROOT, 'vite.config.ts')
 const COVERAGE_METRICS = ['lines', 'statements', 'functions', 'branches'] as const
-
-/** The gates workflow: every push and pull request, forks included, so no secret and no deploy. */
-function checkCiWorkflow(text: string): string[] {
-  const problems: string[] = []
-  const body = text
-    .split('\n')
-    .filter((l) => !l.trim().startsWith('#'))
-    .join('\n')
-
-  const ordered = [
-    'actions/checkout@v4',
-    'actions/setup-node@v4',
-    "node-version-file: '.nvmrc'",
-    'cache: npm',
-    '- run: npm ci',
-    '- run: npx tsc -b',
-    '- run: npx eslint .',
-    '- run: npx vitest run --coverage',
-    '- run: npm run build',
-  ]
-  let cursor = 0
-  for (const needle of ordered) {
-    const at = body.indexOf(needle, cursor)
-    if (at < 0) problems.push(`missing or out of order: ${needle}`)
-    else cursor = at
-  }
-
-  if (!/^name:\s*CI\s*$/m.test(body)) problems.push('must be named CI')
-  const triggers = /^on:(.*(?:\n[ \t]+.*)*)/m.exec(body)?.[1] ?? ''
-  if (!/\bpush\b/.test(triggers)) problems.push('must run on push')
-  if (!/\bpull_request\b/.test(triggers)) problems.push('must run on pull_request')
-  if (/pull_request_target/.test(triggers)) problems.push('pull_request_target hands secrets to fork code')
-  if (/\b(branches|branches-ignore|paths|paths-ignore|tags)\s*:/.test(triggers)) problems.push('triggers must not be filtered')
-  if (/\bif:/.test(body)) problems.push('no job or step may be skipped')
-
-  if (/secrets\./.test(body)) problems.push('uses a secret')
-  if (/action-hosting-deploy|firebase\s+deploy/.test(body)) problems.push('deploys')
-  if (/REQUIRE_BACKEND_ENV/.test(body)) problems.push('a non-deploy build needs no backend URLs')
-  for (const line of body.split('\n')) {
-    if (/^\s*-?\s*run:.*(echo|printenv|set -x)/.test(line)) problems.push(`prints environment: ${line.trim()}`)
-  }
-  return problems
-}
 
 /** The numeric `coverage.thresholds` entries of `vite.config.ts`. */
 function coverageThresholds(text: string): Record<string, number> {
@@ -158,26 +151,7 @@ function coverageThresholds(text: string): Record<string, number> {
   return Object.fromEntries([...coverage.matchAll(/(\w+):\s*(\d+(?:\.\d+)?)/g)].map((m) => [m[1], Number(m[2])]))
 }
 
-describe('CI workflow', () => {
-  it('runs every gate, coverage included, on push and pull_request with no secret and no deploy', () => {
-    expect(existsSync(CI)).toBe(true)
-    expect(checkCiWorkflow(read(CI))).toEqual([])
-  })
-
-  it('the checker rejects a missing gate, a filtered trigger, a secret and a deploy', () => {
-    const text = read(CI)
-    expect(checkCiWorkflow(text.replace('- run: npx vitest run --coverage', '- run: npx vitest run'))).not.toEqual([])
-    expect(checkCiWorkflow(text.replace('- run: npx eslint .\n', ''))).not.toEqual([])
-    expect(checkCiWorkflow(text.replace('- run: npm run build', '- run: npx vite'))).not.toEqual([])
-    expect(checkCiWorkflow(text.replace(/^ {2}pull_request:\n/m, ''))).not.toEqual([])
-    expect(checkCiWorkflow(text.replace(/^ {2}push:\n/m, '  push:\n    branches:\n      - main\n'))).not.toEqual([])
-    const deploy =
-      '      - uses: FirebaseExtended/action-hosting-deploy@v0\n' +
-      '        with:\n' +
-      '          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PULKY_DA26C }}\n'
-    expect(checkCiWorkflow(text + deploy)).not.toEqual([])
-  })
-
+describe('coverage gate', () => {
   it('vite.config.ts gates coverage with the v8 provider on all four metrics', () => {
     const text = read(VITE_CONFIG)
     expect(text).toContain("provider: 'v8'")
@@ -186,8 +160,12 @@ describe('CI workflow', () => {
       expect(thresholds[metric], metric).toBeGreaterThan(0)
       expect(thresholds[metric], metric).toBeLessThanOrEqual(100)
     }
-    const pkg = JSON.parse(read(join(ROOT, 'package.json'))) as { devDependencies: Record<string, string> }
+    const pkg = JSON.parse(read(join(ROOT, 'package.json'))) as {
+      devDependencies: Record<string, string>
+      scripts: Record<string, string>
+    }
     expect(pkg.devDependencies).toHaveProperty('@vitest/coverage-v8')
+    expect(pkg.scripts.test).toBe('vitest run') // what `npm test -- --coverage` in the workflows runs
   })
 
   it('the threshold reader misses a metric that is not declared', () => {

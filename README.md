@@ -9,7 +9,7 @@ its `README.md`); the visual system is `../docs/design.md`.
 nvm use            # Node 24.22.1 (.nvmrc)
 npm ci
 npm run dev        # http://localhost:5173, proxies /api and /socket.io to localhost:8080
-npx tsc -b && npx eslint . && npx vitest run --coverage && npm run build   # the gates ci.yml runs
+npx tsc -b && npx eslint . && npm test -- --coverage && npm run build   # the gates CI runs
 ```
 
 ## Contracts with the backend
