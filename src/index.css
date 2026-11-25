@@ -72,6 +72,16 @@
   --default-transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
 }
 
+/* A phone held upright: narrow, and touch is its main pointer, so a narrow desktop window never matches. */
+@custom-variant phone-upright {
+  @media (pointer: coarse) and (max-width: 39.99rem) {
+    @slot;
+  }
+}
+
+/* Anything on the page while a phone shows the 3D board, which takes the whole screen. */
+@custom-variant phone-scene (body:has([data-phone-scene]) &);
+
 @layer base {
   html { color-scheme: light; -webkit-text-size-adjust: 100%; }
   /* Projection scales (design.md §4.4): every rem-based size follows the root. */
@@ -100,6 +110,23 @@
   input[type="number"] { appearance: textfield; }
   input[type="number"]::-webkit-inner-spin-button,
   input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+  /* iOS Safari zooms the page in when a field under 16px takes focus and never zooms it back out, and the 3D board
+     cannot be pinched out (it is touch-none). Nothing smaller on a touch screen, whatever the field inherits. */
+  @media (pointer: coarse) {
+    input, select, textarea { font-size: max(1rem, 1em); }
+  }
+
+  /* The 3D board on a phone: the page has nothing to scroll, so Safari's bars never slide over the HUD, and a double
+     tap does not zoom. */
+  html:has([data-phone-scene]),
+  html:has([data-phone-scene]) body {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: manipulation;
+  }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {

@@ -3,7 +3,9 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type Point
 import type { BoardViewProps } from './Board2D'
 import SceneLoading from './SceneLoading'
 import { observeContextLoss } from './board3d/contextLoss'
+import { usePhoneViewport } from './board3d/phoneViewport'
 import {
+  PHONE_LOOK_SCALE,
   applyLook,
   createMotionState,
   isTypingTarget,
@@ -14,11 +16,12 @@ import {
   type MotionState,
   type MoveKey,
 } from './board3d/playerMotion'
+import PhoneLens from './board3d/render/PhoneLens'
 import PlayerController from './board3d/render/PlayerController'
 import PulqueriaScene from './board3d/render/PulqueriaScene'
 import SceneHud from './board3d/SceneHud'
 import ScenePanels from './board3d/ScenePanels'
-import { PANEL_TITLES, SPAWN, type PanelId, type StationId } from './board3d/sceneLayout'
+import { FOV, PANEL_TITLES, SPAWN, type PanelId, type StationId } from './board3d/sceneLayout'
 import { buildSceneModel } from './board3d/sceneModel'
 
 /**
@@ -35,6 +38,8 @@ export default function Board3D(props: BoardViewProps): ReactElement {
   const scene = useRef<HTMLDivElement>(null)
   const opener = useRef<HTMLElement | null>(null)
   const drag = useRef<{ id: number; x: number; y: number } | null>(null)
+
+  const phone = usePhoneViewport()
 
   const markReady = useCallback(() => setReady(true), [])
   const nearPanel = stationPanel(near)
@@ -115,7 +120,8 @@ export default function Board3D(props: BoardViewProps): ReactElement {
   const onPointerMove = (event: PointerEvent<HTMLDivElement>): void => {
     const current = drag.current
     if (current === null || current.id !== event.pointerId) return
-    const look = applyLook(motion.current, event.clientX - current.x, event.clientY - current.y)
+    const scale = phone ? PHONE_LOOK_SCALE : 1
+    const look = applyLook(motion.current, event.clientX - current.x, event.clientY - current.y, scale)
     motion.current.yaw = look.yaw
     motion.current.pitch = look.pitch
     current.x = event.clientX
@@ -131,7 +137,11 @@ export default function Board3D(props: BoardViewProps): ReactElement {
   if (contextLost) throw new Error('The WebGL context was lost.')
 
   return (
-    <div className="fixed inset-x-0 top-14 bottom-0 overflow-hidden bg-canvas">
+    <div
+      // Read by CSS (`index.css`): the page stops scrolling and the header takes no room.
+      data-phone-scene={phone || undefined}
+      className={`fixed ${phone ? 'inset-0' : 'inset-x-0 top-14 bottom-0'} overflow-hidden bg-canvas`}
+    >
       <div
         ref={scene}
         role="img"
@@ -144,13 +154,14 @@ export default function Board3D(props: BoardViewProps): ReactElement {
         onPointerCancel={onPointerEnd}
       >
         <Canvas
-          camera={{ fov: 70, near: 0.1, far: 150, position: [...SPAWN.position] }}
+          camera={{ fov: FOV.wide, near: 0.1, far: 150, position: [...SPAWN.position] }}
           dpr={[1, 1.5]}
           gl={{ antialias: true, powerPreference: 'high-performance' }}
           shadows={false}
           frameloop={panel === null ? 'always' : 'demand'}
           aria-hidden="true"
         >
+          {phone ? <PhoneLens /> : null}
           <PlayerController motion={motion} enabled={panel === null} stations={model.stations} onNearChange={setNear} />
           <Suspense fallback={null}>
             <PulqueriaScene model={model} onReady={markReady} />

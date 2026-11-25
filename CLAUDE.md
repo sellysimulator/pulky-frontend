@@ -80,6 +80,14 @@ npx tsc -b && npx eslint . && npm test -- --coverage && npm run build   # npm ru
 - **3D board** (spec §13.11): layout numbers live only in `board3d/sceneLayout.ts`; a visual
   fix changes them there and keeps the `sceneModel.test.ts` sweep green. `Board3D.tsx` and
   `board3d/render/**` cannot run in jsdom and are excluded from coverage.
+- **3D on a phone** (`usePhoneViewport`: touch is the *main* pointer, so a touch laptop and a
+  desktop window never match): `SceneHud` renders `PhoneHud` (pill, "?" card, icon dock,
+  `Joystick` through `stickMoves`) around the same drawer, which must keep its place in the tree
+  (it holds the decision's draft; a small tablet flips the query by rotating). The layout and its
+  copy are the same in every Novus game (`../../game_stack.md`, item 5 of the touch rule).
+  `data-phone-scene` (on `Board3D` and `SceneLoading`) locks the page and empties the header by
+  CSS (`phone-scene:` in `index.css`); `data-phone-panel` (`ScenePanels`) hides the 2D button on a
+  sideways phone. No field under 16px on a touch screen: never put `text-sm` on an input itself.
 - The `pulky:forbid-three-in-entry-graph` plugin (`vite.config.ts`) fails the build when the
   entry chunk statically reaches `three`. To check it, add a used import to
   `src/pages/GameRoom.tsx` (`import { Vector3 } from 'three'; export const ORIGIN = new

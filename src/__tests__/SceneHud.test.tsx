@@ -1,10 +1,11 @@
 /** SceneHud (spec §13.11.7; design.md §14.4). */
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { act } from 'react'
+import { act, useState, type ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import SceneHud from '../components/game/views/board3d/SceneHud'
+import { PHONE_VIEWPORT } from '../components/game/views/board3d/phoneViewport'
 import { PANEL_ORDER, PANEL_TITLES, type PanelId } from '../components/game/views/board3d/sceneLayout'
-import { formatMoney, weekdayLong } from '../utils/format'
+import { formatMoney, weekdayLong, weekdayShort } from '../utils/format'
 import type { PlayerView } from '../types/game'
 import { baseProps } from './fixtures/sceneProps'
 
@@ -347,5 +348,257 @@ describe('small screens', () => {
     setup()
     const legend = screen.getByText('Drag: look around').closest('.row-start-4') as HTMLElement
     expect(legend.classList.contains('max-lg:hidden')).toBe(false)
+  })
+})
+
+/** A matchMedia that matches the given queries, which a test can swap. */
+function media(...matching: string[]) {
+  const listeners = new Set<() => void>()
+  let current = matching
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    get matches() {
+      return current.includes(query)
+    },
+    media: query,
+    addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+    removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+  }))
+  return {
+    set(...next: string[]) {
+      current = next
+      act(() => listeners.forEach((fn) => fn()))
+    },
+  }
+}
+
+const TOUCH = '(any-pointer: coarse)'
+const DOCK: readonly PanelId[] = ['decision', 'day-stats', 'yesterday', 'cellar', 'market', 'details']
+const HELP = [
+  '3D mode may not be very well optimized for phones.',
+  'Joystick: walk',
+  'Drag: look around',
+  'Icons: open everything',
+  'Tap to hide',
+]
+
+describe('a phone (§13.11.7)', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  const phone = (...args: Parameters<typeof setup>) => {
+    media(TOUCH, PHONE_VIEWPORT)
+    return setup(...args)
+  }
+  const dock = () => screen.getByRole('navigation', { name: 'Panels' })
+  const joystick = () => screen.queryByRole('group', { name: 'Movement joystick' })
+  const help = () => screen.queryByRole('button', { name: /Tap to hide/ })
+  const helpToggle = () => screen.getByRole('button', { name: /the 3D controls$/ })
+  const dot = () => document.querySelector('span[aria-hidden="true"].bg-black\\/50')
+  const live = () => document.querySelector('[role="status"][aria-live="polite"]') as HTMLElement
+
+  it('asks for touch as the main pointer in both orientations, so no desktop window is a phone', () => {
+    const branches = PHONE_VIEWPORT.split(',')
+    expect(branches).toHaveLength(2)
+    for (const branch of branches) expect(branch).toContain('(pointer: coarse)')
+    expect(branches[0]).toContain('max-width')
+    expect(branches[1]).toContain('max-height')
+  })
+
+  it('is told the day, the short weekday and the cash in one pill, and nothing about who is awaited', () => {
+    const { p } = phone({ awaiting: ['P2'] })
+    expect(text()).toContain(
+      `Day ${p.view.day}/${p.view.duration_days} · ${weekdayShort(p.view.weekday)} · ${formatMoney(p.view.cash)}`,
+    )
+    expect(text()).not.toContain(weekdayLong(p.view.weekday))
+    expect(text()).not.toContain('Waiting for')
+  })
+
+  it('does not say everyone has submitted either', () => {
+    phone()
+    expect(text()).not.toContain('Everyone has submitted.')
+  })
+
+  it('keeps the disruption message and the Shared transport badge', () => {
+    phone({}, (view) => {
+      const brief = view.brief as unknown as { supplier: { disruption_message: string | null }; transport: { shared: boolean } }
+      brief.supplier.disruption_message = DISRUPTION
+      brief.transport.shared = true
+    })
+    expect(screen.getByText(DISRUPTION)).toBeInTheDocument()
+    expect(screen.getByText('Shared transport')).toBeInTheDocument()
+  })
+
+  it('docks every panel as an icon with no visible text, the decision first', () => {
+    phone()
+    const buttons = within(dock()).getAllByRole('button')
+    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(DOCK.map((id) => PANEL_TITLES[id]))
+    for (const b of buttons) {
+      expect(b.textContent).toBe('')
+      expect(b.querySelector('svg')).not.toBeNull()
+      expect(b).toHaveAttribute('title', b.getAttribute('aria-label'))
+    }
+    expect(screen.queryByRole('group', { name: 'Panels' })).toBeNull()
+  })
+
+  it('fills only the decision with the accent', () => {
+    phone()
+    const filled = within(dock()).getAllByRole('button').filter((b) => b.classList.contains('bg-accent'))
+    expect(filled.map((b) => b.getAttribute('aria-label'))).toEqual([PANEL_TITLES.decision])
+  })
+
+  it.each(DOCK)('the dock opens %s', (id) => {
+    const { onPanelButton } = phone()
+    const button = within(dock()).getByRole('button', { name: PANEL_TITLES[id] })
+    fireEvent.click(button)
+    expect(onPanelButton).toHaveBeenCalledExactlyOnceWith(id, button)
+  })
+
+  it('marks the open panel pressed in the dock and controls its wrapper', () => {
+    phone({ openPanel: 'market' })
+    for (const id of DOCK) {
+      const button = within(dock()).getByRole('button', { name: PANEL_TITLES[id] })
+      expect(button).toHaveAttribute('aria-pressed', String(id === 'market'))
+      expect(button).toHaveAttribute('aria-controls', `scene-panel-${id}`)
+    }
+  })
+
+  it('opens with the help card: the warning, the three lines, the manual in a new tab and the credits', () => {
+    phone()
+    const card = help()?.parentElement as HTMLElement
+    for (const line of HELP) expect(card).toHaveTextContent(line)
+    const manual = within(card).getByRole('link', { name: 'Player manual' })
+    expect(manual).toHaveAttribute('href', '/player-manual')
+    expect(manual).toHaveAttribute('target', '_blank')
+    expect(manual).toHaveAttribute('rel', 'noopener')
+    expect(within(card).getByText('3D model credits').tagName).toBe('SUMMARY')
+  })
+
+  it('has no credits button, manual link or legend outside the help card', () => {
+    phone()
+    fireEvent.click(help() as HTMLElement)
+    expect(help()).toBeNull()
+    expect(screen.queryByText('3D model credits')).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Player manual' })).toBeNull()
+    for (const line of HELP) expect(text()).not.toContain(line)
+  })
+
+  it('the "?" button folds the card and opens it again', () => {
+    phone()
+    expect(helpToggle()).toHaveAttribute('aria-expanded', 'true')
+    expect(helpToggle()).toHaveAccessibleName('Hide the 3D controls')
+    fireEvent.click(helpToggle())
+    expect(help()).toBeNull()
+    expect(helpToggle()).toHaveAttribute('aria-expanded', 'false')
+    expect(helpToggle()).toHaveAccessibleName('Show the 3D controls')
+    fireEvent.click(helpToggle())
+    expect(help()).not.toBeNull()
+  })
+
+  it('stays folded when the board mounts again in this tab', () => {
+    const { unmount } = phone()
+    fireEvent.click(help() as HTMLElement)
+    unmount()
+    const second = setup()
+    expect(help()).toBeNull()
+    fireEvent.click(helpToggle())
+    second.unmount()
+    setup()
+    expect(help()).not.toBeNull()
+  })
+
+  it('walks with a joystick, not the pad, through onMove', () => {
+    const { onMove } = phone()
+    expect(screen.queryByRole('group', { name: 'Movement controls' })).toBeNull()
+    const stick = joystick() as HTMLElement
+    stick.getBoundingClientRect = () => new DOMRect(0, 0, 112, 112)
+    fireEvent.pointerDown(stick, { pointerId: 1, clientX: 56, clientY: 10 })
+    expect(onMove).toHaveBeenLastCalledWith('forward', true)
+    fireEvent.pointerUp(stick, { pointerId: 1 })
+    expect(onMove).toHaveBeenLastCalledWith('forward', false)
+  })
+
+  it('offers a round Open button, named for the panel, while a station is in reach', () => {
+    const { onInteract } = phone({ prompt: 'Your cellar' })
+    const button = screen.getByRole('button', { name: 'Open Your cellar' })
+    expect(button.textContent).toBe('Open')
+    expect(live().contains(button)).toBe(true)
+    expect(text()).not.toContain('Press E')
+    fireEvent.click(button)
+    expect(onInteract).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the polite region in the DOM with nothing in reach', () => {
+    phone()
+    expect(live().textContent).toBe('')
+    expect(screen.queryByRole('button', { name: /^Open / })).toBeNull()
+  })
+
+  it('an open panel takes the "?", the card, the dot, the joystick and Open away, and lets go of the joystick', () => {
+    const { onMove, rerender, p } = phone({ prompt: 'Your cellar' })
+    expect(dot()).not.toBeNull()
+    const stick = joystick() as HTMLElement
+    stick.getBoundingClientRect = () => new DOMRect(0, 0, 112, 112)
+    fireEvent.pointerDown(stick, { pointerId: 1, clientX: 56, clientY: 100 })
+    expect(onMove).toHaveBeenLastCalledWith('back', true)
+    rerender(
+      <SceneHud
+        view={p.view}
+        participants={p.participants}
+        awaiting={[]}
+        openPanel="cellar"
+        onPanelButton={vi.fn()}
+        prompt="Your cellar"
+        onInteract={vi.fn()}
+        onMove={onMove}
+        drawer={null}
+      />,
+    )
+    expect(onMove).toHaveBeenLastCalledWith('back', false)
+    expect(screen.queryByRole('button', { name: /the 3D controls$/ })).toBeNull()
+    expect(help()).toBeNull()
+    expect(dot()).toBeNull()
+    expect(joystick()).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Open / })).toBeNull()
+    expect(within(dock()).getAllByRole('button')).toHaveLength(DOCK.length)
+  })
+
+  it('a phone on its side also hides the pill while a panel fills its height', () => {
+    const pill = (p: { view: PlayerView }) => screen.getByText(new RegExp(`^Day ${p.view.day}/`))
+    const closed = phone()
+    expect(pill(closed.p)).not.toHaveClass('landscape:hidden')
+    closed.unmount()
+    expect(pill(phone({ openPanel: 'market' }).p)).toHaveClass('landscape:hidden')
+  })
+
+  it('keeps the drawer mounted when a small tablet turns from a phone into none and back', () => {
+    const screenMedia = media(TOUCH, PHONE_VIEWPORT)
+    function Draft(): ReactElement {
+      const [value, setValue] = useState('')
+      return <input aria-label="draft" value={value} onChange={(e) => setValue(e.target.value)} />
+    }
+    setup({ drawer: <Draft /> })
+    const field = screen.getByLabelText('draft')
+    fireEvent.change(field, { target: { value: '40' } })
+    screenMedia.set(TOUCH)
+    expect(screen.getByRole('group', { name: 'Panels' })).toBeInTheDocument()
+    expect(screen.getByLabelText('draft')).toBe(field)
+    screenMedia.set(TOUCH, PHONE_VIEWPORT)
+    expect(screen.getByLabelText('draft')).toBe(field)
+    expect(field).toHaveValue('40')
+  })
+
+  it.each([
+    ['a desktop', [] as string[]],
+    ['a laptop with a touch screen, or a tablet', [TOUCH]],
+  ])('%s keeps the panel bar, the legend, the waiting line and the credits', (_, queries) => {
+    media(...queries)
+    setup({ awaiting: ['P2'] })
+    expect(within(screen.getByRole('group', { name: 'Panels' })).getAllByRole('button')).toHaveLength(PANEL_ORDER.length)
+    expect(screen.queryByRole('navigation', { name: 'Panels' })).toBeNull()
+    expect(screen.getByText('Drag: look around').closest('button')).toBeNull()
+    expect(screen.getByText('Waiting for: Zacatecas Rival')).toBeInTheDocument()
+    expect(screen.getByText('3D model credits')).toBeInTheDocument()
+    expect(joystick()).toBeNull()
+    expect(text()).not.toContain('optimized for phones')
+    expect(screen.queryByRole('group', { name: 'Movement controls' }) === null).toBe(queries.length === 0)
   })
 })

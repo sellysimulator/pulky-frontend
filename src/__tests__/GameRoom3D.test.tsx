@@ -46,6 +46,7 @@ import http from '../api/http'
 import { socket } from '../api/socket'
 import Board2D, { type BoardViewProps } from '../components/game/views/Board2D'
 import SceneLoading from '../components/game/views/SceneLoading'
+import { PHONE_VIEWPORT } from '../components/game/views/board3d/phoneViewport'
 import GameRoom, { BOARD_VIEWS } from '../pages/GameRoom'
 import { INITIAL_STATE, useGameStore } from '../store/gameStore'
 import { getBoardView, setBoardView, setDisplayName, setSessionToken } from '../utils/storage'
@@ -555,6 +556,58 @@ describe('SceneLoading', () => {
   it('is a status card reading Building your pulquería', () => {
     render(<SceneLoading />)
     expect(screen.getByRole('status')).toHaveTextContent('Building your pulquería')
+  })
+})
+
+describe('on a phone (§13.11.7)', () => {
+  const media = (...matching: string[]): void => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: matching.includes(query),
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }))
+  }
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('the 3D header keeps only the 2D button: everything else steps aside for the scene', async () => {
+    media('(any-pointer: coarse)', PHONE_VIEWPORT)
+    setBoardView('3D')
+    seedRunning()
+    mount()
+    await screen.findByTestId('board3d')
+    const header = screen.getByRole('banner')
+    const aside = (el: Element): boolean => el.closest('.phone-scene\\:hidden') !== null
+    for (const el of [
+      within(header).getByText('Pulque Game'),
+      within(header).getByText('K7M2QX'),
+      within(header).getByText('Don Agave'),
+      within(header).getByRole('link', { name: 'Player manual' }),
+      within(header).getByRole('button', { name: 'Account' }),
+    ]) {
+      expect(aside(el)).toBe(true)
+    }
+    const back = within(header).getByRole('button', { name: 'Switch to the 2D board' })
+    expect(aside(back)).toBe(false)
+
+    fireEvent.click(back)
+    expect(getBoardView()).toBe('2D')
+    expect(screen.queryByTestId('board3d')).toBeNull()
+    expect(decisionCard()).not.toBeNull()
+    expect(toggle()).not.toBeNull()
+  })
+
+  it('the loading card is the phone scene already, so the header does not come and go', () => {
+    media('(any-pointer: coarse)', PHONE_VIEWPORT)
+    const { container } = render(<SceneLoading />)
+    expect(container.querySelector('[data-phone-scene]')).toHaveClass('fixed', 'inset-0')
+  })
+
+  it('a laptop with a touch screen has no phone scene', () => {
+    media('(any-pointer: coarse)')
+    const { container } = render(<SceneLoading />)
+    expect(container.querySelector('[data-phone-scene]')).toBeNull()
+    expect(container.firstElementChild).toHaveClass('top-14')
   })
 })
 

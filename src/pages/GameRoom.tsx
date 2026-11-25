@@ -115,8 +115,12 @@ export default function GameRoom(): ReactElement {
   const name = participants.find((p) => p.alias === myAlias)?.display_name ?? playerView?.display_name ?? null
   const context = (
     <>
-      <span className="font-mono text-sm tracking-widest text-ink-muted">{code}</span>
-      {seated && myAlias !== null && name !== null ? <PulqueriaChip alias={myAlias} displayName={name} /> : null}
+      <span className="font-mono text-sm tracking-widest text-ink-muted phone-upright:hidden phone-scene:hidden">{code}</span>
+      {seated && myAlias !== null && name !== null ? (
+        <span className="contents phone-upright:hidden phone-scene:hidden">
+          <PulqueriaChip alias={myAlias} displayName={name} />
+        </span>
+      ) : null}
       {state === 'running' && seated ? <BoardViewToggle value={choice} support={support} onChange={choose} /> : null}
       <ManualLink to={PLAYER_MANUAL_PATH} label="Player manual" />
     </>

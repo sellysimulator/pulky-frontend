@@ -21,7 +21,8 @@ export default function RiskIndicator({ risk, variant = 'full' }: RiskIndicatorP
   const Icon = ICONS[state]
   const width = Math.round(Math.min(1, Math.max(0, risk)) * 1000) / 10
   return (
-    <span className="inline-flex items-center gap-2">
+    // It shares a form row with a price, or a table row with six columns: on a phone it wraps before it pushes them out.
+    <span className="inline-flex items-center gap-2 phone-upright:flex-wrap phone-upright:gap-y-0 phone-scene:flex-wrap phone-scene:gap-y-0">
       <span className="w-[4ch] text-right text-sm font-semibold tabular-nums">{formatPercent(risk)}</span>
       <span aria-hidden="true" className="h-2 w-16 overflow-hidden rounded-full bg-muted print:border print:border-border-control">
         <span className={['block h-full rounded-full', TONE_FILL[tone]].join(' ')} style={{ width: `${width}%` }} />

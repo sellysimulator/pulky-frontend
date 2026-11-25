@@ -17,12 +17,14 @@ import {
   getUiFlag,
   hasExported,
   hasPlayedGame,
+  isPhoneHelpHidden,
   markExported,
   markGamePlayed,
   setDisplayName,
   setGameHostSecret,
   setGuestMode,
   setHostSecret,
+  setPhoneHelpHidden,
   setSessionToken,
   setUiFlag,
 } from '../utils/storage'
@@ -246,6 +248,18 @@ describe('ui flags', () => {
   })
 })
 
+describe("the phone's 3D help card", () => {
+  it('is shown until folded, and remembered for this tab only, under the shared key', () => {
+    expect(isPhoneHelpHidden()).toBe(false)
+    setPhoneHelpHidden(true)
+    expect(isPhoneHelpHidden()).toBe(true)
+    expect(window.sessionStorage.getItem('phone_3d_help_hidden')).toBe('1')
+    expect(window.localStorage.getItem('phone_3d_help_hidden')).toBeNull()
+    setPhoneHelpHidden(false)
+    expect(isPhoneHelpHidden()).toBe(false)
+  })
+})
+
 describe('a throwing storage (private mode)', () => {
   const names = ['localStorage', 'sessionStorage'] as const
   const saved = new Map<string, PropertyDescriptor | undefined>()
@@ -310,6 +324,8 @@ describe('a throwing storage (private mode)', () => {
     expect(claimPreloadReload()).toBe(false) // never a reload loop
     expect(hasExported('9f2c1a', 'csv')).toBe(false)
     expect(() => markExported('9f2c1a', 'csv')).not.toThrow()
+    expect(isPhoneHelpHidden()).toBe(false)
+    expect(() => setPhoneHelpHidden(true)).not.toThrow()
     expect(() => setGuestMode(true)).not.toThrow()
     expect(() => setSessionToken('ABC234', 't')).not.toThrow()
     expect(() => clearSessionToken('ABC234')).not.toThrow()

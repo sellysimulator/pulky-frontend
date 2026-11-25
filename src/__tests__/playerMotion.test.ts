@@ -4,7 +4,9 @@ import {
   LOOK_SENSITIVITY,
   MAX_STEP_SECONDS,
   MOVE_SPEED,
+  PHONE_LOOK_SCALE,
   PITCH_LIMITS,
+  STICK_DEAD_ZONE,
   TURN_SPEED,
   applyLook,
   createChangeReporter,
@@ -20,6 +22,7 @@ import {
   stepMotion,
   stepPosition,
   stepYaw,
+  stickMoves,
   type KeyInput,
   type MoveKey,
 } from '../components/game/views/board3d/playerMotion'
@@ -42,6 +45,8 @@ describe('constants', () => {
     expect(LOOK_SENSITIVITY).toBe(0.0026)
     expect(PITCH_LIMITS).toEqual({ min: -Math.PI / 3, max: Math.PI / 3.2 })
     expect(TURN_SPEED).toBe(1.7)
+    expect(STICK_DEAD_ZONE).toBe(0.25)
+    expect(PHONE_LOOK_SCALE).toBe(1.8)
   })
 })
 
@@ -227,6 +232,51 @@ describe('applyLook', () => {
     const got = applyLook({ yaw: 1, pitch: 0.2 }, -10, 10)
     expect(got.yaw).toBeCloseTo(1 + 10 * LOOK_SENSITIVITY, 9)
     expect(got.pitch).toBeCloseTo(0.2 - 10 * LOOK_SENSITIVITY, 9)
+  })
+  it('a scale turns the view that much further for the same drag, inside the same pitch limits', () => {
+    const got = applyLook({ yaw: 0, pitch: 0 }, 100, -50, 1.8)
+    expect(got.yaw).toBeCloseTo(-0.468, 9)
+    expect(got.pitch).toBeCloseTo(0.234, 9)
+    expect(applyLook({ yaw: 0, pitch: 0 }, 0, -1000, 1.8).pitch).toBe(PITCH_LIMITS.max)
+  })
+})
+
+describe('stickMoves (the phone joystick)', () => {
+  const RADIUS = 56
+
+  it.each<[string, number, number, MoveKey[]]>([
+    ['up', 0, -40, ['forward']],
+    ['up and right', 40, -40, ['forward', 'right']],
+    ['right', 40, 0, ['right']],
+    ['down and right', 40, 40, ['back', 'right']],
+    ['down', 0, 40, ['back']],
+    ['down and left', -40, 40, ['back', 'left']],
+    ['left', -40, 0, ['left']],
+    ['up and left', -40, -40, ['forward', 'left']],
+  ])('%s', (_, dx, dy, moves) => {
+    expect(stickMoves(dx, dy, RADIUS)).toEqual(moves)
+  })
+
+  it('snaps a slightly crooked push to its nearest direction', () => {
+    expect(stickMoves(10, -40, RADIUS)).toEqual(['forward'])
+    expect(stickMoves(-10, 40, RADIUS)).toEqual(['back'])
+    expect(stickMoves(10, 40, RADIUS)).toEqual(['back'])
+  })
+
+  it('holds nothing inside the dead zone, a quarter of the radius', () => {
+    expect(stickMoves(0, 0, RADIUS)).toEqual([])
+    expect(stickMoves(0, -13.9, RADIUS)).toEqual([])
+    expect(stickMoves(0, -14, RADIUS)).toEqual(['forward'])
+  })
+
+  it('never turns', () => {
+    for (let angle = 0; angle < 360; angle += 15) {
+      const radians = (angle * Math.PI) / 180
+      const moves = stickMoves(Math.sin(radians) * 40, -Math.cos(radians) * 40, RADIUS)
+      expect(moves.length).toBeGreaterThan(0)
+      expect(moves).not.toContain('turnLeft')
+      expect(moves).not.toContain('turnRight')
+    }
   })
 })
 

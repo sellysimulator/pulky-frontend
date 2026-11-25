@@ -2,7 +2,7 @@
 import { createElement } from 'react'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('react-chartjs-2', () => {
   const make = (type: string) => (props: { data?: unknown; options?: unknown }) =>
@@ -12,6 +12,7 @@ vi.mock('react-chartjs-2', () => {
 
 import type { BoardViewProps } from '../components/game/views/Board2D'
 import ScenePanels from '../components/game/views/board3d/ScenePanels'
+import { PHONE_VIEWPORT } from '../components/game/views/board3d/phoneViewport'
 import { PANEL_ORDER, PANEL_TITLES, type PanelId } from '../components/game/views/board3d/sceneLayout'
 import type {
   Brief,
@@ -402,5 +403,70 @@ describe('focus', () => {
     const { show } = mount('market')
     show('details')
     expect(screen.getByRole('button', { name: 'Close Details' })).toHaveFocus()
+  })
+})
+
+describe('on a phone (§13.11.7)', () => {
+  const media = (...matching: string[]): void => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: matching.includes(query),
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }))
+  }
+  const drawer = (): HTMLElement => mount('day-stats').container.querySelector('section') as HTMLElement
+
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('the drawer is a window in the centre of the screen, capped to it', () => {
+    media('(any-pointer: coarse)', PHONE_VIEWPORT)
+    const section = drawer()
+    expect(section.className).toMatch(/\bfixed inset-0\b/)
+    expect(section.className).toMatch(/\bm-auto\b/)
+    expect(section.className).not.toMatch(/translate/)
+    expect(section.className).not.toContain('100vh')
+  })
+
+  it('leaves the dock uncovered: its height free below and above it upright, its width on both sides on its side', () => {
+    media('(any-pointer: coarse)', PHONE_VIEWPORT)
+    const classes = drawer().className.split(' ')
+    expect(classes).toContain(
+      'max-h-[calc(100dvh_-_2*(max(0.75rem,env(safe-area-inset-top),env(safe-area-inset-bottom))_+_3.25rem))]',
+    )
+    expect(classes).toContain(
+      'landscape:w-[min(48rem,calc(100vw_-_2*(max(0.75rem,env(safe-area-inset-left),env(safe-area-inset-right))_+_3.25rem)))]',
+    )
+    expect(classes).toContain('landscape:max-h-[calc(100dvh_-_2*max(0.75rem,env(safe-area-inset-top),env(safe-area-inset-bottom)))]')
+  })
+
+  it('closes with the cross alone, still named for its panel', () => {
+    media('(any-pointer: coarse)', PHONE_VIEWPORT)
+    const { onClose } = mount('day-stats')
+    const close = screen.getByRole('button', { name: `Close ${PANEL_TITLES['day-stats']}` })
+    expect(close).toHaveTextContent('')
+    fireEvent.click(close)
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('marks the section only while a phone shows a panel', () => {
+    media('(any-pointer: coarse)', PHONE_VIEWPORT)
+    const { container, show } = mount(null)
+    const section = container.querySelector('section') as HTMLElement
+    expect(section).not.toHaveAttribute('data-phone-panel')
+    show('market')
+    expect(section).toHaveAttribute('data-phone-panel')
+    show(null)
+    expect(section).not.toHaveAttribute('data-phone-panel')
+  })
+
+  it.each([
+    ['a desktop', [] as string[]],
+    ['a laptop with a touch screen', ['(any-pointer: coarse)']],
+  ])('%s keeps the drawer in its grid cell', (_, queries) => {
+    media(...queries)
+    const section = drawer()
+    expect(section.className).toBe('pointer-events-auto flex min-h-0 flex-col gap-2')
+    expect(section).not.toHaveAttribute('data-phone-panel')
   })
 })

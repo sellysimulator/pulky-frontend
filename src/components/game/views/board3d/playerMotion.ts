@@ -12,8 +12,8 @@ import type { SceneStation } from './sceneModel'
 export type MoveKey = 'forward' | 'back' | 'left' | 'right' | 'turnLeft' | 'turnRight'
 
 /**
- * `keys` is what the keyboard holds and `pad` what the on-screen movement pad holds. They are separate sets, so a key
- * released on one never lets go of the same move held on the other; every step reads them merged.
+ * `keys` is what the keyboard holds and `pad` what the on-screen movement pad or joystick holds. They are separate sets,
+ * so a key released on one never lets go of the same move held on the other; every step reads them merged.
  */
 export interface MotionState {
   keys: Set<MoveKey>
@@ -39,9 +39,13 @@ export interface KeyInput {
 export const MOVE_SPEED = 5
 export const MAX_STEP_SECONDS = 0.1
 export const LOOK_SENSITIVITY = 0.0026
+/** A drag on a phone turns the view this much further: the screen is narrow and the joystick does not turn. */
+export const PHONE_LOOK_SCALE = 1.8
 export const PITCH_LIMITS = { min: -Math.PI / 3, max: Math.PI / 3.2 } as const
 /** Radians per second while a turn button is held. */
 export const TURN_SPEED = 1.7
+/** How far from its centre the joystick must be pushed before it counts, as a part of its radius. */
+export const STICK_DEAD_ZONE = 0.25
 
 const MOVE_KEYS: Record<string, MoveKey> = {
   KeyW: 'forward',
@@ -62,6 +66,22 @@ export function createMotionState(): MotionState {
 
 export function moveKeyFor(code: string): MoveKey | null {
   return MOVE_KEYS[code] ?? null
+}
+
+/**
+ * The moves a thumb stands for, `dx` right and `dy` down from the joystick's centre: eight directions, and none inside
+ * the dead zone. They are the same held moves the pad's buttons press, so there is one walk. It never turns.
+ */
+export function stickMoves(dx: number, dy: number, radius: number): MoveKey[] {
+  if (Math.hypot(dx, dy) < radius * STICK_DEAD_ZONE) return []
+  // 0 is straight up, positive clockwise, ±4 straight down.
+  const octant = Math.round(Math.atan2(dx, -dy) / (Math.PI / 4))
+  const moves: MoveKey[] = []
+  if (Math.abs(octant) <= 1) moves.push('forward')
+  if (Math.abs(octant) >= 3) moves.push('back')
+  if (octant >= 1 && octant <= 3) moves.push('right')
+  if (octant <= -1 && octant >= -3) moves.push('left')
+  return moves
 }
 
 export function isTypingTarget(target: EventTarget | null): boolean {
@@ -141,10 +161,15 @@ export function stepMotion(
   return { ...stepPosition(state, held, yaw, delta, bounds), yaw }
 }
 
-export function applyLook(view: { yaw: number; pitch: number }, dx: number, dy: number): { yaw: number; pitch: number } {
+export function applyLook(
+  view: { yaw: number; pitch: number },
+  dx: number,
+  dy: number,
+  scale = 1,
+): { yaw: number; pitch: number } {
   return {
-    yaw: view.yaw - dx * LOOK_SENSITIVITY,
-    pitch: clamp(view.pitch - dy * LOOK_SENSITIVITY, PITCH_LIMITS.min, PITCH_LIMITS.max),
+    yaw: view.yaw - dx * LOOK_SENSITIVITY * scale,
+    pitch: clamp(view.pitch - dy * LOOK_SENSITIVITY * scale, PITCH_LIMITS.min, PITCH_LIMITS.max),
   }
 }
 
