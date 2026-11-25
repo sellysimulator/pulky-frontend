@@ -58,6 +58,28 @@ function rememberFinishedGame(gameId: string): void {
 
 const store = () => useGameStore.getState()
 
+/**
+ * A host tab that missed its resync claims the room again (spec §11.3): nothing the server sends later brings
+ * it once the game is over, and the screen would wait on "Opening the room". The server sends after releasing
+ * the room's lock, so when several pages load at once another page's room event, with a higher `seq`, can
+ * overtake this claim's events, and the seq gate drops them. A tab displaced in the lobby never got any.
+ * An answer can be overtaken too, so it may take a few; the limit is there so no answer can make it endless.
+ */
+function claimAgainIf(missing: boolean): void {
+  const { roomCode, isHost } = store()
+  if (!missing) {
+    claimsAgain = 0
+    return
+  }
+  if (!isHost || roomCode === null || claimsAgain >= CLAIM_AGAIN_LIMIT) return
+  claimsAgain += 1
+  joinWaiting(roomCode, getHostSecret(roomCode))
+}
+
+const CLAIM_AGAIN_LIMIT = 5
+/** Claims sent in a row without the answer landing. */
+let claimsAgain = 0
+
 /** Backoff after a refusal at the per-IP socket cap (spec §0.6): 2 s, doubling, at most 30 s. */
 const CAP_RETRY_FIRST_MS = 2000
 const CAP_RETRY_MAX_MS = 30_000
@@ -176,7 +198,11 @@ socket.on('config_updated', (p: ConfigUpdatedPayload) => store().applyConfigUpda
 socket.on('game_started', (p: GameStartedPayload) => store().applyGameStarted(p))
 socket.on('day_opened', (p: DayOpenedPayload) => store().applyDayOpened(p))
 socket.on('your_state', (p: YourStatePayload) => store().applyYourState(p))
-socket.on('host_state', (p: HostStatePayload) => store().applyHostState(p))
+socket.on('host_state', (p: HostStatePayload) => {
+  store().applyHostState(p)
+  // A finished room's resync goes on with `game_finished`, which checks for both.
+  claimAgainIf(p.state !== 'finished' && store().hostView === null)
+})
 socket.on('decision_submitted', (p: DecisionSubmittedPayload) =>
   store().applyDecisionSubmitted(p),
 )
@@ -193,6 +219,7 @@ socket.on('host_reconnected', (p: HostReconnectedPayload) => store().applyHostRe
 socket.on('game_finished', (p: GameFinishedPayload) => {
   rememberFinishedGame(p.game_id)
   store().applyGameFinished(p)
+  claimAgainIf(store().hostView === null || store().gamePublicId === null)
 })
 socket.on('game_persisted', (p: GamePersistedPayload) => store().applyGamePersisted(p))
 socket.on('error', (p: ServerError) => store().applyError(p))

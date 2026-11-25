@@ -34,6 +34,7 @@ vi.mock('../api/rooms', async (importOriginal) => ({
   getRoomConfig: vi.fn(() => new Promise(() => {})),
 }))
 
+import '../api/socketHandlers'
 import { socket } from '../api/socket'
 import HostRoom, { route } from '../pages/HostRoom'
 import { INITIAL_STATE, useGameStore } from '../store/gameStore'
@@ -510,5 +511,150 @@ describe('the join QR code on the host screen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show QR' }))
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
+
+/**
+ * The server sends after releasing the room's lock, so the events of a claim and the broadcasts of other
+ * pages loading at the same moment interleave on the wire. The sequences and their `seq`s are as the
+ * backend sends them (spec 11.3, 12.2), recorded with several pages of one room loading together.
+ */
+describe('HostRoom when the host_state of its claim never landed (spec 11.3)', () => {
+  const server = (event: string, payload: Obj): void => {
+    act(() => {
+      for (const listener of socket.listeners(event)) listener(payload)
+    })
+  }
+  const claims = () => calls('join_waiting').length
+  const claimed = () => server('host_claimed', { room_id: CODE, host_secret: 's3cret' })
+  const back = (seq: number) => server('participant_reconnected', { seq, alias: 'P1', display_name: 'Don Agave' })
+  const lobby = (seq: number, state: string) => server('lobby_update', lobbyUpdate({ seq, state }) as Obj)
+  const config = (seq: number) => server('config_updated', { seq, config: { random_seed: null } })
+  const state = (seq: number, room: string) =>
+    server('host_state', {
+      seq,
+      ...(hostView({ state: room, phase: room === 'finished' ? 'finished' : 'deciding' }) as unknown as Obj),
+    })
+  const finished = (seq: number) =>
+    server('game_finished', {
+      seq,
+      game_id: 'g-host-1',
+      days_played: 14,
+      ended_early: false,
+      leaderboard: [],
+      stats: { players: {}, market: {} },
+      config: {},
+    })
+  const persisted = (seq: number) => server('game_persisted', { seq, game_id: 'g-host-1' })
+  /** The whole answer to a claim of a finished room, with nothing in between. */
+  const answer = (seq: number): void => {
+    claimed()
+    lobby(seq, 'finished')
+    config(seq + 1)
+    state(seq + 2, 'finished')
+    finished(seq + 3)
+    persisted(seq + 4)
+  }
+  const results = () => screen.queryByRole('link', { name: 'See the results' })
+
+  it('a finished room whose resync other pages overtook claims again, and its console opens', () => {
+    mount()
+    expect(claims()).toBe(1)
+    server('host_reconnected', { seq: 20 })
+    claimed()
+    back(26)
+    lobby(21, 'finished')
+    config(22)
+    back(36)
+    state(23, 'finished')
+    finished(24)
+    persisted(25)
+    expect(screen.getByText('Opening the room')).toBeInTheDocument()
+    expect(claims()).toBe(2)
+
+    answer(37)
+    expect(screen.queryByText('Opening the room')).toBeNull()
+    expect(results()).toHaveAttribute('href', '/results/g-host-1')
+    expect(claims()).toBe(2)
+  })
+
+  it('a finished room whose game_finished alone was overtaken claims again for its results link', () => {
+    mount()
+    claimed()
+    lobby(21, 'finished')
+    config(22)
+    state(23, 'finished')
+    back(31)
+    finished(24)
+    persisted(25)
+    expect(results()).toBeNull()
+    expect(claims()).toBe(2)
+
+    answer(32)
+    expect(results()).toHaveAttribute('href', '/results/g-host-1')
+    expect(claims()).toBe(2)
+  })
+
+  it('a tab displaced in the lobby claims again at the end of the game, not while it runs', () => {
+    mount()
+    claimed()
+    lobby(4, 'lobby')
+    config(5)
+    // another tab of this host claims here: the start's host_state goes to it alone
+    server('game_started', { seq: 10, duration_days: 14, participants: [], config: {} })
+    server('day_opened', { seq: 11, brief: brief() as unknown as Obj })
+    expect(screen.getByText('Opening the room')).toBeInTheDocument()
+    expect(claims()).toBe(1)
+
+    finished(16)
+    persisted(17)
+    expect(claims()).toBe(2)
+    answer(18)
+    expect(screen.queryByText('Opening the room')).toBeNull()
+    expect(results()).toHaveAttribute('href', '/results/g-host-1')
+    expect(claims()).toBe(2)
+  })
+
+  it('a running room whose resync was overtaken claims again instead of waiting for a submission', () => {
+    mount()
+    claimed()
+    lobby(17, 'running')
+    config(18)
+    back(23)
+    state(19, 'running')
+    expect(screen.getByText('Opening the room')).toBeInTheDocument()
+    expect(claims()).toBe(2)
+
+    claimed()
+    lobby(24, 'running')
+    config(25)
+    state(26, 'running')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Room ABC234 · Day 5/14 (Fri)')
+    expect(claims()).toBe(2)
+  })
+
+  it('gives up after a few answers that never land, and starts over once one does', () => {
+    mount()
+    claimed()
+    back(90)
+    for (let seq = 20; seq < 40; seq += 1) state(seq, 'running')
+    expect(claims()).toBe(1 + 5)
+
+    answer(91)
+    expect(results()).toHaveAttribute('href', '/results/g-host-1')
+  })
+
+  it('a resync in order, and a game that ends on the open console, claim nothing again', () => {
+    mount()
+    claimed()
+    lobby(17, 'running')
+    config(18)
+    state(19, 'running')
+    state(24, 'finished')
+    finished(25)
+    persisted(26)
+    expect(results()).toHaveAttribute('href', '/results/g-host-1')
+    answer(27)
+    expect(claims()).toBe(1)
   })
 })
