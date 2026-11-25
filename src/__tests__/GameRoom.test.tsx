@@ -378,6 +378,7 @@ vi.mock('../auth/AuthContext', () => ({
   AuthProvider: ({ children }: { children: ReactNode }) => children,
 }))
 
+import '../api/socketHandlers'
 import { socket } from '../api/socket'
 import GameRoom, { BOARD_VIEWS, route } from '../pages/GameRoom'
 import { INITIAL_STATE, useGameStore } from '../store/gameStore'
@@ -645,5 +646,171 @@ describe('GameRoom at the end of the game', () => {
     unmount()
     expect(useGameStore.getState().playerView).not.toBeNull()
     expect(useGameStore.getState().roomState).toBe('running')
+  })
+})
+
+/**
+ * The sequences and their `seq`s are as the backend sends them to a page that rejoins (spec 11.3, 12.2), with
+ * a later event of another page between them, which makes the page drop the rest.
+ */
+describe('GameRoom when its resync never landed (spec 13.6)', () => {
+  const server = (event: string, payload: object): void => {
+    act(() => {
+      for (const listener of socket.listeners(event)) listener(payload)
+    })
+  }
+  const joined = () => server('joined', { alias: 'P1', session_token: 'tok-123', display_name: 'Don Agave' })
+  const back = (seq: number) => server('participant_reconnected', { seq, alias: 'P2', display_name: 'La Chula' })
+  const started = (seq: number) =>
+    server('game_started', { seq, duration_days: 14, participants: PARTICIPANTS, config: makeConfig(true) })
+  const opened = (seq: number) => server('day_opened', { seq, brief: makeBrief() })
+  const state = (seq: number, over: Parameters<typeof makeView>[0] = {}) =>
+    server('your_state', { seq, ...makeView({ prefill_decision: makeDecision(5), ...over }) })
+  const over = (seq: number) => state(seq, { phase: 'finished', order_windows: null, prefill_decision: null })
+  const finished = (seq: number) =>
+    server('game_finished', {
+      seq,
+      game_id: 'g-77',
+      days_played: 14,
+      ended_early: false,
+      leaderboard: [],
+      stats: { players: {}, market: {} },
+    })
+  /** The whole answer to a rejoin of a running room, with nothing in between. */
+  const answer = (seq: number): void => {
+    joined()
+    started(seq)
+    opened(seq + 1)
+    state(seq + 2)
+  }
+  const board = () => screen.queryByRole('region', { name: "Today's decision" })
+
+  beforeEach(() => {
+    setSessionToken('K7M2QX', 'tok-123')
+    setDisplayName('Don Agave')
+  })
+
+  it('rejoins, and its board opens', () => {
+    mount()
+    expect(joins()).toHaveLength(1)
+    joined()
+    back(31)
+    started(21)
+    opened(22)
+    state(23)
+    expect(screen.getByRole('status')).toHaveTextContent('Joining the room')
+    expect(joins()).toHaveLength(2)
+    expect(joins()[1][1]).toEqual({ room_id: 'K7M2QX', display_name: 'Don Agave', session_token: 'tok-123' })
+
+    answer(32)
+    expect(board()).toBeInTheDocument()
+    expect(joins()).toHaveLength(2)
+  })
+
+  it('rejoins when only game_started was overtaken: there is no board without its config', () => {
+    mount()
+    joined()
+    back(22)
+    started(21)
+    opened(23)
+    state(24)
+    expect(screen.getByRole('status')).toHaveTextContent('Joining the room')
+    expect(joins()).toHaveLength(2)
+
+    answer(25)
+    expect(board()).toBeInTheDocument()
+    expect(joins()).toHaveLength(2)
+  })
+
+  it('rejoins a finished game whose game_started alone was overtaken', () => {
+    mount()
+    joined()
+    back(22)
+    started(21)
+    over(23)
+    finished(24)
+    expect(screen.getByRole('status')).toHaveTextContent('Joining the room')
+    expect(joins()).toHaveLength(2)
+  })
+
+  it('rejoins from the lobby when the start overtook it: the board cannot open on a lobby', () => {
+    mount()
+    joined()
+    server('lobby_update', { seq: 3, state: 'lobby', participants: PARTICIPANTS, seats_total: 4, config_locked: false, can_start: true, start_blocked_reason: null })
+    server('config_updated', { seq: 4, config: makeConfig(true) })
+    back(11)
+    started(10)
+    opened(12)
+    state(13)
+    expect(board()).toBeNull()
+    expect(joins()).toHaveLength(2)
+
+    answer(14)
+    expect(board()).toBeInTheDocument()
+  })
+
+  it('rejoins a finished game for the results link', () => {
+    mount()
+    joined()
+    started(21)
+    over(22)
+    back(31)
+    finished(23)
+    expect(screen.queryByRole('link', { name: 'See the results' })).toBeNull()
+    expect(joins()).toHaveLength(2)
+
+    joined()
+    started(32)
+    over(33)
+    finished(34)
+    expect(screen.getByRole('link', { name: 'See the results' })).toHaveAttribute('href', '/results/g-77')
+    expect(joins()).toHaveLength(2)
+  })
+
+  it('gives up after a few answers that never land, and starts over once one does', () => {
+    mount()
+    joined()
+    back(90)
+    for (let seq = 20; seq < 40; seq += 1) state(seq)
+    expect(joins()).toHaveLength(1 + 5)
+
+    answer(91)
+    expect(board()).toBeInTheDocument()
+  })
+
+  it('gives up in a finished game too', () => {
+    mount()
+    joined()
+    back(90)
+    for (let seq = 20; seq < 80; seq += 3) {
+      started(seq)
+      over(seq + 1)
+      finished(seq + 2)
+    }
+    expect(joins()).toHaveLength(1 + 5)
+
+    started(91)
+    over(92)
+    finished(93)
+    expect(screen.getByRole('link', { name: 'See the results' })).toBeInTheDocument()
+  })
+
+  it('a resync in order, the days after it and the end of the game ask for nothing again', () => {
+    mount()
+    answer(21)
+    state(25, { full: false })
+    over(31)
+    finished(32)
+    expect(screen.getByRole('link', { name: 'See the results' })).toBeInTheDocument()
+    expect(joins()).toHaveLength(1)
+  })
+
+  it('a page that holds no seat asks for nothing', () => {
+    sessionStorage.clear()
+    localStorage.clear()
+    mount()
+    back(31)
+    state(23)
+    expect(joins()).toHaveLength(0)
   })
 })

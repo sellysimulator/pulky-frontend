@@ -54,10 +54,11 @@ npx tsc -b && npx eslint . && npm test -- --coverage && npm run build   # npm ru
   day** is disabled whenever the store's `connected` is false (a buffered `submit_day` would be
   replayed before the rejoin and refused), our own `disconnect().connect()` included, which is
   not `reconnecting`; never gate it on `reconnecting`.
-- **A host tab without its host view claims again** (spec §13.6, `claimAgainIf` in
-  `socketHandlers.ts`, at most five times in a row): a later room event can overtake a claim's
-  `host_state`/`game_finished` (the server sends after the lock) and the seq gate drops them, and
-  in a finished room nothing else would come.
+- **A page that missed its resync asks for it again** (spec §13.6, `resyncAgainIf` in
+  `socketHandlers.ts`, at most five times in a row): a host tab claims again, a player's page
+  rejoins. The server sends a room's events in the order of their `seq`; this is the net for a
+  host tab displaced in the lobby and for an event that was overtaken anyway. In a finished
+  room only `game_finished` asks or starts the count over.
 - `src/main.tsx` reloads the tab once on `vite:preloadError` (a chunk gone after a deploy;
   `claimPreloadReload` in `utils/storage.ts`). `firebase.json` caches `/assets/**` immutably and
   revalidates `index.html` and every route (spec §13.13); never add X-Frame-Options or a CSP there.

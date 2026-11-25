@@ -59,26 +59,36 @@ function rememberFinishedGame(gameId: string): void {
 const store = () => useGameStore.getState()
 
 /**
- * A host tab that missed its resync claims the room again (spec §11.3): nothing the server sends later brings
- * it once the game is over, and the screen would wait on "Opening the room". The server sends after releasing
- * the room's lock, so when several pages load at once another page's room event, with a higher `seq`, can
- * overtake this claim's events, and the seq gate drops them. A tab displaced in the lobby never got any.
- * An answer can be overtaken too, so it may take a few; the limit is there so no answer can make it endless.
+ * A page that missed its resync asks for it again (spec §13.6): a host tab claims the room again, a player's
+ * rejoins. Without it the host waits on "Opening the room" and the player on "Joining the room". The server
+ * sends a room's events in the order of their `seq` (spec §13.3), so this is for what that does not cover: a
+ * host tab displaced in the lobby never got a resync, and an event that was overtaken anyway is dropped by the
+ * seq gate. The limit is there so no answer can make it endless.
  */
-function claimAgainIf(missing: boolean): void {
-  const { roomCode, isHost } = store()
+function resyncAgainIf(missing: boolean): void {
   if (!missing) {
-    claimsAgain = 0
+    asksAgain = 0
     return
   }
-  if (!isHost || roomCode === null || claimsAgain >= CLAIM_AGAIN_LIMIT) return
-  claimsAgain += 1
-  joinWaiting(roomCode, getHostSecret(roomCode))
+  const { roomCode, isHost } = store()
+  if (roomCode === null || asksAgain >= ASK_AGAIN_LIMIT) return
+  const token = getSessionToken(roomCode)
+  if (!isHost && token === null) return
+  asksAgain += 1
+  if (isHost) joinWaiting(roomCode, getHostSecret(roomCode))
+  else join(roomCode, getDisplayName(), token)
 }
 
-const CLAIM_AGAIN_LIMIT = 5
-/** Claims sent in a row without the answer landing. */
-let claimsAgain = 0
+const ASK_AGAIN_LIMIT = 5
+/** Resyncs asked for in a row without the answer landing. */
+let asksAgain = 0
+
+/** What the page of a started game cannot show without: the host's view, or the player's, config and state. */
+function viewMissing(): boolean {
+  const { isHost, hostView, playerView, config, roomState } = store()
+  if (isHost) return hostView === null
+  return playerView === null || config === null || (roomState !== 'running' && roomState !== 'finished')
+}
 
 /** Backoff after a refusal at the per-IP socket cap (spec §0.6): 2 s, doubling, at most 30 s. */
 const CAP_RETRY_FIRST_MS = 2000
@@ -197,11 +207,14 @@ socket.on('lobby_update', (p: LobbyUpdatePayload) => store().applyLobbyUpdate(p)
 socket.on('config_updated', (p: ConfigUpdatedPayload) => store().applyConfigUpdated(p))
 socket.on('game_started', (p: GameStartedPayload) => store().applyGameStarted(p))
 socket.on('day_opened', (p: DayOpenedPayload) => store().applyDayOpened(p))
-socket.on('your_state', (p: YourStatePayload) => store().applyYourState(p))
+socket.on('your_state', (p: YourStatePayload) => {
+  store().applyYourState(p)
+  // A finished room's resync goes on with `game_finished`, which checks for both.
+  if (p.phase !== 'finished') resyncAgainIf(viewMissing())
+})
 socket.on('host_state', (p: HostStatePayload) => {
   store().applyHostState(p)
-  // A finished room's resync goes on with `game_finished`, which checks for both.
-  claimAgainIf(p.state !== 'finished' && store().hostView === null)
+  if (p.state !== 'finished') resyncAgainIf(viewMissing())
 })
 socket.on('decision_submitted', (p: DecisionSubmittedPayload) =>
   store().applyDecisionSubmitted(p),
@@ -219,7 +232,7 @@ socket.on('host_reconnected', (p: HostReconnectedPayload) => store().applyHostRe
 socket.on('game_finished', (p: GameFinishedPayload) => {
   rememberFinishedGame(p.game_id)
   store().applyGameFinished(p)
-  claimAgainIf(store().hostView === null || store().gamePublicId === null)
+  resyncAgainIf(viewMissing() || store().gamePublicId === null)
 })
 socket.on('game_persisted', (p: GamePersistedPayload) => store().applyGamePersisted(p))
 socket.on('error', (p: ServerError) => store().applyError(p))

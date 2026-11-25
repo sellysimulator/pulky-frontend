@@ -644,6 +644,20 @@ describe('HostRoom when the host_state of its claim never landed (spec 11.3)', (
     expect(results()).toHaveAttribute('href', '/results/g-host-1')
   })
 
+  it('gives up in a finished room too', () => {
+    mount()
+    claimed()
+    back(90)
+    for (let seq = 20; seq < 80; seq += 2) {
+      state(seq, 'finished')
+      finished(seq + 1)
+    }
+    expect(claims()).toBe(1 + 5)
+
+    answer(91)
+    expect(results()).toHaveAttribute('href', '/results/g-host-1')
+  })
+
   it('a resync in order, and a game that ends on the open console, claim nothing again', () => {
     mount()
     claimed()
