@@ -111,7 +111,12 @@ export default function OrderSection({ kind, view, value, onChange, error, onFie
             error={open ? error : undefined}
           />
         </div>
-        {context ? <p className="min-w-0 flex-1 pt-2.5 text-sm text-ink-muted tabular-nums">{context}</p> : null}
+        {context ? (
+          // Futures: the badge shares the row, so on an upright phone the text takes a line of its own, clear of it.
+          <p className={`min-w-0 flex-1 pt-2.5 text-sm text-ink-muted tabular-nums ${spot ? '' : 'phone-upright:basis-full'}`}>
+            {context}
+          </p>
+        ) : null}
         {!spot && open && daysLeft > 0 ? (
           <span className="pt-2">
             <Badge tone={daysLeft === 1 ? 'warning' : 'neutral'} icon={FileClock}>

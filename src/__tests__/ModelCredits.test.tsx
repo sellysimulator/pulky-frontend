@@ -41,3 +41,20 @@ describe('ModelCredits', () => {
     }
   })
 })
+
+describe('ModelCredits inside the help card of a phone', () => {
+  it('says the same, in a list that flows in the card instead of opening upwards', () => {
+    const { container, unmount } = render(<ModelCredits />)
+    const said = container.textContent
+    const floating = screen.getByRole('list', { hidden: true })
+    expect(floating).toHaveClass('absolute', 'bottom-full')
+    unmount()
+
+    const inline = render(<ModelCredits inline />)
+    expect(inline.container.textContent).toBe(said)
+    expect(screen.getByText('3D model credits').tagName).toBe('SUMMARY')
+    const list = screen.getByRole('list', { hidden: true })
+    expect(list).not.toHaveClass('absolute')
+    expect(within(list).getAllByRole('link', { hidden: true })).toHaveLength(MODEL_CREDITS.length * 3 + 2)
+  })
+})

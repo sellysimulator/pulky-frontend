@@ -19,6 +19,8 @@ export const LAYER_Y = { ground: 0, floor: 0.01, road: 0.02, contact: 0.03 } as 
 export const SURFACE_TEXT_OFFSET = 0.02
 export const MOVEMENT_BOUNDS = { minX: -9.5, maxX: 9.5, minZ: -15.5, maxZ: 15.5 } as const
 export const SPAWN = { position: [0, 1.7, 14] as Vec3, yaw: 0, pitch: -0.08 } as const
+/** The camera's vertical field of view in degrees: its own, and the wider one of an upright phone. */
+export const FOV = { wide: 70, upright: 90 } as const
 export const INTERACT_DISTANCE = 3
 export const STAND_OFFS: Record<StationId, Vec3> = {
   decision: [0, 0, 10.5],

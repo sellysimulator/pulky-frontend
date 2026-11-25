@@ -310,3 +310,17 @@ export function getBoardView(): string | null {
 export function setBoardView(view: BoardView): void {
   writeLocal(BOARD_VIEW_KEY, view)
 }
+
+// ---------------------------------------------------------------- the phone's 3D help card
+
+/** The same key in every Novus game; not `pulky.*`, so sign-out leaves it alone. */
+const PHONE_HELP_HIDDEN_KEY = 'phone_3d_help_hidden'
+
+/** Whether this tab folded the phone's 3D help card away, so it stays folded when the 3D board mounts again. */
+export function isPhoneHelpHidden(): boolean {
+  return readSession(PHONE_HELP_HIDDEN_KEY) === '1'
+}
+
+export function setPhoneHelpHidden(hidden: boolean): void {
+  writeSession(PHONE_HELP_HIDDEN_KEY, hidden ? '1' : '0')
+}

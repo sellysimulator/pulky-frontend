@@ -57,7 +57,8 @@ export default function AppHeader({ context }: { context?: ReactNode }): ReactEl
   const initial = source ? Array.from(source)[0].toUpperCase() : '?'
 
   return (
-    <header className="h-14 border-b border-border bg-card">
+    // `phone-scene`: a phone's 3D board takes the whole screen, and only its 2D button (`BoardViewToggle`) stays.
+    <header className="h-14 border-b border-border bg-card phone-scene:h-0 phone-scene:border-b-0">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:top-[max(0.5rem,env(safe-area-inset-top))] focus:left-[max(0.5rem,env(safe-area-inset-left))] focus:z-50 focus:rounded-md focus:bg-card focus:px-4 focus:py-2"
@@ -65,13 +66,14 @@ export default function AppHeader({ context }: { context?: ReactNode }): ReactEl
         Skip to main content
       </a>
       <div className="mx-auto flex h-full max-w-console items-center gap-4 px-4 md:px-6">
-        <Link to="/home" className="flex items-center gap-2">
+        <Link to="/home" className="flex items-center gap-2 phone-scene:hidden">
           <BrandMark className="size-7" />
-          <span className="font-display text-xl font-bold">Pulque Game</span>
+          {/* A room's context takes the wordmark's place on an upright phone; together they run past the screen. */}
+          <span className={`font-display text-xl font-bold ${context ? 'phone-upright:sr-only' : ''}`}>Pulque Game</span>
         </Link>
         <div className="ml-auto flex items-center gap-3">
           {context}
-          <div ref={menuRef} className="relative">
+          <div ref={menuRef} className="relative phone-scene:hidden">
             <button
               type="button"
               aria-label="Account"
@@ -81,7 +83,7 @@ export default function AppHeader({ context }: { context?: ReactNode }): ReactEl
               className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-1 text-sm font-medium text-ink-muted transition-colors hover:bg-muted"
             >
               <Avatar photoURL={user?.photoURL ?? null} initial={initial} guest={guest} />
-              {guest ? <span>Guest</span> : null}
+              {guest ? <span className={context ? 'phone-upright:sr-only' : undefined}>Guest</span> : null}
             </button>
             {menuOpen ? (
               <div role="menu" className="absolute top-full right-0 z-40 mt-1 flex min-w-44 flex-col rounded-md border border-border bg-card p-1 shadow-raised">

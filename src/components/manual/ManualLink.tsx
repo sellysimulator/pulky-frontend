@@ -26,7 +26,8 @@ export function ManualLinks(): ReactElement {
 /**
  * The manual link in a room's header. It opens a new tab, so reading the
  * manual never unmounts the room: a decision draft, the 3D walk and the host's
- * unsent settings stay as they were (spec §13.15).
+ * unsent settings stay as they were (spec §13.15). On a phone's 3D board the
+ * link is in the HUD's help card instead.
  */
 export default function ManualLink({ to, label }: { to: string; label: string }): ReactElement {
   return (
@@ -34,7 +35,7 @@ export default function ManualLink({ to, label }: { to: string; label: string })
       href={to}
       target="_blank"
       rel="noopener"
-      className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md px-2 text-sm font-medium text-ink-muted transition-colors hover:bg-muted hover:text-ink"
+      className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md px-2 text-sm font-medium text-ink-muted transition-colors hover:bg-muted hover:text-ink phone-scene:hidden"
     >
       <BookOpen size={16} aria-hidden="true" />
       <span className="sr-only md:not-sr-only">{label}</span>

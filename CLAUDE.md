@@ -54,6 +54,11 @@ npx tsc -b && npx eslint . && npm test -- --coverage && npm run build   # npm ru
   day** is disabled whenever the store's `connected` is false (a buffered `submit_day` would be
   replayed before the rejoin and refused), our own `disconnect().connect()` included, which is
   not `reconnecting`; never gate it on `reconnecting`.
+- **A page that missed its resync asks for it again** (spec §13.6, `resyncAgainIf` in
+  `socketHandlers.ts`, at most five times in a row): a host tab claims again, a player's page
+  rejoins. The server sends a room's events in the order of their `seq`; this is the net for a
+  host tab displaced in the lobby and for an event that was overtaken anyway. In a finished
+  room only `game_finished` asks or starts the count over.
 - `src/main.tsx` reloads the tab once on `vite:preloadError` (a chunk gone after a deploy;
   `claimPreloadReload` in `utils/storage.ts`). `firebase.json` caches `/assets/**` immutably and
   revalidates `index.html` and every route (spec §13.13); never add X-Frame-Options or a CSP there.
@@ -76,6 +81,14 @@ npx tsc -b && npx eslint . && npm test -- --coverage && npm run build   # npm ru
 - **3D board** (spec §13.11): layout numbers live only in `board3d/sceneLayout.ts`; a visual
   fix changes them there and keeps the `sceneModel.test.ts` sweep green. `Board3D.tsx` and
   `board3d/render/**` cannot run in jsdom and are excluded from coverage.
+- **3D on a phone** (`usePhoneViewport`: touch is the *main* pointer, so a touch laptop and a
+  desktop window never match): `SceneHud` renders `PhoneHud` (pill, "?" card, icon dock,
+  `Joystick` through `stickMoves`) around the same drawer, which must keep its place in the tree
+  (it holds the decision's draft; a small tablet flips the query by rotating). The layout and its
+  copy are the same in every Novus game (`../../game_stack.md`, item 5 of the touch rule).
+  `data-phone-scene` (on `Board3D` and `SceneLoading`) locks the page and empties the header by
+  CSS (`phone-scene:` in `index.css`); `data-phone-panel` (`ScenePanels`) hides the 2D button on a
+  sideways phone. No field under 16px on a touch screen: never put `text-sm` on an input itself.
 - The `pulky:forbid-three-in-entry-graph` plugin (`vite.config.ts`) fails the build when the
   entry chunk statically reaches `three`. To check it, add a used import to
   `src/pages/GameRoom.tsx` (`import { Vector3 } from 'three'; export const ORIGIN = new

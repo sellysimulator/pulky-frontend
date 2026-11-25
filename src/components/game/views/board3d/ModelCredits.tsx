@@ -9,14 +9,31 @@ function Link({ href, children }: { href: string; children: string }): ReactElem
   )
 }
 
+interface ModelCreditsProps {
+  /** Inside the phone's help card: a plain line whose list opens below it, in the card's own scroll. */
+  inline?: boolean
+}
+
 /** CC BY 4.0 asks for the author, the licence, the source and the changes: shown here, in the file and in the README. */
-export default function ModelCredits(): ReactElement {
+export default function ModelCredits({ inline = false }: ModelCreditsProps): ReactElement {
   return (
-    <details className="pointer-events-auto relative">
-      <summary className="inline-flex h-9 cursor-pointer list-none items-center rounded-md border border-border bg-card px-3 text-sm font-semibold text-ink shadow-card">
+    <details className={inline ? undefined : 'pointer-events-auto relative'}>
+      <summary
+        className={
+          inline
+            ? 'cursor-pointer py-3 leading-5 font-semibold text-ink'
+            : 'inline-flex h-9 cursor-pointer list-none items-center rounded-md border border-border bg-card px-3 text-sm font-semibold text-ink shadow-card'
+        }
+      >
         3D model credits
       </summary>
-      <ul className="absolute bottom-full left-0 mb-2 flex w-80 flex-col gap-2 rounded-md border border-border bg-card p-3 text-sm text-ink shadow-raised">
+      <ul
+        className={
+          inline
+            ? 'flex flex-col gap-2 pb-3 text-ink'
+            : 'absolute bottom-full left-0 mb-2 flex w-80 flex-col gap-2 rounded-md border border-border bg-card p-3 text-sm text-ink shadow-raised'
+        }
+      >
         {MODEL_CREDITS.map((credit) => (
           <li key={credit.file}>
             <Link href={credit.sourceUrl}>{credit.title}</Link> by <Link href={credit.authorUrl}>{credit.author}</Link>,{' '}

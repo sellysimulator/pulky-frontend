@@ -157,6 +157,23 @@ describe('src/index.css (design.md §12.1)', () => {
     expect(body).toMatch(/padding-left:\s*env\(safe-area-inset-left\)/)
     expect(body).toMatch(/padding-right:\s*env\(safe-area-inset-right\)/)
   })
+
+  it('lets no field under 16px onto a touch screen, where iOS zooms the page in (game_stack.md, the touch rule)', () => {
+    expect(stripComments(css)).toMatch(
+      /@media \(pointer: coarse\) \{\s*input,\s*select,\s*textarea\s*\{\s*font-size:\s*max\(1rem, 1em\)/,
+    )
+  })
+
+  it("stops the page scrolling under a phone's 3D board, and nowhere else (design.md §14.4)", () => {
+    const body = stripComments(css)
+    const lock = /html:has\(\[data-phone-scene\]\),\s*html:has\(\[data-phone-scene\]\) body\s*\{([^}]*)\}/.exec(body)?.[1] ?? ''
+    expect(lock).toMatch(/height:\s*100dvh/)
+    expect(lock).toMatch(/overflow:\s*hidden/)
+    expect(lock).toMatch(/overscroll-behavior:\s*none/)
+    expect(lock).toMatch(/touch-action:\s*manipulation/)
+    expect(body.match(/100dvh/g)).toHaveLength(1)
+    expect(body).toMatch(/@custom-variant phone-scene \(body:has\(\[data-phone-scene\]\) &\);/)
+  })
 })
 
 describe('index.html (design.md §12.2)', () => {
